@@ -1,0 +1,154 @@
+#:schema https://raw.githubusercontent.com/CPC-GALLOS/GallosOS/main/schema/directives.schema.json
+# ==============================================================================
+# GallosOS Directives Profile: Maratona SBC de Programação (ICPC Latin America)
+# ==============================================================================
+# Reference & Upstream Ecosystem:
+# - Maratona Linux Official Repository & Package Ecosystem:
+#   * Upstream GitHub: https://github.com/maratona-linux
+#   * Official SBC portal: https://maratona.sbc.org.br/
+# - Sociedade Brasileira de Computação (SBC) / ICPC South America Championship
+# - Official Latin America Toolchain Parity:
+#   * C/C++: GCC 14.2.0 (g++ -O2 -std=c++20 / c++23)
+#   * Java: OpenJDK 21.0.8 (Javac)
+#   * Python: Python 3.12 / PyPy3 (PyPy 7.3.15)
+#   * Kotlin: kotlinc-jvm 2.1.0 (maratona-linguagens standard)
+# - Network Judge: BOCA Judge with default-DROP kernel packet filtering & CUPS printing.
+# ==============================================================================
+
+[global]
+timezone = "America/Sao_Paulo"
+config_expiration = "2026-11-20T23:59:59Z"
+available_keyboard_layouts = ["br", "us", "latam", "es"]
+default_keyboard_layout = "br"
+enable_contest_mode = true
+enable_event_mode = true
+
+[branding]
+name = "Maratona SBC de Programação 2026"
+organizer = "Sociedade Brasileira de Computação (SBC)"
+logo_url = "/usr/share/gallos/branding/sbc-logo.png"
+boot_splash_logo_url = "/usr/share/gallos/branding/sbc-splash.png"
+show_powered_by_gallos = true
+
+# ------------------------------------------------------------------------------
+# Contest Mode: Strict 5-Hour Official Competition
+# ------------------------------------------------------------------------------
+[contest]
+# Only designated BOCA judge IP/domain and local scoreboards are accessible
+allowed_websites = [
+    "boca.sbc.org.br",
+    "score.sbc.org.br",
+    "clarifications.sbc.org.br"
+]
+allow_usb_storage = false
+wallpaper = "default"
+
+software = [
+    "langs/gcc",
+    "langs/g++",
+    "langs/pypy3",
+    "langs/openjdk",
+    "langs/kotlinc",
+    "programming/vscodium",
+    "programming/clion",
+    "programming/intellij",
+    "programming/pycharm",
+    "programming/geany",
+    "programming/neovim",
+    "tools/byobu",
+    "docs/cppreference",
+    "docs/javareference",
+    "docs/pythonreference"
+]
+
+[[contest.schedule]]
+start = "2026-11-14T14:00:00-03:00"
+end   = "2026-11-14T19:00:00-03:00"
+
+[contest.audit]
+enable_screen_capture = true
+screenshot_interval_secs = 60
+enable_code_backup = true
+backup_interval_secs = 300
+enable_fleet_telemetry = true
+
+[[contest.bookmarks]]
+name = "BOCA Judge Portal"
+url  = "https://boca.sbc.org.br"
+
+[[contest.bookmarks]]
+name = "Live Scoreboard"
+url  = "https://score.sbc.org.br"
+
+[[contest.bookmarks]]
+name = "C++ Reference (Offline)"
+url  = "file:///usr/share/doc/cppreference/index.html"
+
+[[contest.bookmarks]]
+name = "Java 21 Documentation (Offline)"
+url  = "file:///usr/share/doc/openjdk-21-doc/api/index.html"
+
+[[contest.bookmarks]]
+name = "Python 3 Documentation (Offline)"
+url  = "file:///usr/share/doc/python3/html/index.html"
+
+[[contest.bookmarks]]
+name = "Kotlin 2.1 Manual (Offline PDF)"
+url  = "file:///usr/share/doc/maratona-kotlin-doc/kotlin-reference.pdf"
+
+# ------------------------------------------------------------------------------
+# Event Mode: Warm-up / Simulado Session (Day Before)
+# ------------------------------------------------------------------------------
+[event]
+allowed_websites = [
+    "boca.sbc.org.br",
+    "score.sbc.org.br"
+]
+allow_usb_storage = true
+wallpaper = "default"
+
+software = [
+    "langs/gcc",
+    "langs/g++",
+    "langs/pypy3",
+    "langs/openjdk",
+    "programming/vscodium",
+    "programming/clion",
+    "programming/intellij",
+    "programming/geany"
+]
+
+[[event.schedule]]
+start = "2026-11-13T16:00:00-03:00"
+end   = "2026-11-13T18:30:00-03:00"
+
+[[event.bookmarks]]
+name = "BOCA Simulado"
+url  = "https://boca.sbc.org.br"
+
+# ------------------------------------------------------------------------------
+# Default Mode: Fallback Setup Outside Scheduled Windows
+# ------------------------------------------------------------------------------
+[default]
+allowed_websites = [
+    "maratona.sbc.org.br",
+    "icpc.global"
+]
+allow_usb_storage = true
+wallpaper = "default"
+
+software = [
+    "langs/gcc",
+    "langs/g++",
+    "langs/python3",
+    "programming/geany"
+]
+
+# ------------------------------------------------------------------------------
+# Printing Subsystem: Automated Syntax Highlighting & Team Header Injection
+# ------------------------------------------------------------------------------
+[contest.printing]
+mode = "hosted"
+default_printer = "Arena-Printer-01"
+print_metadata_header = true
+max_pages_per_job = 10

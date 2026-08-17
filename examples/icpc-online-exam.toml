@@ -1,0 +1,94 @@
+#:schema https://raw.githubusercontent.com/CPC-GALLOS/GallosOS/main/schema/directives.schema.json
+# ==============================================================================
+# GallosOS Directives Profile: ICPC Online Preliminary (CodeChef Exam Mode)
+# ==============================================================================
+# Inspiration & Reference Source:
+# - Official ICPC India 2025 Preliminary Online Contest Guidelines:
+#   * contenv.pdf: https://icpc-iiitdm.vercel.app/Icpc%202025/contenv.pdf
+#   * setupguide.pdf: https://indiaicpc.in/setupguide.pdf
+# - Enforcement Profile:
+#   * Platform: CodeChef in Exam Mode (single-browser lockdown, tab-switch lock)
+#   * Network: Strict Default-DROP firewall allowing only codechef.com & indiaicpc.in
+#   * Anti-AI: All external LLMs, OpenAI, Copilot, and cloud IDEs blocked at packet level
+#   * Security: Disables virtual terminals, USB storage, and non-essential background tasks
+#   * Proctoring: Scheduled full desktop + PipeWire webcam/audio recording
+# ==============================================================================
+
+[global]
+timezone = "Asia/Kolkata"
+config_expiration = "2026-11-09T00:00:00Z"
+available_keyboard_layouts = ["us", "latam", "es"]
+default_keyboard_layout = "us"
+enable_contest_mode = true
+enable_event_mode = false
+
+[branding]
+name = "ICPC India Preliminary Online Contest 2025/2026"
+organizer = "IIITDM & ICPC India"
+logo_url = "/usr/share/gallos/branding/india-icpc-logo.png"
+boot_splash_logo_url = "/usr/share/gallos/branding/india-icpc-splash.png"
+show_powered_by_gallos = true
+
+# ------------------------------------------------------------------------------
+# Contest Mode: 3-Hour Online Examination Window
+# ------------------------------------------------------------------------------
+[contest]
+allowed_websites = [
+    "codechef.com",
+    "*.codechef.com",
+    "indiaicpc.in",
+    "*.indiaicpc.in"
+]
+allow_usb_storage = false
+wallpaper = "default"
+
+software = [
+    "internet/chromium",
+    "langs/gcc",
+    "langs/g++",
+    "langs/pypy3",
+    "langs/openjdk",
+    "langs/kotlinc",
+    "tools/byobu"
+]
+
+[[contest.schedule]]
+start = "2026-11-08T13:30:00+05:30"
+end   = "2026-11-08T16:30:00+05:30"
+
+[contest.audit]
+enable_screen_capture = true
+screenshot_interval_secs = 30
+enable_code_backup = true
+backup_interval_secs = 120
+enable_fleet_telemetry = true
+
+[[contest.bookmarks]]
+name = "CodeChef Exam Portal"
+url  = "https://www.codechef.com"
+
+[[contest.bookmarks]]
+name = "ICPC India Portal"
+url  = "https://indiaicpc.in"
+
+# ------------------------------------------------------------------------------
+# Default Mode: Before & After the Contest
+# ------------------------------------------------------------------------------
+[default]
+allowed_websites = [
+    "indiaicpc.in",
+    "codechef.com"
+]
+allow_usb_storage = false
+wallpaper = "default"
+
+software = [
+    "internet/chromium"
+]
+
+# ------------------------------------------------------------------------------
+# Printing Subsystem: Disabled for Remote Online Examination
+# ------------------------------------------------------------------------------
+[contest.printing]
+mode = "none"
+

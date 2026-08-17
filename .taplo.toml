@@ -1,0 +1,11 @@
+# Taplo TOML Language Server Configuration
+# https://taplo.tamasfe.dev/configuration/developing-schemas.html
+
+[[rule]]
+include = ["examples/*.toml", "**/*gallos.toml"]
+[rule.schema]
+path = "schema/directives.schema.json"
+
+[formatting]
+align_entries = false
+reorder_keys = false

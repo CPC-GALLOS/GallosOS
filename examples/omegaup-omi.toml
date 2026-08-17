@@ -1,0 +1,130 @@
+#:schema https://raw.githubusercontent.com/CPC-GALLOS/GallosOS/main/schema/directives.schema.json
+# ==============================================================================
+# GallosOS Directives Profile: omegaUp / OMI (Olimpiada Mexicana de Informática)
+# ==============================================================================
+# Inspiration & Reference Source:
+# - Official omegaUp Contest Platform Configuration
+# - HuronOS omegaUp Firewall Specification:
+#   * Reference: https://github.com/huronOS/website/blob/development/docs/usage/directives/firewall/omegaup.md
+# - Enforcement Profile:
+#   * Whitelists omegaUp web app, ephemeral grader endpoints, and essential CDNs
+#   * Provides C/C++ (GCC), Python, Java, and Karel the Robot simulators
+# ==============================================================================
+
+[global]
+timezone = "America/Mexico_City"
+config_expiration = "2026-10-31T23:59:59Z"
+available_keyboard_layouts = ["latam", "es", "us"]
+default_keyboard_layout = "latam"
+enable_contest_mode = true
+enable_event_mode = true
+
+[branding]
+name = "Olimpiada Mexicana de Informática (OMI) 2026"
+organizer = "Comité Mexicano de Informática (COMI)"
+logo_url = "/usr/share/gallos/branding/omi-logo.png"
+boot_splash_logo_url = "/usr/share/gallos/branding/omi-splash.png"
+show_powered_by_gallos = true
+
+# ------------------------------------------------------------------------------
+# Contest Mode: 5-Hour Official OMI Competition Window
+# ------------------------------------------------------------------------------
+[contest]
+allowed_websites = [
+    "omegaup.com",
+    "*.omegaup.com",
+    "maxcdn.bootstrapcdn.com",
+    "samhebert.net",
+    "cdnjs.cloudflare.com"
+]
+allow_usb_storage = false
+wallpaper = "default"
+
+software = [
+    "internet/chromium",
+    "langs/gcc",
+    "langs/g++",
+    "langs/python3",
+    "langs/openjdk",
+    "programming/vscodium",
+    "programming/geany",
+    "programming/codeblocks",
+    "docs/cppreference"
+]
+
+[[contest.schedule]]
+start = "2026-10-15T09:00:00-06:00"
+end   = "2026-10-15T14:00:00-06:00"
+
+[contest.audit]
+enable_screen_capture = true
+screenshot_interval_secs = 60
+enable_code_backup = true
+backup_interval_secs = 180
+enable_fleet_telemetry = true
+
+[[contest.bookmarks]]
+name = "omegaUp OMI Contest"
+url  = "https://omegaup.com"
+
+[[contest.bookmarks]]
+name = "Offline C++ Reference"
+url  = "file:///usr/share/doc/cppreference/index.html"
+
+# ------------------------------------------------------------------------------
+# Event Mode: Practice Session & Problem Analysis
+# ------------------------------------------------------------------------------
+[event]
+allowed_websites = [
+    "omegaup.com",
+    "*.omegaup.com",
+    "olimpiadadeinformatica.org.mx",
+    "cdnjs.cloudflare.com"
+]
+allow_usb_storage = true
+wallpaper = "default"
+
+software = [
+    "internet/chromium",
+    "langs/gcc",
+    "langs/g++",
+    "langs/python3",
+    "programming/vscodium",
+    "programming/geany"
+]
+
+[[event.schedule]]
+start = "2026-10-14T15:00:00-06:00"
+end   = "2026-10-14T18:00:00-06:00"
+
+[[event.bookmarks]]
+name = "omegaUp Practice"
+url  = "https://omegaup.com"
+
+# ------------------------------------------------------------------------------
+# Default Mode: Fallback Configuration
+# ------------------------------------------------------------------------------
+[default]
+allowed_websites = [
+    "olimpiadadeinformatica.org.mx",
+    "omegaup.com"
+]
+allow_usb_storage = true
+wallpaper = "default"
+
+software = [
+    "internet/chromium",
+    "langs/gcc",
+    "langs/g++",
+    "programming/geany"
+]
+
+# ------------------------------------------------------------------------------
+# Printing Subsystem: Venue Controller USB Printer Spooler
+# ------------------------------------------------------------------------------
+[contest.printing]
+mode = "hosted"
+default_printer = "OMI-Sede-Laser"
+print_metadata_header = true
+max_pages_per_job = 10
+

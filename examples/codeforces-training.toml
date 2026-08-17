@@ -1,0 +1,110 @@
+#:schema https://raw.githubusercontent.com/CPC-GALLOS/GallosOS/main/schema/directives.schema.json
+# ==============================================================================
+# GallosOS Directives Profile: Training Camp & Codeforces / AtCoder Practice
+# ==============================================================================
+# Inspiration & Reference Source:
+# - Codeforces official contest environment recommendations:
+#   * Domains for Groups Spec: https://codeforces.com/blog/entry/51787
+#   * HuronOS Codeforces Firewall Recipe: https://github.com/huronOS/website/blob/development/docs/usage/directives/firewall/codeforces.md
+# - Multi-Platform Training Camp Architecture:
+#   * Open platform access: Codeforces, AtCoder, CSES, Kattis, VJudge, GitHub
+#   * Extended Compiler Suite: GCC 14, Clang 18, Rust 1.75+, PyPy3, Python 3.12, OpenJDK 21, Kotlin
+#   * IDE Suite: CLion, IntelliJ, PyCharm, VSCodium, Geany, Neovim
+#   * Persistent Overlay: Enabled for training camps to preserve student work between days
+# ==============================================================================
+
+[global]
+timezone = "America/Mexico_City"
+config_expiration = "2026-12-31T23:59:59Z"
+available_keyboard_layouts = ["latam", "us", "es", "dvorak"]
+default_keyboard_layout = "latam"
+enable_contest_mode = false
+enable_event_mode = true
+
+[branding]
+name = "Competitive Programming Summer Camp 2026"
+organizer = "Gallos Club & Facultad de Ciencias"
+show_powered_by_gallos = true
+
+# ------------------------------------------------------------------------------
+# Event Mode: Daily Practice Sessions & Virtual Contests
+# ------------------------------------------------------------------------------
+[event]
+allowed_websites = [
+    "codeforces.com",
+    "*.codeforces.com",
+    "atcoder.jp",
+    "*.atcoder.jp",
+    "cses.fi",
+    "open.kattis.com",
+    "vjudge.net",
+    "github.com",
+    "*.github.com"
+]
+allow_usb_storage = true
+wallpaper = "default"
+
+software = [
+    "internet/chromium",
+    "internet/firefox",
+    "langs/gcc",
+    "langs/g++",
+    "langs/clang",
+    "langs/rust",
+    "langs/pypy3",
+    "langs/python3",
+    "langs/openjdk",
+    "langs/kotlinc",
+    "programming/vscodium",
+    "programming/clion",
+    "programming/intellij",
+    "programming/pycharm",
+    "programming/geany",
+    "programming/neovim",
+    "tools/byobu",
+    "docs/cppreference",
+    "docs/rustreference"
+]
+
+[[event.schedule]]
+start = "2026-07-01T09:00:00-06:00"
+end   = "2026-07-31T18:00:00-06:00"
+
+[[event.bookmarks]]
+name = "Codeforces"
+url  = "https://codeforces.com"
+
+[[event.bookmarks]]
+name = "AtCoder"
+url  = "https://atcoder.jp"
+
+[[event.bookmarks]]
+name = "CSES Problem Set"
+url  = "https://cses.fi/problemset/"
+
+[[event.bookmarks]]
+name = "Virtual Judge"
+url  = "https://vjudge.net"
+
+# ------------------------------------------------------------------------------
+# Default Mode: Fallback Configuration
+# ------------------------------------------------------------------------------
+[default]
+allowed_websites = ["*"]
+allow_usb_storage = true
+wallpaper = "default"
+
+software = [
+    "internet/chromium",
+    "langs/gcc",
+    "langs/g++",
+    "langs/python3",
+    "programming/geany"
+]
+
+# ------------------------------------------------------------------------------
+# Printing Subsystem: Disabled for Virtual Training Camp
+# ------------------------------------------------------------------------------
+[contest.printing]
+mode = "none"
+

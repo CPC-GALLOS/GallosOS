@@ -1,0 +1,144 @@
+#:schema https://raw.githubusercontent.com/CPC-GALLOS/GallosOS/main/schema/directives.schema.json
+# ==============================================================================
+# GallosOS Directives Profile: ICPC Onsite Contest (Regional / World Finals)
+# ==============================================================================
+# Inspiration & Reference Source:
+# - ICPC Gran Premio de México official contest configuration:
+#   * Upstream HDF: https://raw.githubusercontent.com/CPC-GALLOS/icpc-gpm-uaa-huronos/refs/heads/main/icpc-gpm-2026-3rd-date.hdf
+#   * Event: ICPC Gran Premio de México (Universidad Autónoma de Aguascalientes / UAA)
+# - ICPC World Finals / Regional Championship Onsite Environment Specification:
+#   * C/C++23: GCC 14.2.0
+#   * Java: OpenJDK 21.0.8 (Javac)
+#   * Python: PyPy 7.3.15 (Python 3.9/3.10)
+#   * Kotlin: kotlinc-jvm 1.9.24
+# - Network Judge: BOCA / DOMjudge with strict LAN isolation and CUPS network printing.
+# ==============================================================================
+
+[global]
+timezone = "America/Mexico_City"
+config_expiration = "2026-11-15T23:59:59Z"
+available_keyboard_layouts = ["latam", "us", "es"]
+default_keyboard_layout = "latam"
+enable_contest_mode = true
+enable_event_mode = true
+
+[branding]
+name = "ICPC Mexico & Central America Regional Championship 2026"
+organizer = "ITESO & ICPC Mexico"
+logo_url = "/usr/share/gallos/branding/icpc-logo.png"
+boot_splash_logo_url = "/usr/share/gallos/branding/icpc-splash.png"
+show_powered_by_gallos = true
+
+# ------------------------------------------------------------------------------
+# Contest Mode: Strict 5-Hour Competition Window
+# ------------------------------------------------------------------------------
+[contest]
+allowed_websites = [
+    "boca.icpcmexico.org",
+    "score.icpcmexico.org",
+    "clarifications.icpcmexico.org"
+]
+allow_usb_storage = false
+wallpaper = "default"
+
+software = [
+    "langs/gcc",
+    "langs/g++",
+    "langs/pypy3",
+    "langs/openjdk",
+    "langs/kotlinc",
+    "programming/vscodium",
+    "programming/clion",
+    "programming/intellij",
+    "programming/pycharm",
+    "programming/geany",
+    "programming/neovim",
+    "tools/byobu",
+    "docs/cppreference",
+    "docs/javareference",
+    "docs/pythonreference"
+]
+
+[[contest.schedule]]
+start = "2026-11-14T10:00:00-06:00"
+end   = "2026-11-14T15:00:00-06:00"
+
+[contest.audit]
+enable_screen_capture = true
+screenshot_interval_secs = 60
+enable_code_backup = true
+backup_interval_secs = 300
+enable_fleet_telemetry = true
+
+[[contest.bookmarks]]
+name = "BOCA Judge"
+url  = "https://boca.icpcmexico.org"
+
+[[contest.bookmarks]]
+name = "Scoreboard"
+url  = "https://score.icpcmexico.org"
+
+[[contest.bookmarks]]
+name = "C++ Offline Reference"
+url  = "file:///usr/share/doc/cppreference/index.html"
+
+# ------------------------------------------------------------------------------
+# Event Mode: Practice Session / Warm-up Round (Day Before)
+# ------------------------------------------------------------------------------
+[event]
+allowed_websites = [
+    "boca.icpcmexico.org",
+    "score.icpcmexico.org"
+]
+allow_usb_storage = true
+wallpaper = "default"
+
+software = [
+    "langs/gcc",
+    "langs/g++",
+    "langs/pypy3",
+    "langs/openjdk",
+    "langs/kotlinc",
+    "programming/vscodium",
+    "programming/clion",
+    "programming/intellij",
+    "programming/pycharm",
+    "programming/geany"
+]
+
+[[event.schedule]]
+start = "2026-11-13T15:00:00-06:00"
+end   = "2026-11-13T17:30:00-06:00"
+
+[[event.bookmarks]]
+name = "BOCA Practice Judge"
+url  = "https://boca.icpcmexico.org"
+
+# ------------------------------------------------------------------------------
+# Default Mode: Fallback Setup Outside Scheduled Windows
+# ------------------------------------------------------------------------------
+[default]
+allowed_websites = [
+    "icpcmexico.org",
+    "icpc.global"
+]
+allow_usb_storage = true
+wallpaper = "default"
+
+software = [
+    "langs/gcc",
+    "langs/g++",
+    "langs/python3",
+    "programming/geany"
+]
+
+# ------------------------------------------------------------------------------
+# Printing Subsystem: External Arena CUPS Server with Automated Team Headers
+# ------------------------------------------------------------------------------
+[contest.printing]
+mode = "external"
+printer_host = "192.168.10.1"
+default_printer = "Lab-A-Lexmark"
+print_metadata_header = true
+max_pages_per_job = 10
+

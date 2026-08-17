@@ -1,0 +1,111 @@
+#:schema https://raw.githubusercontent.com/CPC-GALLOS/GallosOS/main/schema/directives.schema.json
+# ==============================================================================
+# GallosOS Directives Profile: IOI / National Olympiad (CMS Onsite Contest)
+# ==============================================================================
+# Inspiration & Reference Source:
+# - Official IOI Contestant VM Repositories & Specifications:
+#   * IOI 2023 Contestant VM: https://github.com/ioi-2023/contestant-vm
+#   * IOI General Assembly Contest Environment: https://ioinformatics.org/
+#   * European Girls' Olympiad in Informatics (EGOI): https://egoi23.se/ (egoi23-vm image)
+# - Grader & Platform:
+#   * CMS (Contest Management System): https://cms-dev.github.io/
+# - Enforcement Profile:
+#   * Language: Modern C++ (C++20/23 via GCC 14) with offline cppreference
+#   * Network: Strict air-gap with LAN access restricted exclusively to local CMS host
+#   * Auditing: Continuous local screen capture and periodic contestant code snapshots
+# ==============================================================================
+
+[global]
+timezone = "UTC"
+config_expiration = "2026-09-10T23:59:59Z"
+available_keyboard_layouts = ["us", "latam", "es", "de", "fr"]
+default_keyboard_layout = "us"
+enable_contest_mode = true
+enable_event_mode = true
+
+[branding]
+name = "International Olympiad in Informatics 2026"
+organizer = "IOI International Committee"
+show_powered_by_gallos = true
+
+# ------------------------------------------------------------------------------
+# Contest Mode: Official 5-Hour Competition Day
+# ------------------------------------------------------------------------------
+[contest]
+allowed_websites = ["cms.ioi.local", "10.0.0.1"]
+allow_usb_storage = false
+wallpaper = "default"
+
+software = [
+    "langs/gcc",
+    "langs/g++",
+    "programming/vscodium",
+    "programming/geany",
+    "programming/neovim",
+    "tools/byobu",
+    "docs/cppreference",
+]
+
+[[contest.schedule]]
+start = "2026-09-03T09:00:00Z"
+end = "2026-09-03T14:00:00Z"
+
+[contest.audit]
+enable_screen_capture = true
+screenshot_interval_secs = 60
+enable_code_backup = true
+backup_interval_secs = 180
+enable_fleet_telemetry = true
+
+[[contest.bookmarks]]
+name = "CMS Contest Server"
+url = "http://cms.ioi.local"
+
+[[contest.bookmarks]]
+name = "Offline C++ Reference"
+url = "file:///usr/share/doc/cppreference/index.html"
+
+# ------------------------------------------------------------------------------
+# Event Mode: Practice Session (Day Before)
+# ------------------------------------------------------------------------------
+[event]
+allowed_websites = ["cms.ioi.local", "10.0.0.1"]
+allow_usb_storage = false
+wallpaper = "default"
+
+software = [
+    "langs/gcc",
+    "langs/g++",
+    "programming/vscodium",
+    "programming/geany",
+    "programming/neovim",
+]
+
+[[event.schedule]]
+start = "2026-09-02T14:00:00Z"
+end = "2026-09-02T16:30:00Z"
+
+[[event.bookmarks]]
+name = "CMS Practice Server"
+url = "http://cms.ioi.local"
+
+# ------------------------------------------------------------------------------
+# Default Mode: Fallback Setup
+# ------------------------------------------------------------------------------
+[default]
+allowed_websites = ["cms.ioi.local"]
+allow_usb_storage = false
+wallpaper = "default"
+
+software = ["langs/gcc", "langs/g++", "programming/geany"]
+
+# ------------------------------------------------------------------------------
+# Printing Subsystem: IOI Arena Hall CUPS Print Queue
+# ------------------------------------------------------------------------------
+[contest.printing]
+mode = "external"
+printer_host = "10.0.0.5"
+default_printer = "IOI-Arena-Laser"
+print_metadata_header = true
+max_pages_per_job = 15
+
