@@ -265,7 +265,7 @@ To guarantee absolute integrity, whenever `gallos-daemon` transitions the system
 While modes change the *network firewall, audio, and branding*, certain core competitive programming protections are **immutable and always on**, regardless of the active mode:
 
 - **AI Purging:** IDE AI plugins (JetBrains AI, Copilot) are forcibly purged on every boot.
-- **`gallos-oom-notify`:** EarlyOOM and Cgroups v2 are permanently active to catch runaway memory leaks.
+- **EarlyOOM + `systembus-notify`:** EarlyOOM (`-n`) and `systembus-notify` are permanently active to catch runaway memory leaks and deliver desktop notifications via D-Bus.
 - **Wayland Kiosk Lockout:** System settings, root terminal access, and Virtual TTY consoles (`Ctrl+Alt+F3`) are permanently disabled.
 
 #### Mode B: Relative Duration (Air-Gapped / Airtight / Tier 0)
@@ -822,42 +822,36 @@ vscodium         oom_score_adj = -500
 idea.sh          oom_score_adj = -500   # JetBrains
 ```
 
-### 13.2 GUI Notification Hook
+### 13.2 Desktop Notifications (`earlyoom -n` + `systembus-notify`)
 
-EarlyOOM logs terminations to `stderr` / `journald`. GallosOS ships a small wrapper `gallos-oom-notify.sh` that watches the earlyoom journal stream and fires a desktop notification so the contestant understands what happened (and doesn't think the judge or OS crashed):
+Rather than relying on brittle log-scraping scripts, GallosOS leverages EarlyOOM's native D-Bus broadcasting flag (`-n` / `--notify`) coupled with [**`systembus-notify`**](https://github.com/rfjakob/systembus-notify), the official companion daemon developed by EarlyOOM's author.
 
-```bash
-#!/usr/bin/env bash
-# /usr/local/bin/gallos-oom-notify.sh
-# Watches earlyoom log and dispatches a desktop notification to the contestant.
+1. **System Service (`earlyoom`):** Runs as root and broadcasts an `org.freedesktop.earlyoom` signal on the system D-Bus whenever a process is terminated.
+2. **User Session Service (`systembus-notify`):** Runs within the unprivileged `contestant` user session, listens for system D-Bus OOM signals, and bridges them directly to the Wayland notification daemon (**Mako**) via standard FreeDesktop notifications.
 
-journalctl -fu earlyoom --output=cat | while IFS= read -r line; do
-    if echo "$line" | grep -q "Killing process"; then
-        PROCESS=$(echo "$line" | grep -oP "'\K[^']+(?=')")
-        notify-send \
-            --urgency=critical \
-            --icon=dialog-warning \
-            --app-name="GallosOS Memory Guard" \
-            "⚠️ Process Terminated" \
-            "Your process '$PROCESS' was killed because it exceeded available memory.\nCheck for infinite loops, unbounded arrays, or memory leaks."
-    fi
-done
+```ini
+# /etc/default/earlyoom
+# Instructs earlyoom to broadcast kill events over system D-Bus
+EARLYOOM_ARGS="-m 10 -s 5 -r 60 -n --avoid '^(labwc|waybar|mako|gallos-daemon|Xwayland)$' --prefer '^(chrome|chromium|firefox|vscodium|idea)$'"
 ```
 
 ```ini
-# /usr/lib/systemd/user/gallos-oom-notify.service
+# /usr/lib/systemd/user/systembus-notify.service
 [Unit]
-Description=GallosOS OOM Notification Hook
-After=earlyoom.service
+Description=System Bus Notification Bridge (EarlyOOM)
+Documentation=https://github.com/rfjakob/systembus-notify
+After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/gallos-oom-notify.sh
+ExecStart=/usr/bin/systembus-notify
 Restart=always
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target
 ```
+
+When a runaway competitor binary (e.g. `while(true) malloc()`) is killed, the contestant receives an immediate, non-intrusive desktop notification via Mako clarifying that the process was terminated due to memory limits—preventing confusion with judge or OS crashes.
 
 ### 13.3 Process Limits (`ulimit` / `limits.conf`)
 

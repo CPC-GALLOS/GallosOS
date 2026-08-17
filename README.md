@@ -77,7 +77,7 @@ The repository includes comprehensive context documents and architectural specif
    - **GallosOS Config Builder:** Web & GUI app to visually construct and validate `gallos.toml` directives without manual text editing.
    - **`gallos-convert`:** One-command CLI migration from legacy HuronOS `.hdf` files to canonical TOML.
    - **`gallos-flash`:** Parallel multi-USB mass flashing tool with native WSL2 + `usbipd-win` support.
-   - **`gallos-daemon` & `gallos-oom-notify`:** Real-time mode switching, EarlyOOM memory guard, and visual desktop notifications.
+   - **`gallos-daemon` & `systembus-notify`:** Real-time mode switching, EarlyOOM memory guard, and visual desktop notifications.
 
 4. **Multi-Layered Immutable Storage (OverlayFS):**
    - Read-only base SquashFS + modular software packages (`.gsm`).

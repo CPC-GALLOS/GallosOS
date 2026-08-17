@@ -41,9 +41,9 @@ This document translates the complete architectural and security specifications 
 - [ ] **TTY & Privilege Hardening:**
   - Disable virtual terminal switching (TTY1–6) via kernel/logind parameters.
   - Configure the `contestant` user as unprivileged without `sudo` or polkit administrative rights.
-- [ ] **EarlyOOM Guard (`gallos-oom-notify`):**
+- [ ] **EarlyOOM Guard (`earlyoom -n` + `systembus-notify`):**
+  - Configure `earlyoom -n` (D-Bus broadcast) and enable `systembus-notify` user service to display desktop notifications when processes are terminated by EarlyOOM.
   - Protect `gallos-daemon` with `oom_score_adj = -900` while setting browsers to `+500`.
-  - Deploy `gallos-oom-notify.sh` journal listener to display user-friendly desktop notifications when processes are terminated by EarlyOOM.
 
 ---
 

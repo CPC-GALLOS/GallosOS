@@ -130,7 +130,7 @@ graph LR
     subgraph "3. Runtime & Live Event"
         Daemon["gallos-daemon (Mode Controller)"]
         Firewall["nftables (Anti-Cheat Default DROP)"]
-        OOM["EarlyOOM + gallos-oom-notify"]
+        OOM["EarlyOOM + systembus-notify"]
     end
 
     Studio --> Flasher
