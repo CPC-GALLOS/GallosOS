@@ -8,7 +8,7 @@ Welcome to the **GallosOS** repository. This document serves as the single sourc
 
 **GallosOS** is a modern, lightweight, modular, and reproducible Linux Live distribution engineered specifically for competitive programming contests (ICPC, IOI, Codeforces, university invitationals, and training camps).
 
-It is designed as a **modern drop-in replacement for huronOS** across the Mexican competitive programming ecosystem (**ICPC Gran Premio de México**, **OMI** — *Olimpiada Mexicana de Informática*, university training camps) while offering a ready-to-use, first-class alternative for international tournaments globally.
+It is designed as a **modern drop-in replacement for huronOS** across the Mexican competitive programming ecosystem (**ICPC Gran Premio de México**, **OMI** — *Olimpiada Mexicana de Informática*, **TCMX** — *Training Camp México*, university training camps, and invitationals) while offering a ready-to-use, first-class alternative for international tournaments globally.
 
 It bridges the best ideas from previous projects:
 
@@ -21,7 +21,7 @@ While solving their shortcomings:
 
 - Building on **Ubuntu 24.04 LTS** (Canonical global package mirrors + GitHub CDN for releases, widespread driver support).
 - Fully containerized builds using **Podman / Docker** (no host pollution; works on Linux, macOS, and Windows WSL2).
-- Zero-leak **Anti-AI integrity shield** (kernel packet filtering, AI plugin purging, telemetry stripping).
+- Zero-leak **Anti-Cheat integrity shield** (kernel packet filtering, AI plugin purging, telemetry stripping).
 - **White-label branding engine** for universities and event organizers.
 - Native **Wayland Kiosk** (Labwc + Waybar) desktop with process-level security isolation.
 - Parallel **multi-USB mass flashing tool** (`gallos-flash`).
@@ -38,8 +38,10 @@ GallosOS/
 ├── docs/                      # Architectural & design specifications
 │   ├── ARCHITECTURE.md        # Detailed system design, Wayland, OverlayFS, Build & VM testing
 │   ├── CONFIG_SPEC.md         # Canonical TOML directives, GallosOS Config Builder, mode hierarchy & .hdf migration
+│   ├── BUILD_SYSTEM.md        # Containerized Build Pipeline & build.toml specification
+│   ├── WAYLAND_DESKTOP.md     # Wayland kiosk desktop spec, Labwc/Waybar dotfiles, keybinds & UX
 │   ├── HARDWARE_COMPATIBILITY.md # Firmware support (UEFI SecureBoot & Legacy BIOS), RAM specs
-│   ├── ANTI_AI_AND_SECURITY.md# Firewall, Anti-AI protection, telemetry block, USB lock, keyboards
+│   ├── ANTI_CHEAT_AND_SECURITY.md# Firewall, Anti-Cheat protection, telemetry block, USB lock, keyboards
 │   └── COMPARATIVE_ANALYSIS.md# In-depth comparison: GallosOS vs HuronOS vs Maratona vs ICPC vs IOI
 ├── examples/                  # Production-ready gallos.toml configuration profiles
 │   ├── README.md              # Profile catalog, gallos.toml vs machine.toml, deployment & config precedence
@@ -80,9 +82,9 @@ When assisting in this repository, follow these core tenets:
    - `Event`: Training camp / warm-up, persistent workspace between classes, hides previous data in contest.
    - `Default`: General fallback mode when no scheduled window is active.
 
-6. **Anti-AI by Default:**
+6. **Anti-Cheat by Default:**
    Ensure all proposed scripts, configs, and IDE setups strictly disable and block:
-   - GitHub Copilot, JetBrains AI Assistant, Cursor, Supermaven, Cody, Claude/OpenAI endpoints.
+   - GitHub Copilot, JetBrains AI Assistant, Cursor, Supermaven, Cody, Claude/OpenAI endpoints (via DNS blocklists like `ai.robots.txt`).
    - Telemetry reporting in VSCodium, Chromium, and Firefox.
 
 7. **Containerized Reproducibility:**

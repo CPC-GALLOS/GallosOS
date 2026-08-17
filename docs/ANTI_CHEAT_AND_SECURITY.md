@@ -8,17 +8,22 @@ This document details the multi-layered security architecture, network whitelist
 
 In modern competitive programming (ICPC, IOI, local tournaments), unauthorized access to Generative AI coding assistants, remote problem solvers, or hidden code storage completely undermines contest integrity.
 
-### Primary Threat Vectors
+### 1.1 The AI Risk Philosophy
+
+Generative AI presents a unique risk to algorithmic development. Competitive programming relies on deep analytical thinking, algorithm design, and manual tracing (the "old way"). If a student wants to use AI coding assistants and other distractions, they are free to use their personal laptop in the club or training camp (if permitted by the organizers), during their own time, or at their own place. **GallosOS is built with competitive programming in mind.** To enforce this, even in the open `Default` mode, GallosOS continuously sinks known AI domains (OpenAI, Claude, Copilot, Cursor) using an auto-updating host blacklist (synced with community-maintained AI tracking lists like [`ai.robots.txt`](https://github.com/ai-robots-txt/ai.robots.txt), [`Stevos-GenAI-Blocklist`](https://github.com/Stevoisiak/Stevos-GenAI-Blocklist), and [`hagezi/dns-blocklists`](https://github.com/hagezi/dns-blocklists)), ensuring the training environment remains pure.
+
+### 1.2 Primary Threat Vectors
 
 1. **Cloud AI & LLM Endpoints:** OpenAI API, Anthropic Claude, Google Gemini, GitHub Copilot, Cursor backend, Perplexity, HuggingFace Inference.
 2. **IDE AI Plugins & Telemetry:** Pre-installed Copilot / Supermaven / JetBrains AI Assistant communicating via hidden sockets.
 3. **Evasion Tunnels:** DNS-over-HTTPS (DoH), DNS-over-TLS (DoT), WireGuard, OpenVPN, SSH port-forwarding, Tor bridges, SOCKS5 proxies.
 4. **Unauthorized Mass Storage:** USB flash drives containing pre-written templates or algorithm libraries plugged in during contest hours.
-5. **Session Leakage:** Snooping on other workstation windows via legacy X11 protocol vulnerabilities.
-6. **Low-Level Sandbox Evasion & Syscall Manipulation:** Execution of direct kernel system calls (`syscall` / inline assembly `__asm__` blocks) or compiler/kernel exploits to escape local sandboxes, access forbidden directories, or tamper with background monitoring agents.
+5. **Hardware Macros (BadUSB):** Personal keyboards with internal memory injecting pre-baked scripts at superhuman speeds.
+6. **Session Leakage:** Snooping on other workstation windows via legacy X11 protocol vulnerabilities.
+7. **Low-Level Sandbox Evasion & Syscall Manipulation:** Execution of direct kernel system calls (`syscall` / inline assembly `__asm__` blocks) or compiler/kernel exploits to escape local sandboxes, access forbidden directories, or tamper with background monitoring agents.
 
 > [!NOTE]
-> **Integrity by Architecture:** GallosOS does not rely on heuristic deep-packet inspection or speculative "AI-detector" algorithms. Anti-AI protection is the deterministic consequence of strict Zero-Trust system design: a kernel-level `nftables` Default-DROP firewall allowing strictly the verified contest judge, combined with startup scripts that physically purge IDE AI plugins (`com.intellij.ml.llm`, Copilot) and strip cloud telemetry endpoints.
+> **Integrity by Architecture:** GallosOS does not rely on heuristic deep-packet inspection or speculative "AI-detector" algorithms. Anti-Cheat protection is the deterministic consequence of strict Zero-Trust system design: a kernel-level `nftables` Default-DROP firewall allowing strictly the verified contest judge, combined with startup scripts that physically purge IDE AI plugins (`com.intellij.ml.llm`, Copilot) and strip cloud telemetry endpoints.
 
 ---
 
@@ -107,6 +112,19 @@ table inet gallos_filter {
   - `"DisableTelemetry": true`
   - `"ExtensionInstallBlocklist": ["*"]` (Only Competitive Companion pre-installed).
 
+### 3.3 Browser Sub-URL Filtering (omegaUp / Platform Lockdown)
+
+At the kernel level, `nftables` can only filter by IP addresses and domain names (e.g., `omegaup.com`). Because HTTPS encrypts the URL path, the firewall cannot distinguish between an allowed contest link (`/arena/contest/omi2026`) and a banned public problem archive (`/arena/problem/`).
+
+To enforce strict platform isolation without breaking the domain, GallosOS dynamically injects **Chromium and Firefox Enterprise Managed Policies** (`/etc/chromium/policies/managed/gallos.json`).
+
+When `gallos.toml` declares specific `[contest.bookmarks]`, the daemon can optionally build strict URL boundaries:
+
+- **`URLBlocklist`**: Blocks `https://omegaup.com/arena/problem*`, `/submissions*`, `/course*`, `/rank*`.
+- **`URLAllowlist`**: Unblocks only `/login`, `/api/*`, and the specific `/arena/contest/*` route.
+
+This ensures that even if `omegaup.com` is whitelisted in the firewall, contestants receive a strict `ERR_BLOCKED_BY_ADMINISTRATOR` screen if they attempt to navigate outside the active contest arena to look up old code.
+
 ---
 
 ## 4. IDE Hardening & Licensing Strategy
@@ -176,7 +194,7 @@ During **`Contest` Mode**:
   udevadm control --reload-rules
   ```
 
-- At the end of the contest, USB storage is re-authorized so contestants can export their code archive (`contest-YYYYMMDDTHH-MM-SS.tar.gz`).
+- At the end of the contest, USB storage is re-authorized so contestants can manually export their source code.
 
 ---
 
@@ -186,7 +204,7 @@ Contestants come from diverse international backgrounds and require specific lay
 
 - **Supported Layouts:** `latam` (Latin America), `us` (US English), `es` (Spain), `br` (Brazil ABNT2), `dvorak`.
 - **Fast Switching:**
-  - **Global Hotkey:** `Alt + Shift` cycles through active layouts.
+  - **Global Hotkey:** `Super + Space` (or `Alt + Shift`) cycles through active layouts.
   - **Status Bar Module:** Visual flag/text indicator in Waybar status bar.
   - **Persistence:** Layout choice is saved across app launches within the session.
 
@@ -221,16 +239,19 @@ For official tournaments requiring strict proctoring (such as ICPC Regionals, IO
 ### 8.2 Automated Incremental Code Backups
 
 - **Dispute Resolution & Crash Protection:** Inspired by IOI's `ioibackup.sh`, GallosOS runs an automated background snapshot of `/home/contestant/` every 5 minutes.
-- **Forensic Timeline:** Allows judges to review a timeline of source code changes in case of cheating allegations or unexpected workstation power loss.
+- **Forensic Timeline:** Allows the contest jury to review a timeline of source code changes in case of cheating allegations or unexpected workstation power loss.
 
-### 8.3 Privileged Keystroke Forensics (Optional)
+### 8.3 Privileged Keystroke Forensics (Optional for IOI / Olympiads)
 
-- **Kernel-Level Audit (`/dev/input`):** If enabled by contest administrators, hardware-level key event counters or logs are recorded by a root daemon, without exposing global key event streams to unprivileged desktop processes.
+- **Kernel-Level Audit (`/dev/input`):** When enabled via `[contest.audit] enable_keystroke_forensics = true` in `gallos.toml`, hardware-level keystroke events are captured by a privileged root daemon, without exposing global key event streams to unprivileged desktop applications.
+- **ICPC vs. IOI Operational Profile:**
+  - **ICPC / University Camps:** Keystroke logging is disabled by default (`enable_keystroke_forensics = false`); only firewall drop alerts, CUPS print jobs, and EarlyOOM kill events are collected.
+  - **IOI / National Olympiads:** Full forensics (keystrokes and periodic screenshots) can be enabled declaratively for arbitration.
 
 ### 8.4 Fleet Telemetry & Monitoring
 
 - **Prometheus Exporters:** Bundles lightweight `node-exporter` and `gallos-exporter` services.
-- **Central Dashboard:** Transmits real-time CPU load, memory utilization, network sockets, and process lists over a secure WireGuard mesh to the contest director's Grafana dashboard.
+- **Central Dashboard:** Exposes real-time CPU load, memory utilization, network sockets, and process lists to the contest director's Venue Controller dashboard over the local contest LAN.
 
 ---
 

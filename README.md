@@ -5,9 +5,9 @@
 
 **GallosOS** is a modern, lightweight, modular, and reproducible Linux Live distribution engineered specifically for competitive programming across **all scenarios**: weekly university club practices, multi-day training camps, and official ICPC / IOI style tournaments.
 
-GallosOS is designed as a **seamless, modern drop-in replacement for [huronOS](https://huronos.org)** across the Mexican competitive programming ecosystem (**ICPC Gran Premio de México**, **OMI** — *Olimpiada Mexicana de Informática*, and university invitationals), while scaling as a world-class, globally adaptable solution for international contests (ICPC World Finals/Regionals, IOI, and Maratona SBC).
+GallosOS is designed as a **seamless, modern drop-in replacement for [huronOS](https://huronos.org)** across the Mexican competitive programming ecosystem (**[ICPC Gran Premio de México](https://icpc.global/regionals/finder/Mexico)**, **[OMI](https://olimpiadadeinformatica.org.mx/)** — *Olimpiada Mexicana de Informática*, **TCMX** — *Training Camp México*, and university invitationals), while scaling as a world-class, globally adaptable solution for international contests ([ICPC](https://icpc.global/) World Finals/Regionals, [IOI](https://ioinformatics.org/), and [Maratona SBC](https://maratona.sbc.org.br/)).
 
-It synthesizes the foundational architectural strengths of **huronOS** (multi-mode scheduling & layered storage), **[Maratona Linux](https://maratona.ime.usp.br/)** (Latin American BOCA judge integration), **[ICPC-Env](https://github.com/icpc-environment/icpc-env)** (standardized toolchains), and the **[IOI-2025 Contestant-VM](https://github.com/ioi-2025/contestant-vm)** (CMS auditing & proctoring), providing a lightweight, tamper-resistant, and white-label operating system evaluated against the entire global competitive programming landscape (including China's **NOI Linux 2.0** and European/Asian ICPC systems).
+It synthesizes the foundational architectural strengths of **huronOS** (multi-mode scheduling & layered storage), **[Maratona Linux](https://github.com/maratona-linux/)** (Latin American BOCA judge integration), **[ICPC-Env](https://github.com/icpc-environment/icpc-env)** (standardized toolchains), and the **[IOI-2025 Contestant-VM](https://github.com/ioi-2025/contestant-vm)** (CMS auditing & proctoring), providing a lightweight, tamper-resistant, and white-label operating system evaluated against the entire global competitive programming landscape (including China's **NOI Linux 2.0** and European/Asian ICPC systems).
 
 ---
 
@@ -19,8 +19,8 @@ It synthesizes the foundational architectural strengths of **huronOS** (multi-mo
 |                                      Controlled browsing: no AI results, curated bookmarks        |
 |  2. Multi-Day Training Camps       : Automated transitions (Event -> Contest -> Upsolving)        |
 |                                      Cloud sync suspended during Contest windows                   |
-|  3. Official Tournaments (ICPC/IOI): Strict Anti-AI lockdown, judge-only network, fresh isolation |
-|                                      Code packaged as .tar.gz at contest end for USB export       |
+|  3. Official Tournaments (ICPC/IOI): Strict Anti-Cheat lockdown, judge-only network, fresh isolation|
+|                                      Code exported manually by contestant at contest end          |
 +---------------------------------------------------------------------------------------------------+
 ```
 
@@ -37,8 +37,10 @@ The repository includes comprehensive context documents and architectural specif
 - **[`ROADMAP.md`](./ROADMAP.md):** The step-by-step engineering checklist and feature tracker broken down into Alpha, Beta, and RC phases.
 - **[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md):** Layered filesystem (OverlayFS + SquashFS), Wayland kiosk desktop (Labwc + Waybar), containerized build engine (Podman/Docker), Windows WSL2 + `usbipd-win` workflows, and VM deployment matrices (`.ova`, `.qcow2`).
 - **[`docs/CONFIG_SPEC.md`](./docs/CONFIG_SPEC.md):** Canonical `gallos.toml` directives specification, GallosOS Config Builder web/GUI configurator, 3-tier mode hierarchy ($\text{Contest} \succ \text{Event} \succ \text{Default}$), and `gallos-convert` migration tool.
+- **[`docs/BUILD_SYSTEM.md`](./docs/BUILD_SYSTEM.md):** The Containerized Build Pipeline (`gallos-builder`), `build.toml` configuration format, and custom ISO generation workflows.
+- **[`docs/WAYLAND_DESKTOP.md`](./docs/WAYLAND_DESKTOP.md):** Wayland kiosk desktop specification (Labwc + Waybar + Foot + Mako), keybindings, ergonomic UI modules, and tamper-resistant dotfile architecture.
 - **[`docs/HARDWARE_COMPATIBILITY.md`](./docs/HARDWARE_COMPATIBILITY.md):** Firmware support (UEFI SecureBoot & Legacy BIOS), RAM boot (`toram`), and minimal hardware specs.
-- **[`docs/ANTI_AI_AND_SECURITY.md`](./docs/ANTI_AI_AND_SECURITY.md):** Threat model, `nftables` kernel packet filtering, AI extension purging (VSCodium / JetBrains), telemetry disabling, USB storage locking, and keyboard layout switching.
+- **[`docs/ANTI_CHEAT_AND_SECURITY.md`](./docs/ANTI_CHEAT_AND_SECURITY.md):** Threat model, `nftables` kernel packet filtering, Anti-Cheat extension purging (VSCodium / JetBrains), telemetry disabling, USB storage locking, and keyboard layout switching.
 - **[`docs/COMPARATIVE_ANALYSIS.md`](./docs/COMPARATIVE_ANALYSIS.md):** Detailed, source-verified comparison matrix evaluating GallosOS against HuronOS, Maratona Linux, ICPC-Env, and IOI Contestant-VM.
 
 ---
@@ -62,18 +64,18 @@ The repository includes comprehensive context documents and architectural specif
 4. **Multi-Layered Immutable Storage (OverlayFS):**
    - Read-only base SquashFS + modular software packages (`.gsm`).
    - Ephemeral RAM `tmpfs` upper layer ensures a pristine clean state upon reboot.
-   - Automatic contestant source code archiving (`contest-YYYYMMDDTHH-MM-SS.tar.gz`) exported securely over the network to the Venue Controller (or manually via secondary external USB).
+   - Manual contestant source code export to external USB after contest end. (The Organizer Audit archive is securely collected by the Venue Controller for administrative metrics).
 
-5. **Zero-Leak Anti-AI Shield:**
+5. **Zero-Leak Anti-Cheat Shield:**
    - Kernel-level packet filter (`nftables`) with a default-DROP policy, whitelisting only designated judges (BOCA, DOMjudge, Codeforces) and local DNS/NTP.
    - Telemetry-stripped **VSCodium** and **JetBrains Community Editions** (IntelliJ IDEA CE, PyCharm CE) with all AI assistant plugins strictly removed. (Support for sponsored JetBrains Pro offline license injection is treated as an optional future extension for sponsored championship finals).
 
-6. **White-Label University Branding:**
-   - Declarative `branding/` folder (`branding.toml`, wallpapers, Plymouth boot splash, and browser bookmarks) allowing institutions to brand contest ISOs in seconds.
+6. **White-Label Branding:**
+   - Declarative `[branding]` configuration in `gallos.toml` alongside custom assets (wallpapers, Plymouth boot splash, logos, and bookmarks), allowing institutions to white-label contest environments in seconds.
 
 7. **Process-Isolated Wayland Desktop:**
     - Wayland compositor (Labwc) paired with Waybar (featuring an integrated dropdown menu launcher), eliminating X11 keylogging and screen-snooping vulnerabilities.
-    - Hotkey and status bar-driven keyboard layout switching (`latam`, `us`, `es`, `br-abnt2`, `dvorak`).
+    - Hotkey (`Super + Space`, where Super is the Windows key) and status bar-driven keyboard layout switching (`latam`, `us`, `es`, `br-abnt2`, `dvorak`).
 
 8. **Ephemeral & Non-Destructive (BYOD-Friendly):**
     - Booting from a Live USB solves infrastructure compatibility problems by leaving the host computer's hard drive untouched. This makes it safe and viable for both highly controlled university labs and low-resource environments.
@@ -89,7 +91,7 @@ The following terms are used consistently across all GallosOS documentation:
 | Term | Definition |
 | :--- | :--- |
 | **Contestant** | A programmer actively competing or practicing at a GallosOS workstation. The OS user account is always the fixed, unprivileged `contestant` system user. Preferred term throughout GallosOS documentation; *participant* may appear occasionally and is considered equivalent. |
-| **Organizer** | The person or committee responsible for configuring and deploying GallosOS for an event. Manages `gallos.toml`, runs `gallos-flash`, and optionally operates the Venue Controller. Synonymous with *event director* or *scientific committee member*. |
+| **Organizer** | The person or committee responsible for configuring and deploying GallosOS for an event. Manages `gallos.toml`, runs `gallos-flash`, and optionally operates the Venue Controller. Synonymous with *contest director* or *jury*. |
 | **Venue Controller** | An optional dedicated machine (or GallosOS USB in Server Mode) that runs on the contest LAN to provide centralized fleet monitoring, DHCP/NTP, CUPS print spooling, MAC-to-team identity mapping, and audit log aggregation. Only required for Tier 3 deployments — GallosOS works without one. |
 | **Judge Server** | The external competitive programming judge system (BOCA, DOMjudge, PC², CMS, omegaUp) running on a separate dedicated machine managed by the contest organizer. GallosOS **never** hosts the judge — it connects to it. |
 
@@ -106,8 +108,10 @@ GallosOS/
 ├── docs/                      # Architectural & design specifications
 │   ├── ARCHITECTURE.md        # System design, Wayland, OverlayFS, Build & VM testing
 │   ├── CONFIG_SPEC.md         # Canonical TOML directives, GallosOS Config Builder & mode hierarchy
+│   ├── BUILD_SYSTEM.md        # Containerized Build Pipeline & build.toml specification
+│   ├── WAYLAND_DESKTOP.md     # Wayland kiosk desktop spec, Labwc/Waybar dotfiles & UX
 │   ├── HARDWARE_COMPATIBILITY.md # Firmware support (UEFI SecureBoot & Legacy BIOS), RAM specs
-│   ├── ANTI_AI_AND_SECURITY.md# Firewall, Anti-AI protection, telemetry & USB lockdown
+│   ├── ANTI_CHEAT_AND_SECURITY.md# Firewall, Anti-Cheat protection, telemetry & USB lockdown
 │   └── COMPARATIVE_ANALYSIS.md# In-depth comparison with existing contest distributions
 ├── examples/                  # Production-ready gallos.toml configuration profiles
 │   ├── icpc-onsite.toml       # ICPC Regional / World Finals (BOCA/DOMjudge, GCC 14, Java 21)
@@ -132,5 +136,5 @@ GallosOS builds upon foundational research, packaging standards, and operational
 
 - **[huronOS](https://huronos.org)** (`GPL-2.0`): Modular SquashFS architecture, dynamic contest mode state-machine transitions, and `.hdf` synchronization.
 - **[Maratona Linux](https://maratona.ime.usp.br/)** (`GPL-2.0`): ICPC Latin America packaging, BOCA judge integration, and firewall filtering concepts.
-- **[ICPC-Env](https://github.com/icpc-environment/icpc-env)**: Squid domain filtering, WireGuard fleet management, and offline DevDocs setups.
+- **[ICPC-Env](https://github.com/icpc-environment/icpc-env)**: Standardized language toolchains, proxy-based network filtering, and offline DevDocs setups.
 - **[IOI Contestant-VM](https://github.com/ioi-2025/contestant-vm)**: Official IOI environment standards, minimal desktop configuration, and automated VM provisioning.

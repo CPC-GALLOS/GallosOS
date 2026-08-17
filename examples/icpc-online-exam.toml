@@ -9,7 +9,7 @@
 # - Enforcement Profile:
 #   * Platform: CodeChef in Exam Mode (single-browser lockdown, tab-switch lock)
 #   * Network: Strict Default-DROP firewall allowing only codechef.com & indiaicpc.in
-#   * Anti-AI: All external LLMs, OpenAI, Copilot, and cloud IDEs blocked at packet level
+#   * Anti-Cheat: All external LLMs, OpenAI, Copilot, and cloud IDEs blocked at packet level
 #   * Security: Disables virtual terminals, USB storage, and non-essential background tasks
 #   * Proctoring: Scheduled full desktop + PipeWire webcam/audio recording
 # ==============================================================================

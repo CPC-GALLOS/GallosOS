@@ -1,6 +1,6 @@
 # GallosOS Development Roadmap & Feature Tracker
 
-This document translates the complete architectural and security specifications across all design documents (`ARCHITECTURE.md`, `CONFIG_SPEC.md`, `ANTI_AI_AND_SECURITY.md`, `HARDWARE_COMPATIBILITY.md`, and `COMPARATIVE_ANALYSIS.md`) into a concrete, actionable engineering roadmap.
+This document translates the complete architectural and security specifications across all design documents (`ARCHITECTURE.md`, `CONFIG_SPEC.md`, `ANTI_CHEAT_AND_SECURITY.md`, `HARDWARE_COMPATIBILITY.md`, and `COMPARATIVE_ANALYSIS.md`) into a concrete, actionable engineering roadmap.
 
 ---
 
@@ -26,15 +26,16 @@ This document translates the complete architectural and security specifications 
 
 ---
 
-## Phase 2: Security Lockdown, Anti-AI Shield & Resource Hardening (Beta 1)
+## Phase 2: Security Lockdown, Anti-Cheat Shield & Resource Hardening (Beta 1)
 
 *Goal: Enforce strict Zero-Trust contest integrity, network air-gapping, and out-of-memory protections.*
 
-- [ ] **`gallos-firewall` (`nftables` Engine):**
-  - Implement kernel packet filtering with a strict **Default-DROP** policy.
-  - Allow only loopback (`lo`), local gateway DNS/NTP, and contest judge endpoints dynamically declared in `gallos.toml`.
-  - Reject all direct-IP tunnels, proxies, and external AI endpoints.
-- [ ] **Anti-AI Purge & Telemetry Neutralization:**
+- [ ] **Anti-Cheat Enforcement (`nftables`):**
+  - [ ] Implement default DROP policy (Zero-Trust)
+  - [ ] Dynamic resolution for `allowed_websites` (DNS to IP mapping for `nftables`)
+  - [ ] Port-locking (block outbound 22, 53 over HTTPS, proxies, UDP hole punching)
+  - [ ] IDE AI-Plugin stripping scripts (VSCode `extensions.json`, IntelliJ `disabled_plugins.txt`)
+- [ ] **Anti-Cheat Purge & Telemetry Neutralization:**
   - Write a startup service to purge `com.intellij.ml.llm` and Copilot plugins from JetBrains and VSCodium installations.
   - Neutralize telemetry and crash reporting in Chromium, Firefox, and VSCodium.
 - [ ] **Peripheral & USB Lockdown:**
@@ -69,8 +70,8 @@ This document translates the complete architectural and security specifications 
   - Develop `gallos-broadcast` administrator CLI tool to sign JSON payloads using Ed25519 private keys and broadcast/push them to workstations.
   - Implement Ed25519 cryptographic signature verification inside `gallos-daemon` using the public key configured in `gallos.toml`.
   - Develop contestant-facing `gallos-announcements` CLI tool to display verified announcement history from `/var/log/gallos/announcements.log`.
-- [ ] **Post-Contest Workspace Archival:**
-  - Automatically bundle and compress `/home/contestant/` files into `contest-YYYYMMDDTHH-MM-SS.tar.gz` upon contest conclusion.
+- [ ] **Post-Contest Workspace Support:**
+  - Re-enable USB mass-storage drivers and provide visual prompts for manual code extraction.
 - [ ] **Machine Identity & Team Assignment:**
   - Assign workstation hostnames via DHCP MAC reservations or per-USB `machine.toml` directives.
 
@@ -97,6 +98,7 @@ This document translates the complete architectural and security specifications 
 - [ ] **Administrative Proctoring & Auditing (Opt-In):**
   - Implement scheduled background screenshot captures via dedicated root Wayland socket.
   - Bundle `node-exporter` and `gallos-exporter` for real-time fleet health metrics.
+  - **Hardware Macro Detection (Tentative):** Explore deterministic kernel rate-limiting (e.g., hard-locking input if > 50 keystrokes per second) to block pre-baked USB scripts without relying on heuristics.
   - Build `gallos-audit-export` CLI to aggregate and export ephemeral workstation logs, EarlyOOM kill events, firewall drops, print history, and proctoring snapshots into a persistent `gallos-audit-YYYYMMDD.tar.gz` archive.
 
 ---

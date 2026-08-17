@@ -23,7 +23,7 @@ GallosOS achieves this by leveraging:
 
 1. **Canonical's Signed `shim` Bootloader:** Microsoft-trusted shim loads the GRUB bootloader.
 2. **Canonical's Signed Linux Kernel:** We use the unmodified, upstream Ubuntu LTS kernel.
-3. **In-Tree Kernel Modules:** By adopting standard `overlayfs` (for the Live filesystem) and `nftables` (for the Anti-AI firewall) instead of third-party patches, the signed kernel never complains about tainted or unsigned modules.
+3. **In-Tree Kernel Modules:** By adopting standard `overlayfs` (for the Live filesystem) and `nftables` (for the Anti-Cheat firewall) instead of third-party patches, the signed kernel never complains about tainted or unsigned modules.
 
 **Advantage:** Contestants can bring their personal Windows 11 laptops (which mandate SecureBoot) to a competition, plug in the provided GallosOS USB, and boot immediately without digging into BIOS security settings.
 
@@ -53,11 +53,21 @@ GallosOS supports the `toram` boot parameter. During early boot, the entire Squa
 
 ---
 
-## 3. Peripheral Compatibility
+## 3. Peripheral & Network Compatibility
 
 - **Displays:** Wayland natively supports fractional scaling and multi-monitor setups.
-- **Networking:** Includes the full `linux-firmware` package from Ubuntu LTS, ensuring out-of-the-box compatibility with 99% of proprietary Wi-Fi cards (Intel, Broadcom, Realtek) and Ethernet adapters.
-- **Keyboards:** The `gallos.toml` directive automatically provisions the correct keyboard layouts (`latam`, `us`, `es`), which the contestant can toggle instantly from the Waybar status bar.
+- **Keyboards:** The `gallos.toml` directive automatically provisions the correct keyboard layouts (`latam`, `us`, `es`, `br-abnt2`, `dvorak`), which contestants can toggle instantly via `Super + Space` (or `Alt + Shift`) and the Waybar status bar.
+
+### 3.1 Networking & The Broadcom (`b43` / `wl`) BYOD Dilemma
+
+In BYOD (Bring Your Own Device) competitive programming events (such as university training camps or club meetings), legacy laptops with Broadcom Wi-Fi chips (e.g., BCM4311, BCM4318, BCM4322, BCM4331, BCM4360) present a classic Linux distribution challenge:
+
+1. **The Redistribution Limitation:**
+   - While modern Broadcom chips (`brcmfmac`) have legally redistributable firmware included in standard `linux-firmware`, legacy Broadcom cards (`b43` / `wl`) require proprietary microcode that Broadcom's EULA forbids redistributing in public Linux ISO images.
+2. **GallosOS Pragmatic Approach for BYOD:**
+   - **Open-Source Firmware Inclusion (`openfwwf`):** GallosOS pre-bundles `firmware-b43-openfwwf` (Open Source Firmware for IEEE 802.11 Devices), providing legal out-of-the-box support for basic 802.11b/g Broadcom chips (BCM4306, BCM4311, BCM4318, BCM4320).
+   - **Modern Broadcom Support (`brcmfmac`):** Modern 802.11ac/ax chips (BCM4350, BCM4356, etc.) operate out of the box via standard in-tree `linux-firmware`.
+   - **Help Desk Operational Fallback (Recommended):** For BYOD events with legacy laptops bearing unsupported Broadcom hardware, organizers should keep a small pool of standard USB Ethernet adapters or USB Wi-Fi dongles (e.g., MediaTek `mt76` / Realtek `rtw88` chipsets, which use in-tree redistributable firmware) at the technical support desk.
 
 ---
 

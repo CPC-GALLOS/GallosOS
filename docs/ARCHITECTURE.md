@@ -20,7 +20,7 @@ graph TD
     subgraph "Desktop & Security Layer"
         Wayland[Wayland Compositor: Labwc]
         Desktop[Wayland Kiosk Desktop: Labwc + Waybar]
-        Firewall[Anti-AI Kernel Firewall: nftables Default DROP]
+        Firewall[Anti-Cheat Kernel Firewall: nftables Default DROP]
         DevLock[Device Lockdown: USB Mass-Storage Filter]
     end
 
@@ -125,7 +125,7 @@ GallosOS utilizes an **immutable root filesystem** with **OverlayFS** backed ent
 1. **Base SquashFS Layer (`rootfs.squashfs`):**
    Contains the core operating system, base libraries, desktop environment, and network daemons. Kept minimal (~1.2 GB compressed).
 
-2. **Modular Extension Layers (`.gsm` / `.hsm`):**
+2. **Modular Extension Layers (`.gsm`):**
    SquashFS modules mounted dynamically into the overlay stack:
    - `langs-extra.gsm`: Rust, Haskell, Go, Kotlin compilers.
    - `ide-jetbrains.gsm`: IntelliJ IDEA CE, PyCharm CE, CLion.
@@ -156,6 +156,8 @@ GallosOS utilizes an **immutable root filesystem** with **OverlayFS** backed ent
 
 ## 5. Display Server & Desktop Environment
 
+> For the comprehensive desktop environment specification, dotfile structure, keybindings, and UI module configurations, see [`docs/WAYLAND_DESKTOP.md`](./WAYLAND_DESKTOP.md).
+
 ### 5.1 The Shift to Wayland (Labwc + Waybar Kiosk Session)
 
 Traditional competitive programming environments rely on legacy X11. While X11's lack of window isolation makes client-side proctoring (such as running unprivileged keyloggers or screenshot tools) easy to implement, it introduces a massive security vulnerability: any malicious or unprivileged application can sniff passwords, keystrokes, and graphical data from other windows. Pushing for modern graphics standards, GallosOS embraces **Wayland** as the future of Linux compositing. It secures the workstation by default, while routing official, authorized proctoring and auditing (such as desktop snapshots) through secure, privileged compositor-level APIs (`wlr-screencopy` / `grim`) managed by the root daemon. Additionally, standard Desktop Environments (GNOME, KDE Plasma, Budgie) are too resource-heavy, pull in massive package dependency graphs (unnecessarily bloating the final ISO size, download times, and USB mass-flashing duration), and lack built-in kiosk restrictions. Meanwhile, lightweight desktops like LXQt expose configuration panels that contestants can exploit, and XFCE—which is still undergoing its migration to Wayland—remains experimentally integrated and has not been thoroughly production-tested in secure environments.
@@ -164,7 +166,7 @@ To solve this, GallosOS defaults to a customized, stripped-down **Wayland Kiosk 
 
 - **Compositor:** **Labwc** (a stacking compositor inspired by Openbox with native per-client security isolation).
 - **Status Bar:** **Waybar** (CSS-customizable bar with integrated application launcher, countdowns, and layout switchers).
-- **Default Terminal Emulator:** **Foot** (ultra-lightweight, Wayland-native, instant startup in <5ms, full UTF-8/color support).
+- **Default Terminal Emulator:** **Foot** (ultra-lightweight, Wayland-native, minimal startup latency and low memory footprint, full UTF-8/color support).
 - **Notification Daemon:** **Mako** (lightweight Wayland notification server for broadcast alerts and EarlyOOM notifications).
 
 | Feature | Legacy X11 (XFCE / Openbox) | GallosOS Wayland Kiosk (Labwc + Waybar + Foot) |
@@ -183,7 +185,7 @@ GallosOS separates administrative contest constraints (governed by `gallos.toml`
 
 1. **Precision Clock & One-Click Stress Toggle:**
    - By default, the Waybar clock displays full precision `HH:MM:SS` (e.g. `14:32:08 CST`), essential for pacing and managing submissions during the scoreboard freeze.
-   - **Stress-Free Toggle (Contestant-Controlled):** For participants who experience anxiety watching seconds tick down, clicking directly on the clock widget cycles between:
+   - **Stress-Free Toggle (Contestant-Controlled):** For contestants who experience anxiety watching seconds tick down, clicking directly on the clock widget cycles between:
      $$\text{Full Precision (HH:MM:SS)} \longrightarrow \text{Relaxed (HH:MM)} \longrightarrow \text{Focus Mode (Hidden / Dot Icon)}$$
    - Clicking again or hovering reveals the full timestamp instantly.
 
@@ -191,7 +193,7 @@ GallosOS separates administrative contest constraints (governed by `gallos.toml`
    - To maintain a completely clean workspace, the desktop has no icons or right-click context menus. A dedicated "Menu" or system icon on the Waybar triggers a clean, whitelisted dropdown menu (utilizing `jgmenu` or Waybar's custom GTK-menu bindings) exposing strictly authorized contest applications (IDEs, Terminal, Docs, Browser).
 
 3. **Instant Keyboard Layout Indicator:**
-   - Clear visual indicator in Waybar showing the active layout (e.g., `latam`, `us`, `es`), with global `Alt + Shift` hotkey cycling for international contestants.
+   - Clear visual indicator in Waybar showing the active layout (e.g., `latam`, `us`, `es`), with `Super + Space` (or `Alt + Shift`) hotkey cycling for international contestants.
 
 4. **Dynamic Contest Countdown (Optional):**
    - Waybar executes a local script that parses `gallos-daemon` state to display a live count-down timer (e.g., `Time Left: 02:45:10`), flashing amber when under 15 minutes remaining.
@@ -233,6 +235,25 @@ end   = "2026-11-14T15:00:00-06:00"
 - `gallos-daemon` compares the current `chrony`-synchronized system time against the schedule.
 - The `Contest` mode activates automatically at `start` and deactivates at `end`, transitioning back to `Event` or `Default`.
 - Multiple `[[contest.schedule]]` blocks can define successive contest days (e.g. Day 1 and Day 2 of a regional).
+
+### 6.3 The "Clean State" Session Wipe (Anti-Cheat Transition)
+
+A critical vulnerability in multi-mode systems is cache retention. If a student uses `Event` mode to browse ChatGPT, save algorithms to their desktop, or inject templates, simply changing the firewall when `Contest` mode hits is insufficient—their browser cache and saved files would still exist!
+
+To guarantee absolute integrity, whenever `gallos-daemon` transitions the system **into** `Contest` mode, it executes a **Clean State Wipe**:
+
+1. **Kills the Wayland Session:** Instantly logs out the `contestant` user, closing all open windows, IDEs, and browsers.
+2. **Purges the Home Directory:** Executes `rm -rf /home/contestant/* /home/contestant/.*` to completely destroy browser caches, bash history, downloaded files, and saved templates.
+3. **Restores Skeleton:** Redeploys a pristine filesystem from `/etc/skel`.
+4. **Restarts Session:** Logs the user back in to a completely fresh, air-gapped desktop with the Contest firewall and red branding applied.
+
+### 6.4 Universal Baselines (Always-On Security)
+
+While modes change the *network firewall, audio, and branding*, certain core competitive programming protections are **immutable and always on**, regardless of the active mode:
+
+- **AI Purging:** IDE AI plugins (JetBrains AI, Copilot) are forcibly purged on every boot.
+- **`gallos-oom-notify`:** EarlyOOM and Cgroups v2 are permanently active to catch runaway memory leaks.
+- **Wayland Kiosk Lockout:** System settings, root terminal access, and Virtual TTY consoles (`Ctrl+Alt+F3`) are permanently disabled.
 
 #### Mode B: Relative Duration (Air-Gapped / Airtight / Tier 0)
 
@@ -476,6 +497,10 @@ Each USB boots independently and fetches a config file from any reachable HTTP U
 ---
 
 ### Tier 3 — GallosOS Venue Controller *(Dedicated Local Server)*
+
+> [!IMPORTANT]
+> **The Venue Controller is an Advanced, Optional Component.**
+> The default `gallos-os-amd64.iso` distributed to the public is a fully standalone operating system that works perfectly out of the box (Tiers 0, 1, and 2). It does **not** include or require a Venue Controller. If you want centralized fleet monitoring, MAC address auto-mapping, or network print spooling, you must explicitly configure and deploy the controller infrastructure yourself.
 
 A dedicated machine (or a specially burned **GallosOS Server USB**) boots into **server mode** on the contest LAN. It provides centralized control, monitoring, DHCP, NTP, and printing without requiring internet connectivity. The Venue Controller also writes `/etc/gallos/sync-server.conf` on each contestant machine at first contact, enabling Priority 3 config_url resolution.
 
@@ -745,7 +770,7 @@ In competitive programming contests and Live USB environments, contestants frequ
 Because GallosOS lives entirely in RAM (`tmpfs`) without a physical swap partition, an unconstrained memory leak can quickly exhaust system memory, causing the kernel's late-stage OOM Killer to arbitrarily terminate the wrong process — potentially killing the desktop compositor (`labwc`), the IDE, or even `systemd` instead of the contestant's misbehaving binary.
 
 > [!NOTE]
-> **Design decision verified against HuronOS upstream:** HuronOS initially used `oomd` (Facebook's OOM daemon) and compressed zRAM swap, but abandoned both in favor of **EarlyOOM**. Their reasoning: `oomd` waits until RAM is fully exhausted before acting (too late), requires complex cgroups v2 + PSI infrastructure designed for datacenter workloads, and is overkill for `while(true) malloc()`. `systemd-oomd` has [known bugs](https://github.com/systemd/systemd/issues/32304) that kill entire cgroups instead of only the offending process. EarlyOOM eliminated the need for zRAM swap entirely. GallosOS adopts the same decision.
+> **Design decision verified against HuronOS upstream:** HuronOS initially used `oomd` (Facebook's OOM daemon) and compressed zRAM swap, but abandoned both in favor of [EarlyOOM](https://github.com/rfjakob/earlyoom). Their reasoning: `oomd` waits until RAM is fully exhausted before acting (too late), requires complex cgroups v2 + PSI infrastructure designed for datacenter workloads, and is overkill for `while(true) malloc()`. `systemd-oomd` has known behavioral issues where it terminates entire user session cgroups instead of solely the offending runaway process. EarlyOOM eliminated the need for zRAM swap entirely. GallosOS adopts the same decision.
 
 ---
 
@@ -840,7 +865,7 @@ contestant  hard  stack    unlimited
 
 ## 14. Real-Time Broadcast & Clarifications Subsystem (`gallos-broadcast`)
 
-During live contests, the scientific committee frequently issues urgent clarifications or corrections to problem statements. Declaring announcements inside the static `gallos.toml` configuration is impractical as it requires pushing a new system-wide configuration file for simple message updates.
+During live contests, the contest jury frequently issues urgent clarifications or corrections to problem statements. Declaring announcements inside the static `gallos.toml` configuration is impractical as it requires pushing a new system-wide configuration file for simple message updates.
 
 Instead, GallosOS specifies an **optional, disableable** real-time network broadcast and polling protocol managed by `gallos-daemon`. To prevent unauthorized users on the network from spoofing fake clarifications, all incoming broadcasts must be cryptographically signed by the contest organizers.
 

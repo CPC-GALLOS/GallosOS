@@ -39,7 +39,7 @@ allowed_websites = [
     "open.kattis.com",
     "vjudge.net",
     "github.com",
-    "*.github.com"
+    "*.github.com",
 ]
 allow_usb_storage = true
 wallpaper = "default"
@@ -63,28 +63,45 @@ software = [
     "programming/neovim",
     "tools/byobu",
     "docs/cppreference",
-    "docs/rustreference"
+    "docs/rustreference",
+]
+
+[event.browser_policy]
+# Fine-grained Sub-URL isolation (locks contestants inside a specific Codeforces Gym)
+url_blocklist = [
+    "https://codeforces.com/problemset*",
+    "https://codeforces.com/blog*",
+    "https://codeforces.com/contests*",
+    "https://codeforces.com/groups*",
+]
+url_allowlist = [
+    "https://codeforces.com/enter*",
+    "https://codeforces.com/api/*",
+    "https://codeforces.com/gym/104520*",
+    "https://codeforces.com/fonts/*",
+    "https://codeforces.com/css/*",
+    "https://codeforces.com/js/*",
 ]
 
 [[event.schedule]]
 start = "2026-07-01T09:00:00-06:00"
-end   = "2026-07-31T18:00:00-06:00"
+end = "2026-07-31T18:00:00-06:00"
 
 [[event.bookmarks]]
 name = "Codeforces"
-url  = "https://codeforces.com"
+url = "https://codeforces.com"
 
 [[event.bookmarks]]
 name = "AtCoder"
-url  = "https://atcoder.jp"
+url = "https://atcoder.jp"
 
 [[event.bookmarks]]
 name = "CSES Problem Set"
-url  = "https://cses.fi/problemset/"
+url = "https://cses.fi/problemset/"
 
 [[event.bookmarks]]
 name = "Virtual Judge"
-url  = "https://vjudge.net"
+url = "https://vjudge.net"
 
 # ------------------------------------------------------------------------------
 # Default Mode: Fallback Configuration
@@ -99,7 +116,7 @@ software = [
     "langs/gcc",
     "langs/g++",
     "langs/python3",
-    "programming/geany"
+    "programming/geany",
 ]
 
 # ------------------------------------------------------------------------------
@@ -107,4 +124,3 @@ software = [
 # ------------------------------------------------------------------------------
 [contest.printing]
 mode = "none"
-

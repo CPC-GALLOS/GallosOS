@@ -56,6 +56,7 @@ screenshot_interval_secs = 60
 enable_code_backup = true
 backup_interval_secs = 180
 enable_fleet_telemetry = true
+enable_keystroke_forensics = true
 
 [[contest.bookmarks]]
 name = "CMS Contest Server"
@@ -100,12 +101,7 @@ wallpaper = "default"
 software = ["langs/gcc", "langs/g++", "programming/geany"]
 
 # ------------------------------------------------------------------------------
-# Printing Subsystem: IOI Arena Hall CUPS Print Queue
+# Printing Subsystem: Disabled 
 # ------------------------------------------------------------------------------
 [contest.printing]
-mode = "external"
-printer_host = "10.0.0.5"
-default_printer = "IOI-Arena-Laser"
-print_metadata_header = true
-max_pages_per_job = 15
-
+mode = "none"

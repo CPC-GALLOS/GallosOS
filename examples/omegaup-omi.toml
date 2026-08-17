@@ -35,7 +35,7 @@ allowed_websites = [
     "*.omegaup.com",
     "maxcdn.bootstrapcdn.com",
     "samhebert.net",
-    "cdnjs.cloudflare.com"
+    "cdnjs.cloudflare.com",
 ]
 allow_usb_storage = false
 wallpaper = "default"
@@ -49,12 +49,12 @@ software = [
     "programming/vscodium",
     "programming/geany",
     "programming/codeblocks",
-    "docs/cppreference"
+    "docs/cppreference",
 ]
 
 [[contest.schedule]]
 start = "2026-10-15T09:00:00-06:00"
-end   = "2026-10-15T14:00:00-06:00"
+end = "2026-10-15T14:00:00-06:00"
 
 [contest.audit]
 enable_screen_capture = true
@@ -63,13 +63,32 @@ enable_code_backup = true
 backup_interval_secs = 180
 enable_fleet_telemetry = true
 
+[contest.browser_policy]
+# Fine-grained Sub-URL isolation (locks contestants inside the specific arena)
+url_blocklist = [
+    "https://omegaup.com/arena/problem*",
+    "https://omegaup.com/problem*",
+    "https://omegaup.com/course*",
+    "https://omegaup.com/rank*",
+    "https://omegaup.com/submissions*",
+    "https://omegaup.com/user*",
+]
+url_allowlist = [
+    "https://omegaup.com/login*",
+    "https://omegaup.com/api/*",
+    "https://omegaup.com/arena/contest/omi-2026-dia1*",
+    "https://omegaup.com/static/*",
+    "https://omegaup.com/js/*",
+    "https://omegaup.com/css/*",
+]
+
 [[contest.bookmarks]]
 name = "omegaUp OMI Contest"
-url  = "https://omegaup.com"
+url = "https://omegaup.com"
 
 [[contest.bookmarks]]
 name = "Offline C++ Reference"
-url  = "file:///usr/share/doc/cppreference/index.html"
+url = "file:///usr/share/doc/cppreference/index.html"
 
 # ------------------------------------------------------------------------------
 # Event Mode: Practice Session & Problem Analysis
@@ -79,7 +98,7 @@ allowed_websites = [
     "omegaup.com",
     "*.omegaup.com",
     "olimpiadadeinformatica.org.mx",
-    "cdnjs.cloudflare.com"
+    "cdnjs.cloudflare.com",
 ]
 allow_usb_storage = true
 wallpaper = "default"
@@ -90,34 +109,26 @@ software = [
     "langs/g++",
     "langs/python3",
     "programming/vscodium",
-    "programming/geany"
+    "programming/geany",
 ]
 
 [[event.schedule]]
 start = "2026-10-14T15:00:00-06:00"
-end   = "2026-10-14T18:00:00-06:00"
+end = "2026-10-14T18:00:00-06:00"
 
 [[event.bookmarks]]
 name = "omegaUp Practice"
-url  = "https://omegaup.com"
+url = "https://omegaup.com"
 
 # ------------------------------------------------------------------------------
 # Default Mode: Fallback Configuration
 # ------------------------------------------------------------------------------
 [default]
-allowed_websites = [
-    "olimpiadadeinformatica.org.mx",
-    "omegaup.com"
-]
+allowed_websites = ["olimpiadadeinformatica.org.mx", "omegaup.com"]
 allow_usb_storage = true
 wallpaper = "default"
 
-software = [
-    "internet/chromium",
-    "langs/gcc",
-    "langs/g++",
-    "programming/geany"
-]
+software = ["internet/chromium", "langs/gcc", "langs/g++", "programming/geany"]
 
 # ------------------------------------------------------------------------------
 # Printing Subsystem: Venue Controller USB Printer Spooler
@@ -127,4 +138,3 @@ mode = "hosted"
 default_printer = "OMI-Sede-Laser"
 print_metadata_header = true
 max_pages_per_job = 10
-

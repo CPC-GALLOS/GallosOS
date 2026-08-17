@@ -13,16 +13,16 @@ This document provides a comparative analysis between **GallosOS** (evaluated as
 | Architectural Feature | **HuronOS** | **Maratona Linux** | **GallosOS (Target Design)** |
 | :--- | :--- | :--- | :--- |
 | **Target Ecosystem** | OMI, TCMX, ICPC Gran Premio | ICPC Latin America (SBC/BOCA) | **Universal (ICPC, IOI, Camps, Clubs)** |
-| **Primary Deployment** | Live USB (AUFS + `.hsl`/`.hsm`) | Ubuntu PPA Meta-Packages | **Live USB + VMs (`.ova`/`.qcow2`) + PXE** |
+| **Primary Deployment** | Live USB (AUFS + `.hsl`/`.hsm`) | Ubuntu PPA Meta-Packages | **Live USB (OverlayFS + `.gsm`) + VMs (`.ova`/`.qcow2`) + PXE** |
 | **Base Operating System** | Debian 11 Minimal (AUFS Kernel) | Ubuntu 22.04 LTS (PPA) | **Ubuntu 24.04 LTS Minimal Base** |
 | **Base Download Mirrors** | Custom hosting (`mirrors.huronos.org`) | Canonical Global Mirrors | **Canonical Mirrors + GitHub CDN** |
 | **Build Pipeline** | Custom `sysforge` scripts | Debian `.deb` package builds | **Podman/Docker + CI/CD** |
 | **Display Server / DE** | X11 / Budgie Desktop | X11 / Ubuntu Desktop | **Wayland / Labwc + Waybar (Kiosk)** |
 | **Execution Modes** | `Contest > Event > Always` | Single static mode | **`Contest > Event > Default` (Formalized)** |
 | **Configuration Format** | Legacy `.hdf` (INI format) | Package config files | **Native TOML (`gallos.toml`)** |
-| **Anti-AI & Integrity** | Domain IP mapping (`AllowedWebsites`) | `maratona-firewall` (`iptables`) | **nftables Kernel Drop + AI Extension Purge** |
-| **Fleet Management** | Remote `.hdf` polling (`hsync`) | None (local workstation) | **Remote TOML + WireGuard + Prometheus** |
-| **IDE & Tooling Suite** | VS Code, CLion, IntelliJ (`.hsm`) | VS Code, CLion, IDEA (PPA) | **VSCodium + JetBrains CE + CPH/Companion** |
+| **Anti-Cheat & Integrity** | Domain IP mapping (`AllowedWebsites`) | `maratona-firewall` (`iptables`) | **nftables Kernel Drop + AI Extension Purge** |
+| **Fleet Management** | Remote `.hdf` polling (`hsync`) | None (local workstation) | **Remote TOML Ingestion (HTTP/LAN) + Optional Prometheus** |
+| **IDE & Tooling Suite** | VS Code, CLion, IntelliJ (`.hsm`) | VS Code, CLion, IDEA (PPA) | **VSCodium + JetBrains CE (`.gsm`) + CPH/Companion** |
 | **Mass USB Flashing** | Single `install.sh` (extlinux) | Manual `dd` / Etcher | **Parallel Flasher (`gallos-flash`)** |
 | **Translation & Offline Docs** | Crow Translate (online-only) | `dictd` + FreeDict / doc packages | **Dual-Mode (`dictd` FreeDict Offline + API Whitelist) + DevDocs** |
 | **WSL2 / Windows Flashing** | None (Linux-only scripts) | None | **Native WSL2 + `usbipd-win` + Flasher** |
@@ -39,8 +39,8 @@ This matrix compares the official environments deployed across major ICPC region
 | **Deploy Model** | 10–15 min per USB (`dd`) | 15–20 min disk wipe & install | Varies by host venue | Manual package install | **Live RAM boot without host disk installation** |
 | **Judging System** | Kattis / DOMjudge | DOMjudge (Asia Pacific) | DOMjudge Live Scoreboard | BOCA / DOMjudge | **Universal (BOCA, DOMjudge, OmegaUp, Codeforces, etc.)** |
 | **Resource Limits** | Unrestricted / OS defaults | Cgroups v2 (`MemoryMax=4G`, `CPUQuota=600%`) | DOMjudge *isolate* sandbox on server | Unrestricted on workstation | **Cgroups v2 + EarlyOOM (`gallos-oom-notify`)** |
-| **Anti-AI Controls** | Static domain whitelisting | Explicit policy (bans ML full-line plugins) | Isolated contest LAN | `maratona-firewall` | **Kernel packet drop + IDE plugin strip** |
-| **Fleet Monitoring** | WireGuard + Grafana (`icpc-env`) | Prometheus `node-exporter` + `icpc-exporter` | Centralized venue monitoring | Local machine only | **Prometheus + WireGuard Mesh + Grafana** |
+| **Anti-Cheat Controls** | Static domain whitelisting | Explicit policy (bans ML full-line plugins) | Isolated contest LAN | `maratona-firewall` | **Kernel drop + IDE plugin strip + Sub-URL browser lock** |
+| **Fleet Monitoring** | WireGuard + Grafana (`icpc-env`) | Prometheus `node-exporter` + `icpc-exporter` | Centralized venue monitoring | Local machine only | **Local LAN Prometheus (`gallos-exporter`) / Venue Controller** |
 | **First-Boot Setup** | CloudContest Setup Wizard | Pre-baked cloud-init `user-data` | Pre-configured image | Manual account setup | **Declarative `gallos.toml` + Wizard** |
 | **Practice Resets** | `Clear Team Account` session | Re-install image | Local home wipe scripts | Manual user cleanup | **Automated `Event -> Contest` state transition** |
 
@@ -219,7 +219,7 @@ To ensure real-world architectural parity with actual 2024–2025 championship d
   - **LightDM over GDM/Wayland:** Replaces GDM3 and purges Wayland desktop entries, configuring LightDM with `greeter-hide-users=true` and `allow-guest=false`.
   - **Resource Cgroups v2 Containment:** Injects `systemd-run --user --scope -p MemoryMax=4G -p MemorySwapMax=3G -p CPUQuota=600%` into desktop launcher `.desktop` files (CodeBlocks, Emacs, Geany, Gvim, Kate, GNOME Terminal) to prevent runaway memory leaks.
   - **Prometheus Exporters:** Bundles `node-exporter` and custom `icpc-exporter` services.
-  - **Anti-AI Policy:** Explicitly disallows ML-assisted code completion plugins (e.g. JetBrains "Full Line Code Completion").
+  - **Anti-Cheat Policy:** Explicitly disallows ML-assisted code completion plugins (e.g. JetBrains "Full Line Code Completion").
   - **SSH Lockdown:** Disallows contestant SSH execution via `chmod o-rx /usr/bin/ssh`.
 - **GallosOS Architectural Design & Differentiation:** Rather than requiring automated installation to wipe and overwrite the host machine's internal disk, GallosOS is designed to boot directly into RAM as an immutable Live OS without modifying the host storage, while utilizing a process-isolated **Wayland compositor (Labwc)** instead of legacy X11.
 

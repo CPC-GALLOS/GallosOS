@@ -23,11 +23,11 @@ GallosOS is designed to seamlessly adapt to **any competitive programming scenar
 - **Automated Time-Window Transitions:** $\text{Class (Event)} \to \text{Contest Simulation (Contest)} \to \text{Upsolving (Event)}$
 - **Cloud Sync Between Sessions:** During Event windows between contests, students sync their upsolving notes to whitelisted cloud storage.
 - **Contest Isolation:** During Contest windows, cloud sync is suspended; only the judge domain is reachable.
-- **Auto-Pack on Contest End:** Contestant source code is packaged into `/home/contestant/contest-YYYYMMDDTHH-MM-SS.tar.gz` at contest close — accessible for review during the subsequent Event (upsolving) window.
+- **Post-Contest Export:** USB mass storage unlocks at contest close, allowing contestants to manually save their code for the subsequent Event (upsolving) window.
 
 ### Context 3 — Official Sanctioned Tournaments (Strict Contest Mode)
 
-- **Zero-Leak Anti-AI Kernel Firewall:** Only the designated judge domain is reachable (BOCA, DOMjudge, PC^2, Codeforces). All cloud storage, online IDEs, AI assistants, and general web access are hard-blocked.
+- **Zero-Leak Anti-Cheat Kernel Firewall:** Only the designated judge domain is reachable (BOCA, DOMjudge, PC^2, Codeforces). All cloud storage, online IDEs, AI assistants, and general web access are hard-blocked.
 - **USB Mass-Storage Disabled:** No external code injection via flash drives.
 - **Fresh Ephemeral Scratch Space:** RAM-backed `tmpfs` — every team starts from an identical, pristine state regardless of prior usage.
 
@@ -78,13 +78,14 @@ Before fetching a remote directives file, GallosOS resolves the target URL throu
 - If the remote server or network is unreachable, it automatically falls back to the **local baked-in configuration cache**, guaranteeing the machine boots into a working state under any circumstances.
 - **User Notification (UX):** When a fallback occurs, the system informs the user via a Plymouth boot warning and a persistent desktop notification (e.g., *"⚠️ Offline Mode: Remote configuration unreachable. Using local baked-in profile."*) upon entering the Wayland session.
 
-### 2.4 Architectural Separation: `gallos.toml` vs. `machine.toml` vs. `examples/`
+### 2.4 Architectural Separation: `build.toml` vs. `gallos.toml` vs. `machine.toml`
 
 To prevent configuration pollution and keep deployment modular, GallosOS enforces a strict separation of configuration roles:
 
 | Configuration Entity | Purpose & Scope | Target Audience | Example Content |
 | :--- | :--- | :--- | :--- |
-| **`gallos.toml`** | **Global Contest Policy (WHAT & WHEN):** Identical for all 50–200 machines in the arena. Governs the rules, schedules, and security constraints of the event. | Contest Organizers & Scientific Committee | Schedule windows, `allowed_websites` (judge IPs), available IDEs, firewall rules, printing mode. |
+| **`build.toml`** | **Container Build Recipe (HOW & BASE):** Used exclusively during ISO compilation. Defines what core Ubuntu packages, kernels, and optimizations are permanently baked into the base OS before the USB is even flashed. | Developers & System Admins (`gallos-builder`) | `base_os = "ubuntu-24.04-minimal"`, `preinstall_apt = ["python3"]`, `strip_docs = true`. |
+| **`gallos.toml`** | **Global Contest Policy (WHAT & WHEN):** Identical for all 50–200 machines in the arena. Governs the rules, schedules, and security constraints of the event. | Contest Organizers & Jury | Schedule windows, `allowed_websites` (judge IPs), available IDEs, firewall rules, printing mode. |
 | **`machine.toml`** | **Local Station Identity (WHO & WHERE):** Unique to each individual USB / physical PC. Defines the physical seat and assigned team metadata. | Flashing station (`gallos-flash`) / Venue Controller | `pc_name = "PC-14"`, `room = "Lab-A"`, `team_name = "Team-42"`, `seat_label = "Desk 03"`. |
 | **`examples/*.toml`** | **Production-Ready Blueprints & Templates:** Pre-baked configuration recipes for popular contest platforms. | Event Organizers | `icpc-onsite.toml`, `maratona-sbc.toml`, `ioi-cms.toml`, `codeforces-training.toml`. |
 
@@ -127,7 +128,7 @@ graph LR
 
     subgraph "3. Runtime & Live Event"
         Daemon["gallos-daemon (Mode Controller)"]
-        Firewall["nftables (Anti-AI Default DROP)"]
+        Firewall["nftables (Anti-Cheat Default DROP)"]
         OOM["EarlyOOM + gallos-oom-notify"]
     end
 
@@ -198,43 +199,93 @@ GallosOS specifies the time-governed mode hierarchy:
 
 $$\mathbf{Contest} \succ \mathbf{Event} \succ \mathbf{Default}$$
 
-```text
-+-----------------------------------------------------------------------------------+
-|                        MODE RESOLUTION ENGINE FLOWCHART                           |
-+-----------------------------------------------------------------------------------+
-|                                                                                   |
-|                                [ Current Time ]                                   |
-|                                        |                                          |
-|                                        v                                          |
-|                     Is current time inside Contest Window?                        |
-|                                     /     \                                       |
-|                              YES   /       \   NO                                 |
-|                                   v         v                                     |
-|                       +--------------+   Is current time inside Event Window?     |
-|                       | CONTEST MODE |                  /     \                   |
-|                       | (Priority 1) |           YES   /       \   NO             |
-|                       +--------------+                v         v                 |
-|                                           +------------+   +--------------+       |
-|                                           | EVENT MODE |   | DEFAULT MODE |       |
-|                                           | (Priority 2)   | (Priority 3) |       |
-|                                           +------------+   +--------------+       |
-+-----------------------------------------------------------------------------------+
+```mermaid
+flowchart TD
+    Start([Current Time]) --> Q1{Is time inside<br>Contest Window?}
+    
+    Q1 -- YES --> M1[CONTEST MODE<br>Priority 1]
+    style M1 fill:#f9d0c4,stroke:#333,stroke-width:2px
+    
+    Q1 -- NO --> Q2{Is time inside<br>Event Window?}
+    
+    Q2 -- YES --> M2[EVENT MODE<br>Priority 2]
+    style M2 fill:#d4edda,stroke:#333,stroke-width:2px
+    
+    Q2 -- NO --> M3[DEFAULT MODE<br>Priority 3]
+    style M3 fill:#cce5ff,stroke:#333,stroke-width:2px
 ```
 
-### Mode Semantics
+### Visualizing Mode Overlaps
 
-1. **`Contest` Mode (Highest Priority):**
-   - **Trigger:** Active ISO 8601 time window in `[contest.schedule]`.
-   - **Environment:** Clean temporary scratch space, strict anti-AI firewall (judge-only access), USB storage disabled, only contest-approved IDEs/compilers accessible.
-   - **Post-Contest Cleanup:** Automatically bundles all contestant code into `/home/contestant/contest-YYYYMMDDTHH-MM-SS.tar.gz`.
+The following Gantt chart illustrates how overlapping time windows are resolved on a typical Training Camp day. Because `Contest` has the highest priority, it cleanly overriding the background `Event` and `Default` modes without requiring the organizer to split the Event window into pieces.
 
-2. **`Event` Mode (Medium Priority):**
-   - **Trigger:** Active ISO 8601 time window in `[event.schedule]` (e.g. training camp, lecture, warm-up practice).
-   - **Environment:** Retains persistent user files across classes, hides past contest solutions during active contest hours, broad internet access or course-specific whitelist.
+```mermaid
+gantt
+    title Time-Based Mode Transitions (Example Training Camp Day)
+    dateFormat X
+    axisFormat %H:%M
+    section Declared Windows
+    Contest Window 1         :crit,   contest1, 36000, 46800
+    Contest Window 2         :crit,   contest2, 54000, 72000
+    Event Window             :done,   event1,   28800, 79200
+    Default Fallback         :active, default1, 21600, 82800
+    section Active Mode Result
+    Default (06-08)          :active, res1, 21600, 28800
+    Event (08-10)            :done,   res2, 28800, 36000
+    Contest (10-13)          :crit,   res3, 36000, 46800
+    Event (13-15)            :done,   res4, 46800, 54000
+    Contest (15-20)          :crit,   res5, 54000, 72000
+    Event (20-22)            :done,   res6, 72000, 79200
+    Default (22-23)          :active, res7, 79200, 82800
+```
 
-3. **`Default` Mode (Fallback / Always):**
-   - **Trigger:** When neither a contest nor event time window is active.
-   - **Environment:** Standard open workspace for general university lab usage, setup, and testing.
+### Mode Semantics & Behavior Matrix
+
+The following matrix defines the **exact behavior** of every configurable subsystem across all three modes. Universal Baselines (marked ⛔ Always) are immutable and cannot be overridden by `gallos.toml`.
+
+| Subsystem | `Default` Mode | `Event` Mode | `Contest` Mode |
+| :--- | :--- | :--- | :--- |
+| **Network Firewall** | Open (`allowed_websites = ["*"]`) | Configurable (whitelist or open) | 🔒 Default-DROP, judge-only IPs |
+| **Audio (PipeWire)** | ✅ Enabled | ✅ Enabled | 🔇 Muted & disabled |
+| **Wallpaper** | Default branding | Default or event branding | 🔴 Contest branding |
+| **Regular Clock (Time of Day)** | ⌚ Visible (with Stress Toggle) | ⌚ Visible (with Stress Toggle) | ⌚ Visible (with Stress Toggle) |
+| **Countdown Timer** | Hidden | Hidden | ⏱️ Active (with Stress Toggle) |
+| **Cloud Sync** | Allowed if configured | Allowed between sessions | ❌ Suspended |
+| **Bookmarks** | Open or curated | Configurable per event | 🔒 Judge portal only |
+| **Software Modules (.gsm)** | All available | Configurable subset | Configurable subset |
+| **Contestant Files** | Persistent across sessions | Persistent between classes | 🧹 **Clean State Wipe on entry** |
+| **USB Mass Storage** | Configurable (`allow_usb_storage`) | Configurable (`allow_usb_storage`) | 🔒 Always blocked |
+| **AI Plugin Purging** | ⛔ Always purged on boot | ⛔ Always purged on boot | ⛔ Always purged on boot |
+| **OOM Protection** | ⛔ Always active | ⛔ Always active | ⛔ Always active |
+| **Wayland Kiosk Lock** | ⛔ Always locked | ⛔ Always locked | ⛔ Always locked |
+| **Virtual TTY (`Ctrl+Alt+F3`)** | ⛔ Always disabled | ⛔ Always disabled | ⛔ Always disabled |
+
+> [!IMPORTANT]
+> **The Clean State Wipe** is the single most critical anti-cheat mechanism. When `gallos-daemon` transitions into `Contest` mode from any other mode, it kills the Wayland session, purges `/home/contestant/` (destroying all browser caches, bash history, bookmarks, and saved files from the previous session), restores the pristine `/etc/skel` skeleton, and restarts the session. This guarantees that no student can pre-load answers, algorithm templates, or saved code before the contest begins.
+
+#### 1. `Default` Mode (Fallback / Always)
+
+- **Trigger:** Active when neither a Contest nor Event time window is scheduled.
+- **Use Case:** Regular competitive programming club sessions, everyday training, general university lab usage, initial setup, and post-event cleanup.
+- **Network:** Open internet access (or organizer-curated whitelist), backed by a persistent, auto-updating DNS host blocklist (e.g., via `/etc/hosts` or `dnsmasq`) for known AI domains (OpenAI, Claude, Copilot, etc.) to enforce traditional algorithmic practice.
+- **Files:** Persistent. Students can save files, browse freely, and configure their environment.
+
+#### 2. `Event` Mode (Medium Priority)
+
+- **Trigger:** Active ISO 8601 time window in `[event.schedule]` (e.g., training camp, lecture, warm-up).
+- **Use Case:** Multi-day camps where students attend lectures in the morning and practice in the afternoon.
+- **Network:** Broad internet access or course-specific whitelist.
+- **Files:** Persistent between classes within the same Event window, but **hidden and inaccessible** during any overlapping Contest window. This prevents students from referencing lecture notes during a simulated contest.
+
+#### 3. `Contest` Mode (Highest Priority — Strict Lockdown)
+
+- **Trigger:** Active ISO 8601 time window in `[contest.schedule]`.
+- **Use Case:** Official ICPC regionals, IOI rounds, university invitationals.
+- **Transition In:** Executes the **Clean State Wipe** (kills session → purges home → restores skeleton → restarts fresh).
+- **Network:** Kernel-level Default-DROP firewall. Only judge IPs in `allowed_websites` are reachable.
+- **Audio:** PipeWire is muted and disabled to enforce arena silence.
+- **Visual:** Contest wallpaper applied, countdown timer visible in Waybar.
+- **Transition Out:** When the contest window ends, `gallos-daemon` automatically unlocks the network and transitions back to `Event` or `Default`, allowing contestants to export their code via USB or the internet.
 
 ---
 
@@ -266,6 +317,7 @@ show_powered_by_gallos = true
 [default]
 allowed_websites = ["*"]
 allow_usb_storage = true
+allow_audio = true
 wallpaper = "default"
 
 software = [
@@ -299,6 +351,7 @@ bookmarks = [
 [event]
 allowed_websites = ["*"]
 allow_usb_storage = true
+allow_audio = true
 wallpaper = "default"
 software = ["internet/chromium", "langs/g++", "langs/python3", "programming/vscodium"]
 
@@ -317,6 +370,7 @@ allowed_websites = [
   "icpcmexico.org"
 ]
 allow_usb_storage = false
+allow_audio = false
 wallpaper = "https://directives.icpcmexico.org/wallpapers/gpmx_2026_contest.png"
 wallpaper_sha256 = "c382c20791695176be47257ec924c9df39e40534d4ac02fb23c4f3c823334fd8"
 
@@ -404,11 +458,14 @@ The following table specifies how `gallos-convert` maps legacy HuronOS directive
 | `[Event-Times]` lines | `[[event.schedule]]` | `BeginTime EndTime` → `{start = ..., end = ...}` |
 | `[Contest-Times]` lines | `[[contest.schedule]]` | `BeginTime EndTime` → `{start = ..., end = ...}` |
 
+> [!NOTE]
+> **No Binary Migration Required:** When `gallos-convert` performs "name remapping" on the `AvailableSoftware` configuration flags, it safely maps legacy HuronOS software requests directly to modern GallosOS `.gsm` modules. **You do not need to copy your old `.hsm` files to the GallosOS USB.** GallosOS provides its own updated software stack natively.
+
 ### Package Name Remapping Table (HuronOS → GallosOS)
 
 | HuronOS Package | GallosOS Equivalent | Notes |
 | :--- | :--- | :--- |
-| `programming/vscode` | `programming/vscodium` | VSCodium replaces VSCode (telemetry stripped) |
+| `programming/vscode` | `programming/vscodium` / `programming/vscode` | Default ISO maps to telemetry-free VSCodium; official Microsoft VS Code is supported if enabled via build script |
 | `internet/crow` | `internet/crow` | Same (Crow Translate, offline dictionary mode) |
 | `programming/intellij` | `programming/intellij` | Maps to JetBrains IDEA CE |
 | `programming/pycharm` | `programming/pycharm` | Maps to PyCharm CE |
@@ -421,8 +478,8 @@ The following table specifies how `gallos-convert` maps legacy HuronOS directive
 | `programming/kate` | `programming/kate` | Direct match (KDE Advanced Text Editor) |
 | `programming/sublime` | `programming/sublime` | Direct match (Sublime Text) |
 | `programming/gvim` | `programming/gvim` | Direct match (Graphical Vim) |
-| `programming/vim` | `programming/vim` | Direct match (Terminal Vim) |
-| `programming/neovim` | `programming/neovim` | Direct match (Neovim) |
+| `programming/vim` | `programming/vim` | Name match (Mapped to GallosOS Vim with CP plugins) |
+| `programming/neovim` | `programming/neovim` | Name match (Mapped to GallosOS LazyVim environment) |
 | `internet/chromium` | `internet/chromium` | Direct match |
 | `internet/firefox` | `internet/firefox` | Direct match |
 | `langs/g++` | `langs/g++` | Direct match |
@@ -432,5 +489,6 @@ The following table specifies how `gallos-convert` maps legacy HuronOS directive
 | `langs/pypy3` | `langs/pypy3` | Direct match |
 | `langs/python3` | `langs/python3` | Direct match |
 | `langs/rustc` | `langs/rustc` | Direct match (Rust Compiler) |
-| `tools/foot` | `tools/foot` | Direct match (Default Wayland Terminal Emulator) |
+| `tools/konsole` | `tools/konsole` / `tools/foot` | Konsole is supported if requested; `tools/foot` is recommended and default for minimal RAM footprint on Wayland |
 | `tools/byobu` | `tools/byobu` | Direct match (Terminal Multiplexer) |
+| `tools/midnight-commander` | `tools/midnight-commander` | Direct match (Midnight Commander file manager) |

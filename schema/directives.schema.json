@@ -64,6 +64,11 @@
           "type": "boolean",
           "description": "Whether to allow USB mass-storage devices to be mounted."
         },
+        "allow_audio": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether audio output is enabled via PipeWire. Defaults to false in Contest mode to preserve arena quietness; enabled in Event and Default modes for lectures and practice tutorials."
+        },
         "wallpaper": {
           "type": "string",
           "description": "URL to remote wallpaper image, 'default' for GallosOS stock wallpaper, or local file path."
@@ -96,10 +101,11 @@
         },
         "audit": { "$ref": "#/definitions/audit_config" },
         "printing": { "$ref": "#/definitions/printing_config" },
+        "browser_policy": { "$ref": "#/definitions/browser_policy" },
         "announcements": {
           "type": "array",
           "items": { "$ref": "#/definitions/announcement" },
-          "description": "Broadcast notifications and clarifications published by the scientific committee."
+          "description": "Broadcast notifications and clarifications published by the contest jury."
         }
       }
     },
@@ -222,6 +228,23 @@
           "description": "Maximum number of pages allowed per print job (anti-spam quota limit)."
         }
       }
+    },
+    "browser_policy": {
+      "type": "object",
+      "description": "Fine-grained Chromium/Firefox managed URL policies to lock down paths within allowed domains.",
+      "additionalProperties": false,
+      "properties": {
+        "url_blocklist": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of URLs or prefixes to block (e.g. 'https://omegaup.com/problem*')."
+        },
+        "url_allowlist": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of URLs or prefixes to explicitly allow, overriding the blocklist."
+        }
+      }
     }
   },
 
@@ -312,7 +335,7 @@
 
     "contest": {
       "$ref": "#/definitions/mode_config",
-      "description": "Configuration for Contest mode (strict lockdown, judge-only network, Anti-AI shield active)."
+      "description": "Configuration for Contest mode (strict lockdown, judge-only network, Anti-Cheat shield active)."
     },
 
     "machines": {
