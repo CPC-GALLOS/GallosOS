@@ -73,7 +73,7 @@ The container pulls a pristine Ubuntu 24.04 core filesystem. It establishes the 
 The builder enters the chroot environment and:
 
 1. Installs the Wayland Kiosk core (`labwc`, `waybar`, `foot`).
-2. Compiles and injects the `gallos-daemon` Rust binary.
+2. Injects the `gallos-daemon` stateless scripts (Python).
 3. Parses `build.toml` $\to$ `[packages]` and executes `apt-get install -y <packages>`.
 
 ### Stage 3: Stripping & Optimization

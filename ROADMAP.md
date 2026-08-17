@@ -12,7 +12,7 @@ This document translates the complete architectural and security specifications 
 
 - [ ] **OCI Build Container:** Create the `Containerfile` / `Dockerfile` (Podman/Docker) to bootstrap an `ubuntu:24.04` minimal rootfs without host pollution.
 - [ ] **Dual Bootloader Chain:** Configure hybrid bootloaders supporting:
-  - UEFI Boot via Canonical's signed `shim` and `grub-efi-amd64-signed` (Best-effort SecureBoot support; official fallback in docs is disabling it).
+  - UEFI Boot via Canonical's signed `shim` and `grub-efi-amd64-signed`.
   - Legacy PC-BIOS (CSM) via `grub-pc` and MBR boot sector.
 - [ ] **Casper Live Boot Engine:** Configure `casper` boot parameters and hooks to:
   - Mount SquashFS modules (`.gsm`) into union layers using in-tree **OverlayFS**.
@@ -41,8 +41,7 @@ This document translates the complete architectural and security specifications 
 - [ ] **TTY & Privilege Hardening:**
   - Disable virtual terminal switching (TTY1–6) via kernel/logind parameters.
   - Configure the `contestant` user as unprivileged without `sudo` or polkit administrative rights.
-- [ ] **Cgroups v2 & EarlyOOM Guard (`gallos-oom-notify`):**
-  - Configure Cgroups v2 resource slicing (`system.slice`, `app.slice`, `ide.slice`).
+- [ ] **EarlyOOM Guard (`gallos-oom-notify`):**
   - Protect `gallos-daemon` with `oom_score_adj = -900` while setting browsers to `+500`.
   - Deploy `gallos-oom-notify.sh` journal listener to display user-friendly desktop notifications when processes are terminated by EarlyOOM.
 
@@ -53,11 +52,8 @@ This document translates the complete architectural and security specifications 
 *Goal: Implement the real-time configuration engine, multi-mode scheduling, and network sync.*
 
 - [ ] **`gallos-daemon` Core Engine:**
-  - Develop stateless root scripts (Bash/Python) triggered periodically by a `systemd.timer` to avoid complex daemon memory leaks and ensure resilience.
+  - Develop a persistent `systemd.service` (Python) capable of maintaining state and open sockets for real-time broadcasts.
   - Implement strict TOML parsing and schema validation against `schema/directives.schema.json` via `taplo`.
-- [ ] **`gallos-convert` (HuronOS Migration CLI):**
-  - Parser for legacy `.hdf` INI configuration files into canonical `gallos.toml`.
-  - Include `--validate` (taplo schema check) and `--diff` CLI flags.
 - [ ] **Hybrid Config Ingestion & Fallback:**
   - Implement boot sequence logic: attempt to fetch remote `gallos.config_url` with a 5-second timeout; if unreachable, gracefully fall back to local `/boot/gallos/gallos.toml` cache with Plymouth/desktop warnings.
   - Support multi-profile selection via kernel boot arguments.
@@ -100,6 +96,9 @@ This document translates the complete architectural and security specifications 
 
 *Goal: Build standalone utilities for mass USB preparation, migration, and visual configuration.*
 
+- [ ] **`gallos-convert` (HuronOS Migration CLI):**
+  - Parser for legacy `.hdf` configuration formats into canonical `gallos.toml`.
+  - Include `--validate` (taplo schema check) and `--diff` CLI flags.
 - [ ] **`gallos-flash` (Mass Multi-USB Flashing Tool):**
   - Multi-threaded parallel writer supporting 50+ simultaneous USB targets.
   - Native support for Linux, macOS, and Windows WSL2 via `usbipd-win`.

@@ -48,7 +48,7 @@ graph TD
 GallosOS enforces a **Monorepo** strategy with a strict **"In-Band vs Out-of-Band"** tooling philosophy. This prevents the project from suffering the "lack of support" fate of HuronOS or the complexity of Maratona Linux.
 
 - **Monorepo Structure:** All components (OS build scripts, Wayland configs, and external CLI tools) live in a single Git repository. This lowers the barrier to entry, ensuring that one `git clone` provides the entire ecosystem.
-- **In-Band Tooling (Hackable OS Core):** Any code that runs **inside** the live USB environment (`gallos-daemon`, init scripts) is written strictly in **Bash or Python**. The core OS must be hackable on the fly. If an edge-case bug occurs during a regional contest, an organizer with root access can open the script, patch it, and save the event without needing a compiler.
+- **In-Band Tooling (Hackable OS Core):** Any code that runs **inside** the live USB environment (`gallos-daemon`, init scripts) is written strictly in **Python**. The core OS must be hackable on the fly. If an edge-case bug occurs during a regional contest, an organizer with root access can open the script, patch it, and save the event without needing a compiler.
 - **Out-of-Band Tooling (Compiled Organizer CLIs):** Tools run by the organizer on their host machine (e.g., `gallos-convert`, `gallos-flash`) are built as **Statically Compiled Binaries (Rust)**. Organizers suffer from "dependency hell" when asked to install Python just to convert a config file. Rust delivers a single, portable executable that "just works" out of the box.
 
 ---
@@ -893,7 +893,7 @@ Instead, GallosOS specifies an **optional, disableable** real-time network broad
 sequenceDiagram
     participant Organizer as Administrator / gallos-broadcast
     participant Daemon as gallos-daemon (Workstation)
-    participant Panel as Desktop Notifier (Mako / Dunst)
+    participant Panel as Desktop Notifier (Mako)
     participant UI as Full-Screen Modal Window
 
     Organizer->>Daemon: Send signed JSON payload (UDP Broadcast / TCP Push / HTTP Polling)

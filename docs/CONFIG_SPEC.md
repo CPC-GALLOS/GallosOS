@@ -105,7 +105,7 @@ To prevent configuration pollution and keep deployment modular, GallosOS enforce
 3. **Strict Schema Validation:** Integrates natively with `taplo` and JSON Schema (`directives.schema.json`), providing real-time linting and auto-completion directly in the organizer's IDE.
 4. **Native Datetime Literals (RFC 3339 / ISO 8601):** Timestamps like `2026-08-29T11:00:00Z` are first-class primitives in TOML, eliminating string parsing errors and timezone ambiguities.
 5. **Zero Indentation Vulnerabilities:** Unlike YAML, TOML uses explicit headers (`[contest]`, `[[contest.schedule]]`) and is immune to broken indentation, tab vs. space mixups, or accidental whitespace corruption during copy-pasting.
-6. **Lightweight & Secure Daemon:** Parsing TOML requires minimal overhead and provides memory-safe deserialization for `gallos-daemon`.
+6. **Native Standard Library Support:** Modern languages like Python 3.11+ include native support for parsing TOML (`tomllib`), allowing `gallos-daemon` to securely ingest configuration natively without requiring a compiler or heavy third-party dependencies.
 
 ---
 

@@ -24,7 +24,6 @@ To ensure a rapid, stable release that directly solves the immediate needs of th
 2. **Wayland Kiosk & Ephemeral Storage:** Labwc + Waybar desktop running entirely in RAM (OverlayFS `tmpfs`).
 3. **Static Anti-Cheat Firewall:** `nftables` restricted to static judge IPs (Zero-Trust network).
 4. **TOML Config Engine:** `gallos-daemon` parsing `gallos.toml` (remote URL or baked-in fallback).
-5. **HuronOS Compatibility:** `gallos-convert` CLI to instantly migrate legacy `.hdf` configs.
 
 Advanced venue-management features (fleet telemetry, print spooling, proctoring snapshots) are explicitly deferred to post-MVP development (Phase 7).
 
