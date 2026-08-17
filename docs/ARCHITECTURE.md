@@ -43,6 +43,16 @@ graph TD
 
 ---
 
+### 1.1 Repository Strategy & Tooling Philosophy
+
+GallosOS enforces a **Monorepo** strategy with a strict **"In-Band vs Out-of-Band"** tooling philosophy. This prevents the project from suffering the "lack of support" fate of HuronOS or the complexity of Maratona Linux.
+
+- **Monorepo Structure:** All components (OS build scripts, Wayland configs, and external CLI tools) live in a single Git repository. This lowers the barrier to entry, ensuring that one `git clone` provides the entire ecosystem.
+- **In-Band Tooling (Hackable OS Core):** Any code that runs **inside** the live USB environment (`gallos-daemon`, init scripts) is written strictly in **Bash or Python**. The core OS must be hackable on the fly. If an edge-case bug occurs during a regional contest, an organizer with root access can open the script, patch it, and save the event without needing a compiler.
+- **Out-of-Band Tooling (Compiled Organizer CLIs):** Tools run by the organizer on their host machine (e.g., `gallos-convert`, `gallos-flash`) are built as **Statically Compiled Binaries (Rust)**. Organizers suffer from "dependency hell" when asked to install Python just to convert a config file. Rust delivers a single, portable executable that "just works" out of the box.
+
+---
+
 ## 2. Dynamic Directives Ingestion Architecture
 
 GallosOS is designed to be **infrastructure-agnostic**: it operates correctly whether the venue has zero network infrastructure, a basic home router, a university-managed DHCP server, or a full dedicated GallosOS Venue Controller. The system never assumes the presence of any particular network service.
@@ -198,6 +208,9 @@ GallosOS separates administrative contest constraints (governed by `gallos.toml`
 4. **Dynamic Contest Countdown (Optional):**
    - Waybar executes a local script that parses `gallos-daemon` state to display a live count-down timer (e.g., `Time Left: 02:45:10`), flashing amber when under 15 minutes remaining.
 
+5. **Anti-Accident Power Button Lock:**
+   - In `Contest` mode, graphical shutdown and reboot options are strictly disabled from the Waybar to prevent contestants from accidentally powering off the machine during the competition (physical hard reboots remain possible if the machine freezes).
+
 ---
 
 ## 6. Time Synchronization Subsystem
@@ -339,7 +352,7 @@ GallosOS bridges the simplicity of pre-baked distribution images with the power 
 
 3. **Track 3: Modular Layer Extension (Gallos Software Modules `.gsm` — HuronOS Parity):**
    - Retaining the beloved modularity of HuronOS, organizers can add or remove specific application suites without recompiling the base OS by simply dropping or deleting `.gsm` SquashFS layers in the `/boot/gallos/modules/` directory of the USB drive.
-   - The custom `initramfs` hook dynamically discovers all `*.gsm` modules at boot and stacks them seamlessly onto the in-tree OverlayFS lowerdir chain (`lowerdir=modN:...:mod1:base`).
+   - The `casper` boot engine dynamically discovers all `*.gsm` modules at boot and stacks them seamlessly onto the in-tree OverlayFS lowerdir chain (`lowerdir=modN:...:mod1:base`).
 
 ---
 

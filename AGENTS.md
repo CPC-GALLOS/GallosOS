@@ -102,6 +102,11 @@ When assisting in this repository, follow these core tenets:
 
    GallosOS is **infrastructure-agnostic**: it operates across a 5-tier spectrum from fully air-gapped (Tier 0) to externally managed institutional infrastructure (Tier 4). Never assume the presence of a Venue Controller, internet connectivity, or any specific network service when designing features or writing documentation.
 
+10. **In-Band vs Out-of-Band Tooling Philosophy:**
+    Adhere strictly to the tooling separation defined in the architecture:
+    - **In-Band (Live OS Core):** Any script running *inside* the contest environment (`gallos-daemon`, hooks) MUST be written in **Bash or Python** to guarantee on-the-fly hackability during a regional event without needing a compiler.
+    - **Out-of-Band (Organizer CLI Tools):** Any tool run by the organizer on their host machine (`gallos-flash`, `gallos-convert`) MUST be built as **Statically Compiled Binaries (Rust)** to prevent dependency hell and ensure they work instantly.
+
 ---
 
 ## 💻 Cross-Platform & Virtualization Support

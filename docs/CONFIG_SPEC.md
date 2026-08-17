@@ -100,11 +100,12 @@ To prevent configuration pollution and keep deployment modular, GallosOS enforce
 
 ### Why TOML is the Exclusive Choice
 
-1. **Native Datetime Literals (RFC 3339 / ISO 8601):** Timestamps like `2026-08-29T11:00:00Z` are first-class primitives in TOML, eliminating string parsing errors and timezone ambiguities.
-2. **Zero Indentation Vulnerabilities:** Unlike YAML, TOML uses explicit headers (`[contest]`, `[[contest.schedule]]`) and is immune to broken indentation, tab vs. space mixups, or accidental whitespace corruption during copy-pasting.
-3. **Strict Typings:** Avoids YAML's silent boolean coercion issues (e.g. `no` or `on` being misparsed as booleans).
-4. **Lightweight & Secure Daemon:** Parsing TOML in Rust (`toml-rs`) requires minimal overhead, has zero unsafe dependencies, and provides memory-safe deserialization.
-5. **Single Source of Truth:** One standard format across the entire ecosystem — CLI tools, Web Studio, schema validators, and the OS runtime.
+1. **Superior Organizer UX (Syntax Highlighting):** Legacy custom formats like HuronOS `.hdf` lack editor support. TOML is natively supported by modern editors (VSCodium, Notepad++), providing rich syntax highlighting and instantly revealing syntax errors to organizers before a contest begins.
+2. **AI-Assisted Configuration:** Organizers increasingly rely on LLMs to generate or modify lab configurations. Custom formats cause AI hallucinations, whereas TOML is universally understood by AI models, allowing organizers to seamlessly prompt: *"Adjust these TOML timestamps to Mexico City time and add Codeforces to the whitelist"*.
+3. **Strict Schema Validation:** Integrates natively with `taplo` and JSON Schema (`directives.schema.json`), providing real-time linting and auto-completion directly in the organizer's IDE.
+4. **Native Datetime Literals (RFC 3339 / ISO 8601):** Timestamps like `2026-08-29T11:00:00Z` are first-class primitives in TOML, eliminating string parsing errors and timezone ambiguities.
+5. **Zero Indentation Vulnerabilities:** Unlike YAML, TOML uses explicit headers (`[contest]`, `[[contest.schedule]]`) and is immune to broken indentation, tab vs. space mixups, or accidental whitespace corruption during copy-pasting.
+6. **Lightweight & Secure Daemon:** Parsing TOML requires minimal overhead and provides memory-safe deserialization for `gallos-daemon`.
 
 ---
 

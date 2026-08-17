@@ -122,6 +122,8 @@ The status bar (`Waybar`) is customized specifically for competitive programming
    - Visual badge (`LATAM`, `US`, `ES`, `BR`) showing current active layout. Clicking the badge cycles to the next layout.
 5. **EarlyOOM Low-Memory Indicator:**
    - Visual indicator alerting contestants when RAM usage approaches critical limits before processes are terminated.
+6. **Anti-Accident Power Button Lock:**
+   - In `Contest` mode, the graphical shutdown/reboot button on the Waybar is strictly disabled to prevent contestants from accidentally powering off their machine during the competition.
 
 ---
 
