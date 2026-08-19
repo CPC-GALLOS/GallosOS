@@ -14,7 +14,7 @@ This document translates the complete architectural and security specifications 
 - [ ] **Dual Bootloader Chain:** Configure hybrid bootloaders supporting:
   - UEFI Boot via Canonical's signed `shim` and `grub-efi-amd64-signed`.
   - Legacy PC-BIOS (CSM) via `grub-pc` and MBR boot sector.
-- [ ] **Casper Live Boot Engine:** Configure `casper` boot parameters and hooks to:
+- [ ] **Casper Live Boot Engine:** Configure `casper` boot parameters and hooks (inspecting and adapting contest-tested hook patterns from `maratona-linux/maratona-casper`) to:
   - Mount SquashFS modules (`.gsm`) into union layers using in-tree **OverlayFS**.
   - Automatically mount the 3-partition Live USB layout (`GALLOS_BOOT`, `event-data`, `contest-data`).
   - Support the `toram` boot parameter (copy entire OS to RAM for memory-resident disconnected execution).
@@ -75,10 +75,10 @@ This document translates the complete architectural and security specifications 
 *Goal: Deliver printing, proctoring, white-labeling, and offline reference capabilities.*
 
 - [ ] **`gallos-print` CUPS Subsystem:**
-  - Develop the `gallos-print` CLI for contestants (`gallos-print solution.cpp`).
+  - Develop the `gallos-print` CLI for contestants (`gallos-print solution.cpp`), inspecting and adapting the proven `printfile` (`a2ps` / `enscript`) pipeline pattern from `icpcsysops/ansible` and SWERC Lyon.
   - Support standard browser/judge GUI printing (`Ctrl + P` in Chromium / Firefox) through the default virtual CUPS queue.
   - Implement screenshot/window capture printouts via `grim` (`gallos-print --screenshot`).
-  - Build `gallos-cups-filter` to inject syntax highlighting, team metadata headers, timestamps, and page numbers.
+  - Build `gallos-cups-filter` to inject syntax highlighting, line numbering, team metadata headers, timestamps, and page numbers.
   - Enforce printer whitelisting in `gallos.toml` to prevent unauthorized network print jobs.
 - [ ] **Rapid White-Labeling & Branding Engine:**
   - Offline Plymouth boot splash generator from `boot_splash_logo_url`.
@@ -115,7 +115,7 @@ This document translates the complete architectural and security specifications 
 *Goal: Package contest programming languages, IDEs, VM targets, and automated build pipelines.*
 
 - [ ] **Compilers & Runtimes:**
-  - Package and verify standard contest toolchains: GCC (C/C++), Clang, OpenJDK 21 (Java), Python 3, PyPy3, Rust, Kotlin, Mono / .NET.
+  - Package and verify standard contest toolchains (cross-referencing package manifests from `icpc-environment/icpc-env`, `maratona-linux/maratona-team-tools`, and `ioi-official/contestant-vm`): GCC (C/C++), Clang, OpenJDK 21 (Java), Python 3, PyPy3, Rust, Kotlin, Mono / .NET.
 - [ ] **Contestant IDEs:**
   - Pre-configure and package VSCodium (with offline extensions), JetBrains Community Edition (IntelliJ IDEA, PyCharm), CLion (with activation script), Code::Blocks, Geany, Kdevelop, Neovim (lazyvim), Vim (linters, plugins), and Kate.
 - [ ] **Anti-Cheat Purge & Telemetry Neutralization (Post-MVP):**
@@ -138,7 +138,8 @@ This document translates the complete architectural and security specifications 
 
 - [ ] **Venue Controller Server Mode:**
   - Dedicated GallosOS boot mode to act as the central orchestrator (DHCP, NTP, MAC mapping).
-- [ ] **Administrative Proctoring & Auditing:**
+- [ ] **Administrative Proctoring, Auditing & Keystroke Forensics:**
+  - Adopt/fork the **`martkeys`** daemon architecture (`icpcsysops/ansible`) for kernel-level `/dev/input/event*` keystroke and mouse activity aggregation (Wayland compositor-agnostic) when `enable_keystroke_forensics = true`.
   - Implement scheduled background screenshot captures via dedicated root Wayland socket.
   - Bundle `node-exporter` and `gallos-exporter` for real-time fleet health metrics.
-  - Build `gallos-audit-export` CLI to aggregate and export ephemeral workstation logs, EarlyOOM kill events, firewall drops, print history, and proctoring snapshots into a persistent `gallos-audit-YYYYMMDD.tar.gz` archive.
+  - Build `gallos-audit-export` CLI to aggregate and export ephemeral workstation logs, EarlyOOM kill events, firewall drops, `martkeys` activity metrics, print history, and proctoring snapshots into a persistent `gallos-audit-YYYYMMDD.tar.gz` archive.

@@ -81,5 +81,48 @@ To avoid catastrophic write failures or extremely slow flashing times (e.g., 4+ 
 2. **Dedicated PCIe Expansion Cards (Desktops):** If you are using a desktop PC as a flashing station, the best approach is to install a dedicated PCIe to USB 3.2 expansion card (Recommended brands: StarTech, Inateck, Orico). Unlike external hubs that share a single port's bandwidth, PCIe cards connect directly to the CPU's PCIe lanes, guaranteeing full write speed to every port simultaneously.
 3. **Thunderbolt / USB-C Hub Topology (Laptops):** If flashing from a laptop, plug your powered USB hub into a **Thunderbolt 3/4 or USB-C** port rather than a traditional rectangular USB-A port. Thunderbolt ports have massive bandwidth (up to 40 Gbps) compared to standard USB-A (5 Gbps), preventing the hub from becoming a severe data bottleneck when flashing 10+ drives at once.
 
+---
+
+## 5. CPU Execution Determinism & Thermal Throttling Prevention
+
+In competitive programming, contestants rely on accurate local execution timings when benchmarking complex algorithms against maximum test cases ($N = 10^5, 2 \times 10^5$). On modern multi-core laptops, dynamic frequency scaling (Intel Turbo Boost, AMD Core Performance Boost) and thermal throttling introduce non-deterministic execution spikes, causing identical code to take 0.8s on one run and 2.1s on another.
+
+Inspired by proven production practices from the **ICPC World Finals Systems Operations team** ([`icpcsysops/ansible`](./COMPARATIVE_ANALYSIS.md#9-specialized-analysis-icpc-world-finals--nac-sysops-fleet-orchestration-icpcsysopsansible)), GallosOS incorporates declarative hardware stabilization mechanisms:
+
+### 5.1 Dynamic Boost Disabling & Fixed Performance Governor
+
+During `Contest` mode (or declaratively via `[system.hardware]`), `gallos-daemon` configures kernel CPU frequency interfaces:
+
+- **Intel Processors (`intel_pstate`):**
+
+  ```bash
+  # Disable dynamic overclocking / boost spikes
+  echo 1 > /sys/devices/system/cpu/intel_pstate/no_turbo
+  # Pin performance bounds to base non-overclocked clock
+  echo 100 > /sys/devices/system/cpu/intel_pstate/min_perf_pct
+  echo 100 > /sys/devices/system/cpu/intel_pstate/max_perf_pct
+  ```
+
+- **AMD Processors (`cpufreq`):**
+
+  ```bash
+  # Disable AMD Core Performance Boost
+  echo 0 > /sys/devices/system/cpu/cpufreq/boost
+  ```
+
+- **Frequency Governor:**
+  Sets `/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor` to `performance`, preventing powersave downclocking transitions during interactive idle pauses between compile runs.
+
+### 5.2 HyperThreading Sibling Thread Isolation & CPU Pinning
+
+On laptops where concurrent background threads or thermal budgets impact single-threaded algorithmic performance:
+
+1. **Virtual Sibling Thread Deactivation:**
+   Optionally offlines logical HyperThreading pairs (`echo 0 > /sys/devices/system/cpu/cpu<N>/online`), ensuring contestant processes execute strictly on dedicated physical cores with full L1/L2 cache allocation.
+2. **Process Affinity Pinning (`taskset`):**
+   GallosOS run-wrapper utilities (`runc`, `runcpp`, `runpython3`, `runjava`, `runkotlin`) support pinning execution to specific isolated physical CPU cores via `taskset -c <core>`, eliminating context switching and scheduler migration jitter.
+
+---
+
 > [!NOTE]
 > **Legal Disclaimer:** The hardware brands listed in this document (e.g., SanDisk, Kingston, Samsung, Anker, Sabrent, TP-Link, StarTech, Inateck, Orico) are provided strictly as technical examples of historically reliable equipment for mass-deployment IO scenarios. The GallosOS project is an independent open-source initiative and has no commercial affiliation, partnership, sponsorship, or endorsement agreement with any of these manufacturers.

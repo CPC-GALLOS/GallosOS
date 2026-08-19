@@ -544,6 +544,7 @@ The **judge server** (DOMjudge, BOCA, PC^2, CMS) is always a **separate, dedicat
 - ✅ **Scalable Multi-Server Architecture:** One central Controller or multiple distributed auditing nodes (e.g. one per lab floor in large multi-room venues).
 - ✅ **Centralized Print Spooler:** Manages network print queues and formats print headers automatically via CUPS.
 - ✅ **Dynamic Directives & Clarification Dispatch:** Broadcasts signed `gallos.toml` updates and `gallos-broadcast` messages across the arena LAN.
+- ✅ **Optional Ansible Fleet Orchestration Bridge:** For large-scale championship arenas (100+ nodes), the Venue Controller can drive Ansible playbooks over SSH to perform high-concurrency ad-hoc diagnostics, live test data injection, or fast disaster recovery (borrowing proven patterns from [`icpcsysops/ansible`](./COMPARATIVE_ANALYSIS.md#9-specialized-analysis-icpc-world-finals--nac-sysops-fleet-orchestration-icpcsysopsansible)) without compromising the client OS's underlying immutable OverlayFS guarantees.
 - ✅ **Works 100% Air-Gapped:** Zero external cloud dependencies; self-hosted DHCP, DNS, and NTP.
 - ❌ Does **not** host the competitive programming judge — that runs on a separate dedicated server.
 
@@ -736,7 +737,7 @@ To inject this team-specific metadata dynamically without requiring complex mult
 The resolved identity is stored in `/run/gallos/identity.json` and exposed as environment variables (`GALLOS_TEAM_NAME`, `GALLOS_PC_NAME`, `GALLOS_ROOM`), which `gallos-print` automatically reads when formatting print jobs.
 
 > [!NOTE]
-> **SWERC Lyon Reference:** This dynamic audit-trail printing paradigm is conceptually modeled after the secure printing systems deployed at the South Western Europe Regional Contest (SWERC) in Lyon, which ensures strict anonymity and paper audit trail integrity. The development team plans to reach out to the SWERC committee to incorporate their production setup learnings.
+> **ICPC World Finals & SWERC Lyon References:** This dynamic audit-trail printing paradigm combines the lightweight `printfile` (`a2ps` / `enscript`) terminal formatting pipeline from ICPC World Finals SysOps (`icpcsysops/ansible`) with the secure anonymized printing systems deployed at the South Western Europe Regional Contest (SWERC) in Lyon.
 
 ### 12.2 Key Features of `gallos-print`
 

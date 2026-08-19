@@ -9,6 +9,7 @@
 /contestant-vm/
 /icpc-env/
 /maratona-linux/
+/ansible/
 
 # ------------------------------------------------------------------------------
 # Large Binary Images & VM Artifacts (Never commit multi-GB files)

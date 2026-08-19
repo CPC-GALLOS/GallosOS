@@ -73,6 +73,16 @@ table inet gallos_filter {
         elements = { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 }
     }
 
+    set telemetry_dns_blacklist {
+        type ipv4_addr
+        elements = {
+            1.1.1.1, 1.0.0.1,         # Cloudflare DNS bypasses
+            8.8.8.8, 8.8.4.4,         # Google DNS bypasses
+            9.9.9.9, 9.9.9.10,        # Quad9 / JetBrains IDE telemetry DNS
+            149.112.112.10, 149.112.112.112
+        }
+    }
+
     chain output {
         type filter hook output priority 0; policy drop;
 
@@ -82,17 +92,28 @@ table inet gallos_filter {
         # 2. Allow Established / Related connections
         ct state established,related accept
 
-        # 3. Allow Local DNS (Port 53 UDP/TCP) to verified local gateway (dynamically populated by gallos-daemon)
+        # 3. Hard-Drop Broadcast, Multicast & Telemetry Clutter (prevents discovery leakage)
+        udp dport { 137, 1124, 3289, 3702, 5353, 8610, 8612 } drop
+        ip daddr { 224.0.0.1, 224.0.0.22, 239.255.255.250, 255.255.255.255 } drop
+
+        # 4. Hard-Drop Hardcoded IDE DNS Resolvers & DoT/DoH
+        ip daddr @telemetry_dns_blacklist drop
+        tcp dport 853 drop
+
+        # 5. Allow Local DNS (Port 53 UDP/TCP) to verified local gateway only (dynamically populated by gallos-daemon)
         udp dport 53 ip daddr 192.168.1.1 accept
         tcp dport 53 ip daddr 192.168.1.1 accept
 
-        # 4. Allow NTP Time Synchronization (Port 123)
+        # 6. Allow NTP Time Synchronization (Port 123)
         udp dport 123 accept
 
-        # 5. Allow HTTP/HTTPS exclusively to Whitelisted Judge IPs
+        # 7. Allow HTTP/HTTPS exclusively to Whitelisted Judge IPs
         tcp dport { 80, 443 } ip daddr @allowed_judge_ips accept
 
-        # 6. Reject everything else with immediate ICMP port unreachable
+        # 8. Rate-limited Audit Logging for Denied Outbound Attempts
+        limit rate 5/minute burst 7 packets log prefix "GALLOS_DENIED: " flags all
+
+        # 9. Reject everything else with immediate ICMP port unreachable
         reject
     }
 
@@ -104,9 +125,9 @@ table inet gallos_filter {
 }
 ```
 
-### 3.2 DNS-over-HTTPS (DoH) & Tunnel Mitigation
+### 3.2 DNS-over-HTTPS (DoH), Telemetry & Tunnel Mitigation
 
-- **DoH / DoT Blocking:** All traffic on ports `853` (DoT) and port `443` directed to public DoH servers (`1.1.1.1`, `8.8.8.8`, `9.9.9.9`) is dropped at the packet filter level.
+- **DoH / DoT & Direct DNS Drop:** All traffic on port `853` (DoT) and port `443` directed to public DoH resolvers (`1.1.1.1`, `8.8.8.8`, `9.9.9.9`), as well as hardcoded IDE telemetry resolvers (e.g. JetBrains embedded telemetry attempting to reach `9.9.9.10` / `149.112.112.10`), is dropped at the packet filter level.
 - **Enterprise Browser Lockdown:** `/etc/firefox/policies/policies.json` and `/etc/chromium/policies/managed/default.json` enforce:
   - `"DNSOverHTTPS": { "Enabled": false, "Locked": true }`
   - `"DisableTelemetry": true`
@@ -238,17 +259,23 @@ For official tournaments requiring strict proctoring (such as ICPC Regionals, IO
 
 ### 8.2 Automated Incremental Code Backups
 
-- **Dispute Resolution & Crash Protection:** Inspired by IOI's `ioibackup.sh`, GallosOS runs an automated background snapshot of `/home/contestant/` every 5 minutes.
-- **Forensic Timeline:** Allows the contest jury to review a timeline of source code changes in case of cheating allegations or unexpected workstation power loss.
+- **Dispute Resolution & Crash Protection:** Inspired by IOI's `ioibackup.sh` (IOI Contestant-VM) and ICPC World Finals SysOps' backup watchdog subsystem (`roles/icpc_host_backup/files/backup_watchdog` and `sh.backupclient` in `icpcsysops/ansible`), GallosOS runs an automated background snapshot of `/home/contestant/` every $N$ seconds (declaratively configured via `[contest.audit] backup_interval_secs` in `gallos.toml`, defaulting to 300 seconds / 5 minutes).
+- **Forensic Timeline & Rapid Disaster Recovery:** Allows the contest jury to review a timeline of source code changes in case of cheating allegations, and allows organizers to instantly restore a team's code via `recovery.sh` if physical workstation replacement is needed.
 
 ### 8.3 Privileged Keystroke Forensics (Optional for IOI / Olympiads)
 
-- **Kernel-Level Audit (`/dev/input`):** When enabled via `[contest.audit] enable_keystroke_forensics = true` in `gallos.toml`, hardware-level keystroke events are captured by a privileged root daemon, without exposing global key event streams to unprivileged desktop applications.
+- **Kernel-Level Audit (`/dev/input`):** Inspired by `martkeys` in ICPC World Finals SysOps, when enabled via `[contest.audit] enable_keystroke_forensics = true` in `gallos.toml`, raw keyboard events are captured directly from the kernel input subsystem into a structured JSON audit stream (`/var/log/gallos/audit/keystrokes.jsonl`).
+- **Isolation Guarantee:** Input capture operates entirely inside the privileged system daemon without exposing global key event streams or X11 snooping vectors to unprivileged desktop applications.
 - **ICPC vs. IOI Operational Profile:**
   - **ICPC / University Camps:** Keystroke logging is disabled by default (`enable_keystroke_forensics = false`); only firewall drop alerts, CUPS print jobs, and EarlyOOM kill events are collected.
   - **IOI / National Olympiads:** Full forensics (keystrokes and periodic screenshots) can be enabled declaratively for arbitration.
 
-### 8.4 Fleet Telemetry & Monitoring
+### 8.4 Process Hierarchy & Focused Window Tracking
+
+- **Forensic Activity Journal:** Inspired by `s.py` from ICPC SysOps, `gallos-daemon` optionally samples the active focused window and maps its parent-child process hierarchy via `/proc/<pid>/task/<pid>/children` and `comm` descriptors.
+- **Cheating & Anomaly Detection:** Allows arbiters to verify what editor, tool, or background process was running at any specific second of the contest timeline (e.g. distinguishing between interactive terminal execution vs. background scripts).
+
+### 8.5 Fleet Telemetry & Monitoring
 
 - **Prometheus Exporters:** Bundles lightweight `node-exporter` and `gallos-exporter` services.
 - **Central Dashboard:** Exposes real-time CPU load, memory utilization, network sockets, and process lists to the contest director's Venue Controller dashboard over the local contest LAN.

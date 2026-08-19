@@ -306,3 +306,190 @@ Binary and filesystem inspection of the official **EGOI 2023 Contestant VM** (`e
 - **Multi-Target Deployment (Live USB + Bare Metal + VM):** While IOI/EGOI VMs run strictly inside virtualizers (requiring host OS installation and allocating 8 GB RAM per virtual guest), GallosOS is designed to boot directly on bare-metal hardware via immutable Live USB as well as virtual appliances (`.ova`, `.qcow2`), avoiding host-guest virtualization overhead during compilation while supporting air-gapped environments.
 - **Modern Kernel Isolation (Wayland vs. X11 xhost):** Replaces legacy X11 screen-grabbing (`xhost +local:` / `x11grab`) with native **Wayland process isolation**, allowing secure administrative compositor screencasts without exposing window snooping vulnerabilities to unprivileged student processes.
 - **Declarative Directives Architecture (TOML vs. Custom Python Daemons):** Replaces custom monolithic Python pollers with a memory-safe daemon (`gallos-daemon`) governed by typed `gallos.toml` directives and JSON Schema validation.
+
+---
+
+## 9. Specialized Analysis: ICPC World Finals & NAC SysOps Fleet Orchestration (`icpcsysops/ansible`)
+
+- **Repository Reference:** [`icpcsysops/ansible`](https://github.com/icpcsysops/ansible)
+- **Maintainers & Scope:** Developed and maintained by the ICPC Systems Operations team (including `ubergeek42`, Keith Johnson, and Troy) for managing infrastructure at the **ICPC World Finals** (*WF 2024 Luxor, WF 2025 Astana, WF 2026 Dubai*) and **ICPC North America Championship** (*NAC 2024–2026 Florida*).
+- **Target Ecosystem:** High-density, networked Tier 3 and Tier 4 championship arenas with 150–300+ live contestant workstations, dedicated judging clusters, presentation screens, live television broadcast streaming, automated balloon printing, and redundant contest servers.
+
+### 9.1 Anatomy & Production Blueprint of `icpcsysops/ansible`
+
+Source and playbook inspection of the `icpcsysops/ansible` infrastructure tree reveals how the ICPC SysOps committee orchestrates World Finals arenas:
+
+1. **High-Concurrency Fleet Management (`ansible.cfg` & `fast-ansible`):**
+   - Configures `forks = 275` and `strategy = free`, allowing Ansible to execute tasks asynchronously across hundreds of contestant machines without being serialized by slow individual nodes.
+   - Provides `fast-ansible` and `fast-ansible-playbook` wrapper scripts stripping callback and action plugins to minimize execution overhead during time-critical contest transitions.
+2. **Automated Inventory Generation (`script/build_hosts`):**
+   - Dynamically constructs `hosts.yml` for championship topologies:
+     - 155+ contestant laptops (`team1` .. `team155`).
+     - 15 human judges and 20+ autojudges (partitioned across **PC^2**, **DOMjudge**, and **Kattis**).
+     - Dedicated server roles: `cds` (Contest Data Server on WebSphere Liberty / `wlp.CDS`), `backup` (SSH CA, DHCP/DNS via `dnsmasq`, Borg/rsync backup watchdog, central syslog, script server), `packages` (local APT cache & Prometheus exporter), `scoreboard`, `printsrv` / `authprint` (CUPS print servers), `reverseproxy`, and `coachviews`.
+3. **Hardware Tuning & Execution Determinism (`roles/tunecpulaptop` & `roles/taskset_run_scripts`):**
+   - **Disables Dynamic CPU Boosting:** Deploys `disable-turbo-laptop` to enforce `intel_pstate/no_turbo=1` (Intel) or `cpufreq/boost=0` (AMD) and sets `scaling_governor=performance`.
+   - **Disables HyperThreading Sibling Threads:** Disables virtual sibling hyperthreads (e.g. `echo 0 > /sys/devices/system/cpu/cpu4/online`) to eliminate CPU cache and pipeline contention.
+   - **Process Affinity Pinning:** Injects `taskset -c <taskset_cpu>` into language runner scripts (`runc`, `runcpp`, `runpython3`, `runjava`, `runkotlin`), guaranteeing **deterministic, repeatable benchmarking runtimes** across all contestant laptops.
+4. **Strict Network & Telemetry Filtering (`roles/iptablesrules`):**
+   - Deploys granular `iptables` / `nftables` rules:
+     - Hard-rejects IDE telemetry & hardcoded DNS queries: blocks JetBrains DNS lookups (`9.9.9.10`, `149.112.112.10`) and public DNS bypasses (`1.1.1.1`, `8.8.8.8`).
+     - Rejects broadcast and multicast clutter: NetBIOS (`udp/137`), Apple Bonjour / mDNS (`udp/5353`), UPnP / SSDP (`udp/3702`), and CUPS SNMP discovery.
+     - Selectively allows CCS endpoints (DOMjudge/PC^2), CDS ports, package mirrors, CUPS printing (`tcp/631`), Prometheus node exporters (`tcp/9100`), Syslog (`udp/514`), and SSH from the management subnet (`10.3.3.208/29`).
+     - Logs rejected packets with rate-limiting (`drop-n-log`: `limit 5/m burst 7`).
+5. **Real-Time Video Broadcast Infrastructure (`roles/mediamtx` & `roles/vlc`):**
+   - Integrates **MediaMTX** (RTSP, WebRTC, and Low-Latency HLS) paired with hardware-accelerated `ffmpeg` via Intel Quick Sync Video (`intel-media-va-driver-non-free` / `mjpeg_qsv`, `h264_qsv`).
+   - Captures contestant desktop screens (`x11grab` at 30 fps) and webcams (`/dev/video*` via `v4l2`) on demand, streaming low-latency feeds directly to the ICPC Live broadcast production room.
+6. **Auditing, Proctoring & Telemetry (`roles/martkeys` & `roles/team` `s.py`):**
+   - **`martkeys`:** Go-based background binary logging hardware-level keystroke events into structured JSON logs for audit trails.
+   - **`s.py`:** Active window surveillance script extracting the foreground window title, WM class, and child process hierarchy (e.g. detecting `vim` inside `gnome-terminal`) via `xprop` and `/proc/<pid>/task/<pid>/children`.
+   - **Centralized Metrics:** Prometheus `node_exporter` + Grafana dashboards tracking workstation metrics across the entire arena in real time.
+7. **Contest Lifecycle & Rapid Disaster Recovery (`do_contest_template.yml`, `reimage.sh`, `recovery.sh`):**
+   - **Workspace Preparation:** Wipes `/home`, generates hashed credentials per team from `linux_accounts.yaml`, and unarchives contest sample archives (`files/{{ contest }}-samples.zip`) into `/etc/skel/Desktop/samps`.
+   - **Codeforces Challenge Phase:** `enable_challenge.yml` dynamically adjusts firewall rules, updates `resolved.conf`, deletes DOMjudge shortcuts, and deploys `open-tests.tar.gz`.
+   - **Rapid Re-imaging & Backup Recovery:** `reimage.sh` triggers network PXE reboot using `efibootmgr -n <PXE_BOOT_ENTRY>` and `reboot`; `recovery.sh` locates the latest non-empty zip backup from the `/backups/` volume on the backup server and pushes it to a replaced team machine via `scp`.
+
+---
+
+### 9.2 Master Comparison: Ansible Fleet Orchestration vs. GallosOS Declarative Immutable Architecture
+
+| Feature / Dimension | **ICPC SysOps (`icpcsysops/ansible`)** | **GallosOS (Target Architecture)** |
+| :--- | :--- | :--- |
+| **System Philosophy** | **Mutable Network Configuration Management:** Assumes target machines are already running an installed Linux OS, mutating files on disk over SSH. | **Immutable Declarative Operating System:** Base OS is a read-only SquashFS container; changes live in RAM (OverlayFS); configured via typed `gallos.toml`. |
+| **Primary Deployment Context** | **Tier 3 / Tier 4 Arenas:** High-end on-site World Finals / NAC with dedicated servers, static subnets, and a team of sysadmins. | **Tier 0 through Tier 4 (Universal):** Autonomous Live USBs for air-gapped rooms, training camps, regionals, and scalable to centralized Venue Controllers. |
+| **Infrastructure Prerequisites** | Requires pre-installed OS on SSDs or PXE/FOG network boot, static IPs, Python interpreter on target, and pre-distributed SSH CA keys. | **Zero Infrastructure Needed:** Runs directly from a USB stick without installing to internal hard drives or requiring external network servers. |
+| **Configuration State & Drift** | Vulnerable to partial play failures or network dropouts leaving some workstations in an inconsistent intermediate state (*configuration drift*). | **Bit-for-Bit Identical & Drift-Free:** Every boot guarantees 100% state consistency. A reboot purges all temporary RAM modifications. |
+| **Runtime Mode Scheduling** | Manual execution of playbooks by sysadmins (`do_contest_template.yml`, `enable_challenge.yml`, `lock_teams.yml`). | **Autonomous Declarative Scheduling:** Transitions through `Default` $\to$ `Event` $\to$ `Contest` automatically based on ISO 8601 timestamps in `gallos.toml`. |
+| **Display Protocol & Security** | Legacy **X11** (GNOME Flashback / LightDM). Uses `xprop` for inspection and `x11grab` for streaming (subject to X11 security leakage). | **Wayland (Labwc + Waybar):** Modern compositor with process-level window/input isolation; secure compositor-level screencasting. |
+| **Anti-Cheat Enforcement** | Host-based `iptables` scripts + policykit rules + custom background auditing daemons (`martkeys`, `s.py`). | Kernel-level `nftables` Default-DROP + AI extension purge + Chromium/Firefox enterprise URL policy + process isolation. |
+| **Ad-Hoc Live Patching** | **Outstanding:** Sysadmins can push ad-hoc Bash scripts or configuration overrides live to 200 machines simultaneously via SSH. | **Tier 3/4 Integration:** Built-in Python 3 and OpenSSH enable the Venue Controller to run Ansible plays over GallosOS nodes if ad-hoc orchestration is desired. |
+
+---
+
+### 9.3 Architectural Synthesis: Best Practices Borrowed into GallosOS
+
+The examination of `icpcsysops/ansible` provides crucial real-world sysadmin patterns that GallosOS directly formalizes into its specifications:
+
+1. **Deterministic CPU Execution & Thermal Throttling Prevention:**
+   - GallosOS incorporates CPU governor stabilization (`governor = "performance"`) and dynamic turbo boost disabling (`intel_pstate/no_turbo=1`, `cpufreq/boost=0`) into its hardware specification ([`docs/HARDWARE_COMPATIBILITY.md`](./HARDWARE_COMPATIBILITY.md)), guaranteeing that local algorithmic benchmarks are not distorted by laptop frequency scaling or thermal throttling.
+   - Core affinity pinning via `taskset` is specified for offline execution wrappers (`runc`, `runcpp`, `runpython3`, `runjava`).
+2. **Granular Telemetry & DNS Sinkhole Filtering:**
+   - GallosOS's `nftables` engine incorporates the ICPC SysOps blacklist: hard-dropping IDE-embedded DNS resolvers (e.g. JetBrains `9.9.9.10`), mDNS/Bonjour broadcast spam (`5353`), and NetBIOS chatter, paired with rate-limited kernel audit logging ([`docs/ANTI_CHEAT_AND_SECURITY.md`](./ANTI_CHEAT_AND_SECURITY.md)).
+3. **Forensic Audit & Process Monitoring Subsystems:**
+   - The auditing architecture in GallosOS borrows the concepts of `martkeys` (keystroke journaling) and `s.py` (process hierarchy and active window monitoring) as opt-in audit plugins managed cleanly by `gallos-daemon` during official Olympiad and Championship modes.
+4. **Venue Controller Fleet Integration (Tier 3 / Tier 4):**
+   - For large-scale events where organizers manage hundreds of workstations from a central Venue Controller, GallosOS acts as the **ideal, hardened, immutable client node**. Because GallosOS includes Python 3, OpenSSH, and systemd out of the box, organizers can utilize Ansible from the Venue Controller for live ad-hoc intervention while relying on GallosOS's immutable OverlayFS for bulletproof boot resilience.
+
+---
+
+## 10. Strategic Upstream Heritage, Fork Candidates & Production Legitimacy Matrix
+
+When evaluating existing open-source competitive programming systems for GallosOS, the guiding strategic criterion is **not merely "what code saves an hour of scripting"**, but **"which upstream fork or collaboration lends proven, real-world production legitimacy and credibility with tournament organizers"**.
+
+The following matrix categorizes potential upstream projects across the global competitive programming ecosystem by production legitimacy, technical alignment, and strategic development priority:
+
+```mermaid
+graph TD
+    subgraph Tier1 ["🥇 High Value — Production Validation & Legitimacy"]
+        ICPC_ENV["icpc-environment/icpc-env<br/>(Ubuntu Base + US Regional Legitimacy + Active)"]
+        MARATONA_CASPER["maratona-linux/maratona-casper<br/>(Contest-Tested Casper Hooks + SBC/LATAM Validation)"]
+    end
+
+    subgraph Tier2 ["🥈 Medium Value — Development Time-Savers"]
+        MARATONA_TOOLS["maratona-linux/maratona-team-tools<br/>(Curated Toolchains + Python Alignment)"]
+        MARATONA_USER["maratona-linux/maratona-usuario-icpc<br/>(Unprivileged User Setup & Sudo Revocation)"]
+        IOI_VM["ioi-YYYY/contestant-vm<br/>(IOI Technical Committee Approved Manifest)"]
+    end
+
+    subgraph Tier3 ["🥉 Low Value — Defer / Avoid Forking Early"]
+        MARATONA_ANIMEITOR["maratona-linux/maratona-animeitor<br/>(Live Scoreboard — Defer to Phase 7)"]
+        NEOSARIS["huronOS/neoSaris<br/>(Standings Resolver — Non-Core for Live OS)"]
+    end
+
+    subgraph Innovation ["🚀 Unique Innovation — The Wayland Frontier"]
+        WAYLAND["Wayland Kiosk (Labwc + Waybar)<br/>Zero Upstream Precedent → Mandates Hardware Graveyard Testing"]
+    end
+
+    Tier1 --> GallosOS_Core["GallosOS Core Architecture"]
+    Tier2 --> GallosOS_Core
+    Innovation --> GallosOS_Core
+```
+
+---
+
+### 10.1 🥇 High Value — Inheriting Real Production Validation
+
+These repositories provide both immediate technical acceleration and high narrative legitimacy when presenting GallosOS to ICPC regional directors, national olympiad committees, and university organizers:
+
+1. **[`icpc-environment/icpc-env`](https://github.com/icpc-environment/icpc-env) (Primary Architectural Peer):**
+   - **Ecosystem Grounding:** Active, maintained, and deployed in official **ICPC Pacific Northwest (PacNW)** regionals and North America championships.
+   - **Technical Coherence:** Like GallosOS, it is built directly on **Ubuntu LTS** (unlike HuronOS's Debian 11 base). Its package curation, compiler dependencies, and toolchain configurations port almost directly into `build.toml`.
+   - **Strategic Legitimacy:** Engaging with or referencing `icpc-env` connects GallosOS directly to established ICPC regional standards, offering far stronger institutional credibility than positioning the project merely as a local successor to a national olympiad tool.
+
+2. **[`maratona-linux/maratona-casper`](https://github.com/maratona-linux/maratona-casper) (Core Live-Boot Hook Engine):**
+   - **Ecosystem Grounding:** The core live-boot engine of **Maratona Linux**, battle-tested across dozens of university sites throughout the **ICPC South America / Brazilian Finals (SBC)**.
+   - **Technical Coherence:** GallosOS explicitly uses **Casper** as its live-boot foundation ([`docs/BUILD_SYSTEM.md`](./BUILD_SYSTEM.md)). `maratona-casper` has already solved the critical, contest-specific Casper hooks: automated partition mounting, contest user session initialization, and runtime ephemeral tmpfs binding.
+   - **Strategic Value:** Unlike rebuilding boot hooks from scratch or rewriting legacy HuronOS AUFS scripts, `maratona-casper` provides an active, production-proven Casper foundation that integrates seamlessly with GallosOS's OverlayFS and Wayland desktop.
+
+---
+
+### 10.2 🥈 Medium Value — Development Time-Savers & Reference Manifests
+
+These projects offer well-tested software lists, user permission configs, and package specifications that save development time without carrying a major narrative weight:
+
+1. **[`maratona-linux/maratona-team-tools`](https://github.com/maratona-linux/maratona-team-tools):**
+   - Written in Python (matching `gallos-daemon`'s in-band language requirement).
+   - Provides a curated, tournament-tested package list of compilers, IDE configurations, and offline documentation that serves as an excellent starting point for the `[modules]` section of `build.toml`.
+
+2. **[`maratona-linux/maratona-usuario-icpc`](https://github.com/maratona-linux/maratona-usuario-icpc):**
+   - Implements robust, unprivileged user provisioning, stripping `sudo`, locking `polkit` privileges, and configuring auto-login sessions.
+   - Directly accelerates the **Phase 2: TTY & Privilege Hardening** milestone.
+
+3. **[`ioi-YYYY/contestant-vm`](https://github.com/ioi-official) (IOI Technical Committee Manifests):**
+   - While the VM infrastructure itself differs from GallosOS's Live USB architecture, the software manifest represents the **gold standard approved by the IOI Technical Committee**.
+   - Serves as the canonical reference for exact compiler versions, flags, and editor plugins whenever targeting IOI and national olympiad profiles (`examples/ioi-cms.toml`).
+
+---
+
+### 10.3 🥉 Low Value — Defer or Avoid Forking Early
+
+Components that represent secondary features or auxiliary presentation tools should not be forked during early phases to keep engineering focused on the core contestant workstation:
+
+1. **[`maratona-linux/maratona-animeitor`](https://github.com/maratona-linux/maratona-animeitor) (Live Scoreboard Display):**
+   - While Python-based and active, it is an auditorium projection tool rather than a contestant OS component. Should only be evaluated if building out the Phase 7 Venue Controller dashboard.
+2. **[`huronOS/neoSaris`](https://github.com/huronOS/neoSaris) (Scoreboard Freeze Resolver):**
+   - A standalone web/presentation tool. Non-core for the live operating system image; defer until post-GA.
+
+---
+
+### 10.4 The Honest Reality Check: What No Fork Solves (The Wayland Frontier)
+
+> [!IMPORTANT]
+> **No existing competitive programming distribution has implemented a Wayland Kiosk desktop.**
+>
+> Every historical and active distribution in the competitive programming ecosystem—**HuronOS (Budgie/X11)**, **Maratona Linux (Ubuntu Desktop/X11)**, **ICPC-Env (XFCE/X11)**, **NOI Linux 2.0 (GNOME Flashback/X11)**, and **IOI Contestant-VM (GNOME/X11)**—operates entirely on legacy X11.
+
+GallosOS's lightweight Wayland desktop (**Labwc + Waybar**) is the project's **signature technical innovation**, delivering:
+
+- Strict per-client process isolation (preventing window snooping and unauthorized screen captures).
+- Ultra-low memory and CPU footprint for low-spec venue hardware.
+- Native compositor-level screencasting and auditing.
+
+**Engineering Implication:** Because this Wayland kiosk environment has zero historical precedent in contest production, it cannot rely on inherited upstream validation. It is the component that most critically mandates the **Hardware Graveyard Test**—comprehensive empirical validation across legacy Intel HD Graphics, AMD Radeon, and NVIDIA Nouveau hardware to guarantee universal display compatibility on competition day.
+
+---
+
+### 10.5 Recommended Engineering & Collaboration Strategy
+
+```text
+Step 1: Technical Bootstrapping (Immediate)
+  ↳ Fork and adapt maratona-linux/maratona-casper for contest-specific Casper live-boot hooks.
+  ↳ Low technical risk, actively maintained, and battle-tested in LATAM.
+
+Step 2: Upstream Community Engagement (Parallel)
+  ↳ Open dialogue with the icpc-environment/icpc-env maintainers.
+  ↳ Align package manifests and explore shared compiler/toolchain profiles for ICPC regionals.
+
+Step 3: Rigorous Hardware Graveyard Validation (Phase 1–2)
+  ↳ Focus intensive display and input testing on the Labwc/Waybar Wayland stack across legacy GPUs.
+```
