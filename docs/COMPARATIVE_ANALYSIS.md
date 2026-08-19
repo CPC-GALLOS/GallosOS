@@ -398,7 +398,7 @@ graph TD
     subgraph Tier2 ["🥈 Medium Value — Development Time-Savers"]
         MARATONA_TOOLS["maratona-linux/maratona-team-tools<br/>(Curated Toolchains + Python Alignment)"]
         MARATONA_USER["maratona-linux/maratona-usuario-icpc<br/>(Unprivileged User Setup & Sudo Revocation)"]
-        IOI_VM["ioi-YYYY/contestant-vm<br/>(IOI Technical Committee Approved Manifest)"]
+        IOI_VM["ioi-2025/contestant-vm<br/>(IOI Technical Committee Approved Manifest)"]
     end
 
     subgraph Tier3 ["🥉 Low Value — Defer / Avoid Forking Early"]
@@ -445,7 +445,8 @@ These projects offer well-tested software lists, user permission configs, and pa
    - Implements robust, unprivileged user provisioning, stripping `sudo`, locking `polkit` privileges, and configuring auto-login sessions.
    - Directly accelerates the **Phase 2: TTY & Privilege Hardening** milestone.
 
-3. **[`ioi-YYYY/contestant-vm`](https://github.com/ioi-official) (IOI Technical Committee Manifests):**
+3. **[`ioi-2025/contestant-vm`](https://github.com/ioi-2025/contestant-vm) (IOI Technical Committee Annual Manifests):**
+   - Rather than maintaining a centralized static organization, the IOI Technical Committee releases annual repositories (e.g. `ioi-2023/contestant-vm`, `ioi-2025/contestant-vm`), with `ioi-2025` representing the current baseline.
    - While the VM infrastructure itself differs from GallosOS's Live USB architecture, the software manifest represents the **gold standard approved by the IOI Technical Committee**.
    - Serves as the canonical reference for exact compiler versions, flags, and editor plugins whenever targeting IOI and national olympiad profiles (`examples/ioi-cms.toml`).
 

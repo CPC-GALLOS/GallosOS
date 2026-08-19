@@ -60,6 +60,7 @@ The repository includes comprehensive context documents and architectural specif
 - **[`docs/HARDWARE_COMPATIBILITY.md`](./docs/HARDWARE_COMPATIBILITY.md):** Firmware support (UEFI SecureBoot & Legacy BIOS), RAM boot (`toram`), and minimal hardware specs.
 - **[`docs/ANTI_CHEAT_AND_SECURITY.md`](./docs/ANTI_CHEAT_AND_SECURITY.md):** Threat model, `nftables` kernel packet filtering, Anti-Cheat extension purging (VSCodium / JetBrains), telemetry disabling, USB storage locking, and keyboard layout switching.
 - **[`docs/COMPARATIVE_ANALYSIS.md`](./docs/COMPARATIVE_ANALYSIS.md):** Detailed, source-verified comparison matrix evaluating GallosOS against HuronOS, Maratona Linux, ICPC-Env, and IOI Contestant-VM.
+- **[`docs/PROVENANCE.md`](./docs/PROVENANCE.md):** Comprehensive ledger tracking all vendored, forked, and adapted third-party code, scripts, and attribution terms.
 
 ---
 
@@ -143,7 +144,8 @@ GallosOS/
 │   ├── WAYLAND_DESKTOP.md     # Wayland kiosk desktop spec, Labwc/Waybar dotfiles & UX
 │   ├── HARDWARE_COMPATIBILITY.md # Firmware support (UEFI SecureBoot & Legacy BIOS), RAM specs
 │   ├── ANTI_CHEAT_AND_SECURITY.md# Firewall, Anti-Cheat protection, telemetry & USB lockdown
-│   └── COMPARATIVE_ANALYSIS.md# In-depth comparison with existing contest distributions
+│   ├── COMPARATIVE_ANALYSIS.md# In-depth comparison with existing contest distributions
+│   └── PROVENANCE.md          # Third-party code, vendored assets & attribution ledger
 ├── examples/                  # Production-ready gallos.toml configuration profiles
 │   ├── icpc-onsite.toml       # ICPC Regional / World Finals (BOCA/DOMjudge, GCC 14, Java 21)
 │   ├── maratona-sbc.toml      # Maratona SBC / South America Regional (BOCA, ABNT2, GCC 14)

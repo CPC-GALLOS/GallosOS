@@ -42,7 +42,8 @@ GallosOS/
 │   ├── WAYLAND_DESKTOP.md     # Wayland kiosk desktop spec, Labwc/Waybar dotfiles, keybinds & UX
 │   ├── HARDWARE_COMPATIBILITY.md # Firmware support (UEFI SecureBoot & Legacy BIOS), RAM specs
 │   ├── ANTI_CHEAT_AND_SECURITY.md# Firewall, Anti-Cheat protection, telemetry block, USB lock, keyboards
-│   └── COMPARATIVE_ANALYSIS.md# In-depth comparison: GallosOS vs HuronOS vs Maratona vs ICPC vs IOI
+│   ├── COMPARATIVE_ANALYSIS.md# In-depth comparison: GallosOS vs HuronOS vs Maratona vs ICPC vs IOI
+│   └── PROVENANCE.md          # Third-party code, vendored assets & attribution ledger
 ├── examples/                  # Production-ready gallos.toml configuration profiles
 │   ├── README.md              # Profile catalog, gallos.toml vs machine.toml, deployment & config precedence
 │   ├── icpc-onsite.toml       # ICPC Regional / World Finals (BOCA/DOMjudge, GCC 14, Java 21)
@@ -54,6 +55,19 @@ GallosOS/
 └── schema/                    # Directives validation schemas
     └── directives.schema.json # JSON Schema for gallos.toml (taplo integration)
 ```
+
+## 🗂️ Organization-Wide Repository Map
+
+GallosOS follows a **hybrid mono/poly-repo strategy**: the core build pipeline, docs, and configs live in this monolith. Standalone organizer-facing tools with independent release cycles live in sibling repos under the `CPC-GALLOS` org.
+
+| Repo | Language | Audience | Status |
+| :--- | :--- | :--- | :--- |
+| `GallosOS` (this repo) | Bash/Python, TOML | Build pipeline, docs, configs | Active |
+| `gallos-flash` | Rust | Organizer (mass USB flashing) | Planned (Phase 5) |
+| `gallos-convert` | Rust | Organizer (HuronOS `.hdf` migration) | Planned (Phase 5) |
+| `gallos-config-builder` | Angular/TS | Organizer (visual TOML editor) | Planned (Phase 5) |
+
+Vendored/forked third-party code (Casper hooks, `ipman`, etc.) lives inside this monolith under `vendor/inherited/`, not as separate repos — see [`docs/PROVENANCE.md`](./docs/PROVENANCE.md) for the full ledger.
 
 ---
 

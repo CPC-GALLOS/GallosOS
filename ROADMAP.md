@@ -1,6 +1,6 @@
 # GallosOS Development Roadmap & Feature Tracker
 
-This document translates the complete architectural and security specifications across all design documents (`ARCHITECTURE.md`, `CONFIG_SPEC.md`, `ANTI_CHEAT_AND_SECURITY.md`, `HARDWARE_COMPATIBILITY.md`, and `COMPARATIVE_ANALYSIS.md`) into a concrete, actionable engineering roadmap.
+This document translates the complete architectural and security specifications across all design documents (`ARCHITECTURE.md`, `CONFIG_SPEC.md`, `ANTI_CHEAT_AND_SECURITY.md`, `HARDWARE_COMPATIBILITY.md`, `COMPARATIVE_ANALYSIS.md`, and `PROVENANCE.md`) into a concrete, actionable engineering roadmap.
 
 > **MVP Scope Definition:** The Minimum Viable Product (MVP) consists strictly of **Phase 1 through Phase 3**. Completing Phase 3 yields a fully functional, highly secure, drop-in replacement for HuronOS ready for local deployments. Phase 4 onwards represent polish, tooling, and post-GA telemetry.
 
@@ -115,7 +115,7 @@ This document translates the complete architectural and security specifications 
 *Goal: Package contest programming languages, IDEs, VM targets, and automated build pipelines.*
 
 - [ ] **Compilers & Runtimes:**
-  - Package and verify standard contest toolchains (cross-referencing package manifests from `icpc-environment/icpc-env`, `maratona-linux/maratona-team-tools`, and `ioi-official/contestant-vm`): GCC (C/C++), Clang, OpenJDK 21 (Java), Python 3, PyPy3, Rust, Kotlin, Mono / .NET.
+  - Package and verify standard contest toolchains (cross-referencing package manifests from `icpc-environment/icpc-env`, `maratona-linux/maratona-team-tools`, and `ioi-2025/contestant-vm`): GCC (C/C++), Clang, OpenJDK 21 (Java), Python 3, PyPy3, Rust, Kotlin, Mono / .NET.
 - [ ] **Contestant IDEs:**
   - Pre-configure and package VSCodium (with offline extensions), JetBrains Community Edition (IntelliJ IDEA, PyCharm), CLion (with activation script), Code::Blocks, Geany, Kdevelop, Neovim (lazyvim), Vim (linters, plugins), and Kate.
 - [ ] **Anti-Cheat Purge & Telemetry Neutralization (Post-MVP):**
