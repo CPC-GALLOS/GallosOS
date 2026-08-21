@@ -35,7 +35,7 @@ GallosOS is designed to seamlessly adapt to **any competitive programming scenar
 
 ## 2. Configuration Delivery Methods
 
-GallosOS is designed to be **infrastructure-agnostic**: it operates across the full spectrum of network infrastructure that a venue may provide — from completely offline rooms to university-managed networks to full Venue Controller setups (see [§9 of `ARCHITECTURE.md`](./ARCHITECTURE.md#9-deployment-infrastructure-spectrum)).
+GallosOS is designed to be **infrastructure-agnostic**: it operates across the full spectrum of network infrastructure that a venue may provide — from completely offline rooms to university-managed networks to full Venue Controller setups (see [§10 of `ARCHITECTURE.md`](./ARCHITECTURE.md#10-deployment-infrastructure-spectrum)).
 
 ### `config_url` Auto-Discovery Priority Chain
 
@@ -44,23 +44,31 @@ Before fetching a remote directives file, GallosOS resolves the target URL throu
 | Priority | Source | Description |
 | :---: | :--- | :--- |
 | **1** | GRUB boot parameter | `gallos.config_url=https://...` set at flash time via `gallos-flash`. Highest priority. |
-| **2** | DHCP Option 252 | Standard DHCP lease response announces the URL. Works with any dnsmasq/ISC DHCP router — including basic lab routers — with a single config line. No GallosOS-specific server required. |
+| **2** | DHCP Option 235 | Standard DHCP lease response announces the URL. Works with any dnsmasq/ISC DHCP router — including basic lab routers — with a single config line. No GallosOS-specific server required. Option 235 is a deliberately-chosen site-specific option (RFC 3942 range 224–254); Option 252 is avoided because it is informally reserved for WPAD on many real networks. |
 | **3** | `/etc/gallos/sync-server.conf` | Written by the GallosOS Venue Controller on first contact, or manually injected at flash time. |
 | **4** | None | Boot directly from baked-in `/boot/gallos/gallos.toml` (air-gapped / standalone mode). |
 
 ### Method A: Remote Directives URL (GitHub Gist / Web Server / DHCP-Announced URL)
 
 - Organizers host a single `gallos.toml` on a **GitHub Gist**, **GitHub Raw repository**, **university HTTP server**, or **any reachable URL**.
-- The URL is delivered to contestant machines via **Priority 1 (GRUB param)** or **Priority 2 (DHCP Option 252)**:
-  - **DHCP Option 252 (recommended for basic lab setups):** Add one line to the venue's existing router (dnsmasq or ISC DHCP) — no GallosOS-specific server required:
+- The URL is delivered to contestant machines via **Priority 1 (GRUB param)** or **Priority 2 (DHCP Option 235)**:
+  - **DHCP Option 235 (recommended for basic lab setups):** Add one line to the venue's existing router (dnsmasq or ISC DHCP) — no GallosOS-specific server required:
 
     ```text
     # dnsmasq (OpenWrt, Pi-hole, most lab routers):
-    dhcp-option=252,"https://gist.githubusercontent.com/.../raw/gallos.toml"
+    dhcp-option=235,"https://gist.githubusercontent.com/.../raw/gallos.toml"
 
-    # ISC DHCP (dhcpd.conf):
-    option wpad-url "https://gist.githubusercontent.com/.../raw/gallos.toml";
+    # ISC DHCP (dhcpd.conf) — declare a custom option, then set it:
+    option option-235 code 235 = text;
+    option option-235 "https://gist.githubusercontent.com/.../raw/gallos.toml";
     ```
+
+    > [!NOTE]
+    > Option 235 (RFC 3942 site-specific range 224–254) is used instead of the
+    > commonly-cited Option 252, which is informally reserved for WPAD
+    > (Windows proxy autodiscovery) on many real-world networks. Reusing 252
+    > risks colliding with genuine WPAD deployments, especially on the
+    > BYOD-Windows-laptop campus networks GallosOS explicitly targets.
 
   - **GRUB boot parameter:** Set `gallos.config_url=https://...` in the USB's GRUB config at flash time via `gallos-flash --config-url`.
 - **Advantage:** Organizers can update contest times, add whitelisted domains, or change wallpapers **on the fly without re-flashing or collecting USB drives**.
@@ -313,6 +321,16 @@ boot_splash_logo_url = "https://directives.icpcmexico.org/assets/plymouth-logo.p
 show_powered_by_gallos = true
 
 # ------------------------------------------------------------------------------
+# REAL-TIME BROADCAST VERIFICATION KEY (Ed25519)
+# ------------------------------------------------------------------------------
+# Global, not per-mode: the Venue Controller can also push gallos-broadcast
+# announcements during Event-mode training camps, not only Contest windows.
+[global.broadcast]
+enabled = true
+# Public verification key to authenticate live signed announcements from gallos-broadcast
+broadcast_public_key = "a8f3b2e7c9d4e5f60123456789abcdef0123456789abcdef0123456789abcdef"
+
+# ------------------------------------------------------------------------------
 # DEFAULT MODE SETTINGS (Active when no contest or event is running)
 # ------------------------------------------------------------------------------
 [default]
@@ -421,13 +439,6 @@ printer_host = "192.168.1.50"    # IP address if mode = "external"
 default_printer = "Lab-A-LaserJet"
 print_metadata_header = true
 max_pages_per_job = 10
-
-# ------------------------------------------------------------------------------
-# REAL-TIME BROADCAST VERIFICATION KEY (Ed25519)
-# ------------------------------------------------------------------------------
-[contest.security]
-# Public verification key to authenticate live signed announcements from gallos-broadcast
-broadcast_public_key = "a8f3b2e7c9d4e5f60123456789abcdef0123456789abcdef0123456789abcdef"
 
 [[contest.schedule]]
 start = "2026-08-29T11:00:00Z"

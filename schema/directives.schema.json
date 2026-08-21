@@ -229,6 +229,24 @@
         }
       }
     },
+    "broadcast_config": {
+      "type": "object",
+      "description": "Real-time signed clarification/announcement broadcast subsystem (gallos-broadcast). Global because the Venue Controller can use it during Event-mode camps as well as Contest windows.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, gallos-daemon opens a listener socket for signed gallos-broadcast messages. Leave false when the judge handles clarifications through its own portal (DOMjudge, BOCA, CMS)."
+        },
+        "broadcast_public_key": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Ed25519 public verification key (hex) used to authenticate signed gallos-broadcast messages."
+        }
+      }
+    },
+
     "browser_policy": {
       "type": "object",
       "description": "Fine-grained Chromium/Firefox managed URL policies to lock down paths within allowed domains.",
@@ -288,7 +306,8 @@
           "type": "boolean",
           "default": false,
           "description": "If true, the [contest] section and contest.schedule time windows will be parsed and activated."
-        }
+        },
+        "broadcast": { "$ref": "#/definitions/broadcast_config" }
       }
     },
 

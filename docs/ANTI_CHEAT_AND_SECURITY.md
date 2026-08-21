@@ -63,14 +63,30 @@ The GallosOS specification mandates a **Strict Default-DROP** policy for all out
 
 ### 3.1 Kernel Packet Filter (`nftables`)
 
+> [!IMPORTANT]
+> **These sets are rendered per-event by `gallos-daemon`, never copy-pasted as-is.** The elements shown below are illustrative placeholders. `allowed_judge_ips` MUST resolve to the organizer's actual judge host(s) — never a whole RFC1918 supernet (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), which would let a contestant reach every other device on the venue LAN and defeat the judge-only guarantee entirely.
+
 ```nftables
 #!/usr/sbin/nft -f
 
 table inet gallos_filter {
+    # Judge server(s) reachable during Contest mode, derived from
+    # [contest].allowed_websites in gallos.toml:
+    #   - Self-hosted LAN judges (BOCA / DOMjudge / CMS, the typical ICPC
+    #     onsite case): the organizer's specific static judge-server IP(s).
+    #   - CDN-fronted remote judges (Codeforces, AtCoder, omegaUp): kept in
+    #     sync via periodic DNS resolution — see §3.4.
     set allowed_judge_ips {
         type ipv4_addr
         flags interval
-        elements = { 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 }
+        elements = { 192.168.50.10 }   # example: single self-hosted BOCA host
+    }
+
+    # Venue Controller only (CUPS printing + audit/telemetry upload).
+    # Scoped to one host and explicit ports — never the whole LAN.
+    set allowed_venue_controller_ip {
+        type ipv4_addr
+        elements = { 192.168.50.1 }    # example: Venue Controller LAN IP
     }
 
     set telemetry_dns_blacklist {
@@ -93,7 +109,12 @@ table inet gallos_filter {
         ct state established,related accept
 
         # 3. Hard-Drop Broadcast, Multicast & Telemetry Clutter (prevents discovery leakage)
-        udp dport { 137, 1124, 3289, 3702, 5353, 8610, 8612 } drop
+        #    Note: mDNS (5353) is dropped globally here, then re-opened narrowly
+        #    in rule 7a below — scoped to the Venue Controller only — because
+        #    "hosted" printing mode ([contest.printing] mode = "hosted") relies
+        #    on Avahi/mDNS discovery against the Controller specifically, not
+        #    open discovery across the whole LAN.
+        udp dport { 137, 1124, 3289, 3702, 8610, 8612 } drop
         ip daddr { 224.0.0.1, 224.0.0.22, 239.255.255.250, 255.255.255.255 } drop
 
         # 4. Hard-Drop Hardcoded IDE DNS Resolvers & DoT/DoH
@@ -109,6 +130,15 @@ table inet gallos_filter {
 
         # 7. Allow HTTP/HTTPS exclusively to Whitelisted Judge IPs
         tcp dport { 80, 443 } ip daddr @allowed_judge_ips accept
+
+        # 7a. Venue Controller printing: CUPS/IPP (631) and Avahi/mDNS (5353)
+        #     discovery, scoped to the Controller's single IP only
+        udp dport { 631, 5353 } ip daddr @allowed_venue_controller_ip accept
+        tcp dport 631 ip daddr @allowed_venue_controller_ip accept
+
+        # 7b. Venue Controller audit/telemetry upload (fleet metrics,
+        #     screenshot sync, code backup) — HTTPS to the Controller only
+        tcp dport 443 ip daddr @allowed_venue_controller_ip accept
 
         # 8. Rate-limited Audit Logging for Denied Outbound Attempts
         limit rate 5/minute burst 7 packets log prefix "GALLOS_DENIED: " flags all
@@ -145,6 +175,16 @@ When `gallos.toml` declares specific `[contest.bookmarks]`, the daemon can optio
 - **`URLAllowlist`**: Unblocks only `/login`, `/api/*`, and the specific `/arena/contest/*` route.
 
 This ensures that even if `omegaup.com` is whitelisted in the firewall, contestants receive a strict `ERR_BLOCKED_BY_ADMINISTRATOR` screen if they attempt to navigate outside the active contest arena to look up old code.
+
+### 3.4 Dynamic Judge IP Resolution for CDN-Fronted Judges
+
+`gallos.toml`'s `allowed_websites` is declared by **domain name** (e.g. `boca.icpcmexico.org`), but `nftables` filters only by IP address. GallosOS resolves this gap differently depending on judge topology:
+
+- **Self-hosted LAN judges (BOCA, DOMjudge, CMS — the typical ICPC/IOI onsite case):** These run on a dedicated machine on the venue LAN with a fixed IP. `gallos-daemon` resolves the configured domain once at startup (or the organizer supplies the IP directly) and writes it into `allowed_judge_ips` as a single host. No further tracking is needed since the IP does not change during the contest.
+- **CDN-fronted remote judges (Codeforces, AtCoder, omegaUp, used in `Event`/`Default` practice profiles):** These sit behind shared CDN infrastructure with edge IPs that rotate and are frequently shared with unrelated tenants. `gallos-daemon` periodically (every 30–60 seconds) re-resolves each whitelisted domain via the allowed local DNS server and diffs the result into `allowed_judge_ips` (`nft add element` / `nft delete element`), keeping the set current as CDN IPs rotate.
+
+> [!WARNING]
+> **Documented residual limitation, not a solved problem:** IP-based allowlisting — with or without periodic re-resolution — cannot distinguish between two hostnames that happen to share the same CDN edge IP, because `nftables` has no visibility into the TLS SNI or HTTP Host header. A contestant who already knows a whitelisted domain's current edge IP could, in principle, reach unrelated content hosted behind the same edge if the CDN routes by SNI rather than IP. Closing this gap requires SNI-aware filtering (e.g. an inline stream proxy with `ssl_preread`-style hostname matching), which is heavier infrastructure than the in-band Bash/Python daemon is designed to run and is not currently planned for the MVP. This is why strict `Contest`-mode lockdowns should prefer self-hosted LAN judges wherever possible — the CDN-sharing risk does not apply to them — and why CDN-fronted judges are treated as acceptable for lower-stakes `Event`/`Default` practice contexts rather than official lockdown scenarios.
 
 ---
 

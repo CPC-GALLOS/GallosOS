@@ -67,14 +67,20 @@ Priority 1 — GRUB Boot Parameter (explicit, set at flash time)
   ↳ Organizer bakes the URL directly into the USB at flash time via gallos-flash.
     Highest priority; always takes precedence.
 
-Priority 2 — DHCP Option 252 (zero-infrastructure path)
-  Standard DHCP response includes Option 252 with the config URL.
+Priority 2 — DHCP Option 235 (zero-infrastructure path)
+  Standard DHCP response includes Option 235 with the config URL.
   ↳ Works with any router running dnsmasq or ISC DHCP — including basic
     university lab routers and consumer-grade APs — with a single config line:
-    dnsmasq:  dhcp-option=252,"https://server/gallos.toml"
-    ISC DHCP: option wpad-url "https://server/gallos.toml";
+    dnsmasq:  dhcp-option=235,"https://server/gallos.toml"
+    ISC DHCP: option option-235 code 235 = text;
+              option option-235 "https://server/gallos.toml";
   ↳ Requires no GallosOS-specific server. The lab's existing DHCP infrastructure
     announces the URL automatically at DHCP lease time.
+  ↳ Option 235 is an unassigned site-specific option (RFC 3942 range 224–254),
+    chosen deliberately instead of the commonly-used Option 252 — which is
+    informally reserved for WPAD (Windows proxy autodiscovery) on many
+    real-world networks. Reusing 252 risks colliding with genuine WPAD
+    deployments on BYOD-heavy campus networks.
 
 Priority 3 — Local Config File (written by Venue Controller or manually)
   /etc/gallos/sync-server.conf
@@ -98,7 +104,7 @@ sequenceDiagram
     participant Daemon as Gallos Daemon (Mode & Firewall Controller)
 
     Boot->>Net: Initialize network interface & synchronize NTP
-    Boot->>Net: Resolve config_url via GRUB param → DHCP Option 252 → sync-server.conf
+    Boot->>Net: Resolve config_url via GRUB param → DHCP Option 235 → sync-server.conf
     alt config_url resolved
         Boot->>Remote: HTTP GET with 5-second timeout
         alt Remote response 200 OK
@@ -458,11 +464,11 @@ No network infrastructure required — only power outlets. Everything is baked i
 
 ### Tier 1 — Existing DHCP / Basic LAN (Zero-Infra Config Distribution)
 
-A standard router or switch is already present in the lab. The organizer adds **one line** to the existing DHCP server configuration to announce the `config_url` via **DHCP Option 252**. No GallosOS-specific server is required.
+A standard router or switch is already present in the lab. The organizer adds **one line** to the existing DHCP server configuration to announce the `config_url` via **DHCP Option 235**. No GallosOS-specific server is required.
 
 ```text
 [Lab Router / Existing DHCP Server]
-  dhcp-option=252,"https://gist.github.com/.../gallos.toml"
+  dhcp-option=235,"https://gist.github.com/.../gallos.toml"
          |
    Contest LAN (existing switch/AP)
          |
@@ -474,10 +480,10 @@ v        v        v        v
  USB      USB      USB      USB
 ```
 
-- ✅ config_url discovery: **Priority 2 (DHCP Option 252)** — no boot parameter needed, no GallosOS server needed.
+- ✅ config_url discovery: **Priority 2 (DHCP Option 235)** — no boot parameter needed, no GallosOS server needed.
 - ✅ One config line on the router → all machines automatically receive the URL at lease time.
 - ✅ Organizer updates the Gist or HTTP file → all machines pick it up on next boot.
-- ✅ Works with any dnsmasq / ISC DHCP router: `dhcp-option=252,"https://url"`.
+- ✅ Works with any dnsmasq / ISC DHCP router: `dhcp-option=235,"https://url"`.
 - ✅ Machine identity still baked into each USB's `machine.toml` at flash time.
 - ⚠️ No fleet monitoring or centralized audit.
 
@@ -485,7 +491,7 @@ v        v        v        v
 
 ### Tier 2 — URL-Driven Sync (Internet or Intranet HTTP) *(HuronOS-style)*
 
-Each USB boots independently and fetches a config file from any reachable HTTP URL — a GitHub Gist, raw GitHub file, university web server, or personal VPS. This is exactly how HuronOS operates. GRUB boot parameter or DHCP Option 252 points each machine at the URL.
+Each USB boots independently and fetches a config file from any reachable HTTP URL — a GitHub Gist, raw GitHub file, university web server, or personal VPS. This is exactly how HuronOS operates. GRUB boot parameter or DHCP Option 235 points each machine at the URL.
 
 ```text
      Internet / LAN (any reachable HTTP server)
@@ -500,7 +506,7 @@ Each USB boots independently and fetches a config file from any reachable HTTP U
   USB       USB       USB       USB
 ```
 
-- ✅ config_url discovery: **Priority 1 (GRUB param)** or **Priority 2 (DHCP Option 252)**.
+- ✅ config_url discovery: **Priority 1 (GRUB param)** or **Priority 2 (DHCP Option 235)**.
 - ✅ Zero local GallosOS infrastructure needed.
 - ✅ Organizer edits the Gist → all machines pick up changes on next sync.
 - ✅ Works over internet or any reachable LAN HTTP server.
@@ -538,7 +544,7 @@ The **judge server** (DOMjudge, BOCA, PC^2, CMS) is always a **separate, dedicat
       (contestant)     (contestant)     (contestant)
 ```
 
-- ✅ config_url discovery: **Priority 2 (DHCP Option 252, served by Controller)** and **Priority 3 (/etc/gallos/sync-server.conf)**.
+- ✅ config_url discovery: **Priority 2 (DHCP Option 235, served by Controller)** and **Priority 3 (/etc/gallos/sync-server.conf)**.
 - ✅ **Full Fleet & Proctoring Monitoring:** Live Grafana dashboard displays online workstation heartbeats, team identity mappings, RAM consumption, and OS SHA256 integrity status.
 - ✅ **Persistent Audit & Log Aggregation (Overcoming Ephemeral RAM):** Because contestant workstations run entirely on ephemeral RAM (logs vanish on reboot), the Venue Controller acts as the central persistent telemetry sink. It ingests firewall drop alerts, EarlyOOM kill logs, print audit trails, and proctoring snapshots, exportable as `gallos-audit-YYYYMMDD.tar.gz`.
 - ✅ **Scalable Multi-Server Architecture:** One central Controller or multiple distributed auditing nodes (e.g. one per lab floor in large multi-room venues).
@@ -554,7 +560,7 @@ The **judge server** (DOMjudge, BOCA, PC^2, CMS) is always a **separate, dedicat
 
 The venue already has its own DHCP, DNS, NTP, and print servers managed by an IT department. GallosOS integrates with these services via standard protocols without requiring any modifications to the existing infrastructure:
 
-- **DHCP:** The IT DHCP server adds `dhcp-option=252,"https://..."` to announce the config URL.
+- **DHCP:** The IT DHCP server adds `dhcp-option=235,"https://..."` to announce the config URL.
 - **NTP:** GallosOS uses the campus NTP pool for clock synchronization.
 - **Printing:** `gallos-print` targets an existing IPP/CUPS endpoint on the institutional print server.
 - **DNS:** GallosOS operates on the existing local DNS with its own `nftables` whitelist applied on top.
@@ -569,7 +575,7 @@ GallosOS integrates **without disrupting** the existing network setup. The IT de
 | :--- | :---: | :---: | :---: | :---: | :---: |
 | Network required | ❌ No | ✅ LAN only | ✅ LAN or Internet | ✅ LAN only | ✅ LAN |
 | GallosOS server needed | ❌ No | ❌ No | ❌ No | ✅ Yes | ❌ No |
-| config_url auto-discovery | ❌ None | ✅ DHCP Option 252 | ✅ GRUB param | ✅ DHCP + conf file | ✅ DHCP Option 252 |
+| config_url auto-discovery | ❌ None | ✅ DHCP Option 235 | ✅ GRUB param | ✅ DHCP + conf file | ✅ DHCP Option 235 |
 | On-the-fly config updates | ❌ No | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
 | Fleet monitoring dashboard | ❌ No | ❌ No | ❌ No | ✅ Yes | ❌ No |
 | MAC-based machine identity | ❌ No | ❌ No | ❌ No | ✅ Yes | ❌ No |
@@ -903,10 +909,10 @@ sequenceDiagram
 
 ### 14.1 Cryptographic Verification & Public Key Configuration
 
-When enabled, the `gallos.toml` file configures the **public verification key** at boot/session setup:
+When enabled, the `gallos.toml` file configures the **public verification key** at boot/session setup. This lives under `[global.broadcast]` rather than under `[contest]` — the Venue Controller also uses `gallos-broadcast` during `Event`-mode training camps (see the "Classrooms, Camps & Local Contests" case above), so a single key pair and enable flag must apply regardless of which mode is currently active:
 
 ```toml
-[contest.broadcast]
+[global.broadcast]
 enabled = true # Set to false to disable socket listener if judge handles messages
 broadcast_public_key = "a8f3b2...c9d4e5"
 ```
