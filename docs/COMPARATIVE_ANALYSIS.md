@@ -327,7 +327,7 @@ Source and playbook inspection of the `icpcsysops/ansible` infrastructure tree r
 3. **Hardware Tuning & Execution Determinism (`roles/tunecpulaptop` & `roles/taskset_run_scripts`):**
    - **Disables Dynamic CPU Boosting:** Deploys `disable-turbo-laptop` to enforce `intel_pstate/no_turbo=1` (Intel) or `cpufreq/boost=0` (AMD) and sets `scaling_governor=performance`.
    - **Disables HyperThreading Sibling Threads:** Disables virtual sibling hyperthreads (e.g. `echo 0 > /sys/devices/system/cpu/cpu4/online`) to eliminate CPU cache and pipeline contention.
-   - **Process Affinity Pinning:** Injects `taskset -c <taskset_cpu>` into language runner scripts (`runc`, `runcpp`, `runpython3`, `runjava`, `runkotlin`), guaranteeing **deterministic, repeatable benchmarking runtimes** across all contestant laptops.
+   - **Process Affinity Pinning:** Injects `taskset -c <taskset_cpu>` into language runner scripts (`runc`, `runcpp`, `runpython3`, `runjava`, `runkotlin`), **designed to reduce run-to-run runtime variance** across contestant laptops (see `docs/HARDWARE_COMPATIBILITY.md` §1 on residual turbo-boost/thermal variance this does not fully eliminate).
 4. **Strict Network & Telemetry Filtering (`roles/iptablesrules`):**
    - Deploys granular `iptables` / `nftables` rules:
      - Hard-rejects IDE telemetry & hardcoded DNS queries: blocks JetBrains DNS lookups (`9.9.9.10`, `149.112.112.10`) and public DNS bypasses (`1.1.1.1`, `8.8.8.8`).
@@ -371,14 +371,14 @@ Source and playbook inspection of the `icpcsysops/ansible` infrastructure tree r
 The examination of `icpcsysops/ansible` provides crucial real-world sysadmin patterns that GallosOS directly formalizes into its specifications:
 
 1. **Deterministic CPU Execution & Thermal Throttling Prevention:**
-   - GallosOS incorporates CPU governor stabilization (`governor = "performance"`) and dynamic turbo boost disabling (`intel_pstate/no_turbo=1`, `cpufreq/boost=0`) into its hardware specification ([`docs/HARDWARE_COMPATIBILITY.md`](./HARDWARE_COMPATIBILITY.md)), guaranteeing that local algorithmic benchmarks are not distorted by laptop frequency scaling or thermal throttling.
+   - GallosOS incorporates CPU governor stabilization (`governor = "performance"`) and dynamic turbo boost disabling (`intel_pstate/no_turbo=1`, `cpufreq/boost=0`) into its hardware specification ([`docs/HARDWARE_COMPATIBILITY.md`](./HARDWARE_COMPATIBILITY.md)), designed to reduce how much local algorithmic benchmarks are distorted by laptop frequency scaling or thermal throttling — residual variance from sustained thermal throttling and other host noise is not eliminated.
    - Core affinity pinning via `taskset` is specified for offline execution wrappers (`runc`, `runcpp`, `runpython3`, `runjava`).
 2. **Granular Telemetry & DNS Sinkhole Filtering:**
    - GallosOS's `nftables` engine incorporates the ICPC SysOps blacklist: hard-dropping IDE-embedded DNS resolvers (e.g. JetBrains `9.9.9.10`), mDNS/Bonjour broadcast spam (`5353`), and NetBIOS chatter, paired with rate-limited kernel audit logging ([`docs/ANTI_CHEAT_AND_SECURITY.md`](./ANTI_CHEAT_AND_SECURITY.md)).
 3. **Forensic Audit & Process Monitoring Subsystems:**
    - The auditing architecture in GallosOS borrows the concepts of `martkeys` (keystroke journaling) and `s.py` (process hierarchy and active window monitoring) as opt-in audit plugins managed cleanly by `gallos-daemon` during official Olympiad and Championship modes.
 4. **Venue Controller Fleet Integration (Tier 3 / Tier 4):**
-   - For large-scale events where organizers manage hundreds of workstations from a central Venue Controller, GallosOS acts as the **ideal, hardened, immutable client node**. Because GallosOS includes Python 3, OpenSSH, and systemd out of the box, organizers can utilize Ansible from the Venue Controller for live ad-hoc intervention while relying on GallosOS's immutable OverlayFS for bulletproof boot resilience.
+   - For large-scale events where organizers manage hundreds of workstations from a central Venue Controller, GallosOS acts as a hardened, immutable client node. Because GallosOS includes Python 3, OpenSSH, and systemd out of the box, organizers can utilize Ansible from the Venue Controller for live ad-hoc intervention while relying on GallosOS's immutable OverlayFS for resilient boot behavior.
 
 ---
 

@@ -60,6 +60,8 @@ GallosOS/
 
 GallosOS follows a **hybrid mono/poly-repo strategy**: the core build pipeline, docs, and configs live in this monolith. Standalone organizer-facing tools with independent release cycles live in sibling repos under the `CPC-GALLOS` org.
 
+The core is kept as a single monorepo (rather than splitting build pipeline, daemon, docs, and configs across separate repos the way huronOS and Maratona Linux do) for two reasons: it avoids the maintainer-fragmentation that left both predecessor projects with scattered, inconsistently-updated repos and no single space where a new contributor could see the whole system at once; and it keeps AI-assisted development coherent — one tree with one set of cross-referenced docs lets an agent (or a small contributor base) reason about the full system instead of losing context switching between repos, which matters for a project expected to be maintained by one or a few people rather than a large team.
+
 | Repo | Language | Audience | Status |
 | :--- | :--- | :--- | :--- |
 | `GallosOS` (this repo) | Bash/Python, TOML | Build pipeline, docs, configs | Active |

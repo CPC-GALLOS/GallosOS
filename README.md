@@ -33,10 +33,10 @@ Advanced venue-management features (fleet telemetry, print spooling, proctoring 
 
 ```text
 +---------------------------------------------------------------------------------------------------+
-|  1. Weekly Club Practice & Classes : Immutable USB + cloud sync (GitHub/GitLab/GDrive)            |
-|                                      Controlled browsing: no AI results, curated bookmarks        |
+|  1. Weekly Club Practice & Classes : Immutable USB + semi-free, curated internet access            |
+|                                      (AI-result/AI-assistant sites blocked, bookmarks whitelisted) |
 |  2. Multi-Day Training Camps       : Automated transitions (Event -> Contest -> Upsolving)        |
-|                                      Cloud sync suspended during Contest windows                   |
+|                                      Whitelisted internet suspended during Contest windows         |
 |  3. Official Tournaments (ICPC/IOI): Strict Anti-Cheat lockdown, judge-only network, fresh isolation|
 |                                      Code exported manually by contestant at contest end          |
 +---------------------------------------------------------------------------------------------------+
@@ -44,6 +44,7 @@ Advanced venue-management features (fleet telemetry, print spooling, proctoring 
 
 - **Dynamic Online Configuration:** Host a single canonical `gallos.toml` directives file (or legacy `.hdf` migrated via `gallos-convert`) on a **GitHub Gist**, Raw repository, or campus server and update contest times, allowed websites, or bookmarks on the fly *without re-flashing USB drives*.
 - **Baked-In Offline Fallback:** Embed configurations directly onto the USB image at burn-time for 100% offline, air-gapped laboratory environments.
+- **Workspace Persistence Is Not a Built-In Sync Feature:** GallosOS's filesystem is always immutable and never writes to the USB itself, so saving work outside `Contest` mode happens through one of three paths, none of which GallosOS implements directly: an opt-in `event-data` partition on the contestant's own BYOD drive, a manual USB export when mass storage is unlocked outside a Contest window, or reaching a service like GitHub, GitLab, or Google Drive in the browser — which only works because the organizer's `gallos.toml` whitelist happens to permit that domain as part of the semi-free internet policy, the same way it permits any other bookmarked site. All three are hard-suspended or unavailable the instant a `Contest` window starts (see [`docs/CONFIG_SPEC.md`](./docs/CONFIG_SPEC.md) § Mode Hierarchy).
 
 ---
 
@@ -83,7 +84,7 @@ The repository includes comprehensive context documents and architectural specif
 4. **Multi-Layered Immutable Storage (OverlayFS):**
    - Read-only base SquashFS + modular software packages (`.gsm`).
    - Ephemeral RAM `tmpfs` upper layer ensures a pristine clean state upon reboot.
-   - Manual contestant source code export to external USB after contest end. (The Organizer Audit archive is securely collected by the Venue Controller for administrative metrics).
+   - Manual contestant source code export to external USB after contest end. (If a Venue Controller is deployed, it can additionally collect the Organizer Audit archive for administrative metrics — see Tier 3 in `docs/ARCHITECTURE.md` §10; most deployments run without one).
 
 5. **Zero-Leak Anti-Cheat Shield:**
    - Kernel-level packet filter (`nftables`) with a default-DROP policy, whitelisting only designated judges (BOCA, DOMjudge, Codeforces) and local DNS/NTP.
@@ -122,7 +123,7 @@ The following terms are used consistently across all GallosOS documentation:
 
 | Term | Definition |
 | :--- | :--- |
-| **Contestant** | A programmer actively competing or practicing at a GallosOS workstation. The OS user account is always the fixed, unprivileged `contestant` system user. Preferred term throughout GallosOS documentation; *participant* may appear occasionally and is considered equivalent. |
+| **Contestant** | A programmer actively competing or practicing at a GallosOS workstation. The OS user account is always the fixed, unprivileged `contestant` system user. The canonical term throughout GallosOS documentation; avoid *participant* except when quoting an external source verbatim. |
 | **Organizer** | The person or committee responsible for configuring and deploying GallosOS for an event. Manages `gallos.toml`, runs `gallos-flash`, and optionally operates the Venue Controller. Synonymous with *contest director* or *jury*. |
 | **Venue Controller** | An optional dedicated machine (or GallosOS USB in Server Mode) that runs on the contest LAN to provide centralized fleet monitoring, DHCP/NTP, CUPS print spooling, MAC-to-team identity mapping, and audit log aggregation. Only required for Tier 3 deployments — GallosOS works without one. |
 | **Judge Server** | The external competitive programming judge system (BOCA, DOMjudge, PC², CMS, omegaUp) running on a separate dedicated machine managed by the contest organizer. GallosOS **never** hosts the judge — it connects to it. |
@@ -169,5 +170,5 @@ GallosOS builds upon foundational research, packaging standards, and operational
 
 - **[huronOS](https://huronos.org)** (`GPL-2.0`): Modular SquashFS architecture, dynamic contest mode state-machine transitions, and `.hdf` synchronization.
 - **[Maratona Linux](https://maratona.ime.usp.br/)** (`GPL-2.0`): ICPC Latin America packaging, BOCA judge integration, and firewall filtering concepts.
-- **[ICPC-Env](https://github.com/icpc-environment/icpc-env)**: Standardized language toolchains, proxy-based network filtering, and offline DevDocs setups.
+- **[ICPC-Env](https://github.com/icpc-environment/icpc-env)**: Standardized language toolchains, proxy-based network filtering, and offline DevDocs setups. Dormant since October 2024; its primary maintainer ([`ubergeek42`](https://github.com/ubergeek42)) is also a contributor to [`icpcsysops/ansible`](https://github.com/icpcsysops/ansible), the actively-maintained ICPC World Finals/NAC SysOps playbook set that GallosOS treats as the more current reference for several of the same subsystems (printing, keystroke/window forensics, workspace backup — see [`docs/PROVENANCE.md`](./docs/PROVENANCE.md)).
 - **[IOI Contestant-VM](https://github.com/ioi-2025/contestant-vm)**: Official IOI environment standards, minimal desktop configuration, and automated VM provisioning.

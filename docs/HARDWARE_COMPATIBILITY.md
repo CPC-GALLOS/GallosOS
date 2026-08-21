@@ -8,7 +8,7 @@ To ensure maximum compatibility across diverse university lab environments and c
 
 ## 1. Boot Firmware & Architecture
 
-GallosOS uses a hybrid bootloader architecture to guarantee maximum boot success rates regardless of the host machine's age.
+GallosOS uses a hybrid bootloader architecture designed to maximize boot compatibility across old and new host hardware.
 
 ### 1.1 Legacy BIOS (CSM) vs UEFI
 
@@ -79,7 +79,7 @@ When preparing for a contest, organizers often need to flash 50+ USB drives simu
 To avoid catastrophic write failures or extremely slow flashing times (e.g., 4+ hours), follow these hardware guidelines for your "flashing station":
 
 1. **Externally Powered USB Hubs (Mandatory):** Never use a cheap, unpowered USB hub to flash multiple drives. The combined power draw of writing to 10 USBs simultaneously will exceed a standard motherboard port's power limit, causing drives to disconnect randomly during the flash. Always use an **Active USB 3.0+ Hub with a dedicated AC power adapter** (Recommended brands: Anker, Sabrent, TP-Link).
-2. **Dedicated PCIe Expansion Cards (Desktops):** If you are using a desktop PC as a flashing station, the best approach is to install a dedicated PCIe to USB 3.2 expansion card (Recommended brands: StarTech, Inateck, Orico). Unlike external hubs that share a single port's bandwidth, PCIe cards connect directly to the CPU's PCIe lanes, guaranteeing full write speed to every port simultaneously.
+2. **Dedicated PCIe Expansion Cards (Desktops):** If you are using a desktop PC as a flashing station, the best approach is to install a dedicated PCIe to USB 3.2 expansion card (Recommended brands: StarTech, Inateck, Orico). Unlike external hubs that share a single port's bandwidth, PCIe cards connect directly to the CPU's PCIe lanes, avoiding the shared-bandwidth bottleneck so each port can approach full write speed independently (actual throughput still depends on the USB drives themselves).
 3. **Thunderbolt / USB-C Hub Topology (Laptops):** If flashing from a laptop, plug your powered USB hub into a **Thunderbolt 3/4 or USB-C** port rather than a traditional rectangular USB-A port. Thunderbolt ports have massive bandwidth (up to 40 Gbps) compared to standard USB-A (5 Gbps), preventing the hub from becoming a severe data bottleneck when flashing 10+ drives at once.
 
 ---
