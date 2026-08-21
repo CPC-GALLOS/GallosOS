@@ -9,7 +9,7 @@ This document defines the configuration schema, mode hierarchy, delivery methods
 GallosOS is designed to seamlessly adapt to **any competitive programming scenario**.
 
 > [!IMPORTANT]
-> **GallosOS is always immutable on the USB.** All writes during a session live in RAM (`tmpfs`). The OS never writes to the USB drive during normal operation — this preserves USB drive longevity, ensures a pristine clean state on every boot, and prevents leftover contest data. Source code persistence is handled through **optional cloud sync** or **end-of-session USB export**, never through live USB writes.
+> **The GallosOS root filesystem is always immutable, and the OS itself never writes to the USB.** All OS-internal writes during a session — logs, caches, session state — live in RAM (`tmpfs`), never on flash. This preserves USB drive longevity (it's high-frequency write *churn* that wears flash, not occasional writes) and guarantees a pristine clean state on every `Contest`-mode entry, which is the one context where persistence is never permitted regardless of what the drive supports. Outside `Contest` mode, source code persistence has three options: **optional cloud sync**, **end-of-session USB export**, or an **opt-in `event-data` partition** on the contestant's own drive for continuity across `Event`/`Default`-mode sessions (see `docs/ARCHITECTURE.md` §4 "Storage & Filesystem Architecture," item 5) — the last of these is a deliberate, low-frequency-write exception for the contestant's own hardware, not a contradiction of the immutability guarantee above.
 
 ### Context 1 — Weekly Club Sessions & Classes (Default / Event Mode)
 
@@ -434,7 +434,7 @@ enable_keystroke_forensics = false
 # PRINTING SUBSYSTEM (CUPS with automated metadata headers)
 # ------------------------------------------------------------------------------
 [contest.printing]
-mode = "hosted"                  # "hosted" (Controller hosts USB printer + mDNS), "external", or "none"
+mode = "hosted"                  # "hosted" (Controller hosts USB printer, static IP by default — see ANTI_CHEAT_AND_SECURITY.md §3.1), "external", or "none"
 printer_host = "192.168.1.50"    # IP address if mode = "external"
 default_printer = "Lab-A-LaserJet"
 print_metadata_header = true

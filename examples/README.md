@@ -37,7 +37,7 @@ Each configuration profile in this directory demonstrates a distinct **real-worl
 - [**`maratona-sbc.toml`**](./maratona-sbc.toml) — **Latin American Multi-Site Championship (Maratona SBC / BOCA)**
   - **Operational Context:** Official Brazilian & South American ICPC regional final.
   - **Network & Security:** Strict BOCA judge whitelisting (`boca.sbc.org.br`), Portuguese/ABNT2 (`br`) default keyboard layout.
-  - **Printing:** Venue Controller hosted print spooler (`mode = "hosted"`) broadcasting printer discovery via Avahi/mDNS.
+  - **Printing:** Venue Controller hosted print spooler (`mode = "hosted"`), targeted via its static IP by default (mDNS discovery is opt-in only — see `docs/ANTI_CHEAT_AND_SECURITY.md` §3.1).
   - **Toolchain:** Parity with SBC contest rules (GCC 14, Java 21, Python 3.12, PyPy3, Byobu terminal multiplexer).
 
 - [**`ioi-cms.toml`**](./ioi-cms.toml) — **International Secondary School Olympiad (IOI / CMS)**

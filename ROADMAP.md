@@ -16,7 +16,7 @@ This document translates the complete architectural and security specifications 
   - Legacy PC-BIOS (CSM) via `grub-pc` and MBR boot sector.
 - [ ] **Casper Live Boot Engine:** Configure `casper` boot parameters and hooks (inspecting and adapting contest-tested hook patterns from `maratona-linux/maratona-casper`) to:
   - Mount SquashFS modules (`.gsm`) into union layers using in-tree **OverlayFS**.
-  - Automatically mount the 3-partition Live USB layout (`GALLOS_BOOT`, `event-data`, `contest-data`).
+  - Automatically mount the 2-partition Live USB layout (`GALLOS_BOOT`, optional `event-data`), detecting `event-data` by filesystem **label** rather than a fixed partition offset — so the same detection code works whether the drive was provisioned by `gallos-flash` or is a Ventoy USB with a `-r`-reserved region formatted separately (see `docs/ARCHITECTURE.md` §4, item 5). Never mount `event-data` during a `Contest` window.
   - Support the `toram` boot parameter (copy entire OS to RAM for memory-resident disconnected execution).
   - Support the `gallos.config=<path_or_url>` kernel boot parameter for multi-profile selection.
   - Automatically detect and load `/gallos/gallos.toml` when booted inside a **Ventoy** multi-boot drive.
@@ -33,11 +33,12 @@ This document translates the complete architectural and security specifications 
 *Goal: Enforce strict Zero-Trust contest integrity, network air-gapping, and out-of-memory protections.*
 
 - [ ] **Anti-Cheat Enforcement (`nftables`):**
-  - [ ] Implement default DROP policy (Zero-Trust)
+  - [ ] Implement default DROP policy (Zero-Trust), IPv4-only (`table ip`)
+  - [ ] Disable IPv6 network-wide (kernel `ipv6.disable=1`) — huronOS precedent, avoids a dual-stack firewall bypass
   - [ ] Static IP / CIDR whitelisting for Judge Servers (`allowed_websites` restricted to IPs for MVP)
   - [ ] Port-locking (block outbound 22, 53 over HTTPS, proxies, UDP hole punching)
 - [ ] **Peripheral & USB Lockdown:**
-  - Create dynamic `udev` rules to block USB Mass Storage attachment while allowing mice, keyboards, and audio devices.
+  - Deny USB mass-storage via `polkit`/`udisks2` policy (`ResultAny=no` on `org.freedesktop.udisks2.*` for the `contestant` user) as the primary mechanism, with dynamic `udev` unbind rules as a fallback on systems without polkit/udisks2 enforcement. Allow mice, keyboards, and audio devices in both cases.
 - [ ] **TTY & Privilege Hardening:**
   - Disable virtual terminal switching (TTY1–6) via kernel/logind parameters.
   - Configure the `contestant` user as unprivileged without `sudo` or polkit administrative rights.
@@ -102,7 +103,7 @@ This document translates the complete architectural and security specifications 
 - [ ] **`gallos-flash` (Mass Multi-USB Flashing Tool):**
   - Multi-threaded parallel writer supporting 50+ simultaneous USB targets.
   - Native support for Linux, macOS, and Windows WSL2 via `usbipd-win`.
-  - Automatic creation of FAT32 boot, `event-data`, and `contest-data` partitions.
+  - Automatic creation of a FAT32 `GALLOS_BOOT` partition plus an ext4 `event-data` partition sized to consume all remaining drive capacity. No `contest-data` partition — `Contest` mode never persists to the boot drive (see `docs/ARCHITECTURE.md` §4, item 5).
   - Automated per-USB injection of unique `machine.toml` credentials.
 - [ ] **GallosOS Config Builder (Web & GUI App):**
   - Interactive web application (Angular) hosted on GitHub Pages or locally.

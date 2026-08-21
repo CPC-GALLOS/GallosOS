@@ -66,14 +66,20 @@ The GallosOS specification mandates a **Strict Default-DROP** policy for all out
 > [!IMPORTANT]
 > **These sets are rendered per-event by `gallos-daemon`, never copy-pasted as-is.** The elements shown below are illustrative placeholders. `allowed_judge_ips` MUST resolve to the organizer's actual judge host(s) — never a whole RFC1918 supernet (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), which would let a contestant reach every other device on the venue LAN and defeat the judge-only guarantee entirely.
 
+> [!NOTE]
+> **IPv6 is disabled network-wide, not merely un-whitelisted.** [Precedent: huronOS's own docs (`docs/start/requirements.md`) recommend disabling IPv6 outright because a dual-stack firewall that is only IPv4-aware can let contestants reach IPv6-only destinations unfiltered.] GallosOS follows the same posture: IPv6 is turned off at the kernel level (`ipv6.disable=1` boot parameter, or `net.ipv6.conf.all.disable_ipv6=1` at runtime), and the ruleset below uses `table ip` (IPv4-only), not `table inet` (dual-stack) — so there is no separate IPv6 chain to keep in sync or accidentally leave open.
+
 ```nftables
 #!/usr/sbin/nft -f
 
-table inet gallos_filter {
+table ip gallos_filter {
     # Judge server(s) reachable during Contest mode, derived from
     # [contest].allowed_websites in gallos.toml:
     #   - Self-hosted LAN judges (BOCA / DOMjudge / CMS, the typical ICPC
-    #     onsite case): the organizer's specific static judge-server IP(s).
+    #     onsite case): the organizer's specific static judge-server IP(s),
+    #     resolved once and pinned into /etc/hosts at configure-time rather
+    #     than re-resolved live. [Precedent: maratona-firewall's
+    #     config-ip-boca.sh does exactly this — see §3.4.]
     #   - CDN-fronted remote judges (Codeforces, AtCoder, omegaUp): kept in
     #     sync via periodic DNS resolution — see §3.4.
     set allowed_judge_ips {
@@ -84,6 +90,10 @@ table inet gallos_filter {
 
     # Venue Controller only (CUPS printing + audit/telemetry upload).
     # Scoped to one host and explicit ports — never the whole LAN.
+    # IDEA FOR LATER (not adopted): the real ICPC World Finals ruleset
+    # (icpcsysops/ansible do_iptables.yml) scopes every Controller service to
+    # its own separate /32+port rule instead of one shared set. Consider
+    # splitting this set into per-service rules to match more closely.
     set allowed_venue_controller_ip {
         type ipv4_addr
         elements = { 192.168.50.1 }    # example: Venue Controller LAN IP
@@ -109,12 +119,16 @@ table inet gallos_filter {
         ct state established,related accept
 
         # 3. Hard-Drop Broadcast, Multicast & Telemetry Clutter (prevents discovery leakage)
-        #    Note: mDNS (5353) is dropped globally here, then re-opened narrowly
-        #    in rule 7a below — scoped to the Venue Controller only — because
-        #    "hosted" printing mode ([contest.printing] mode = "hosted") relies
-        #    on Avahi/mDNS discovery against the Controller specifically, not
-        #    open discovery across the whole LAN.
-        udp dport { 137, 1124, 3289, 3702, 8610, 8612 } drop
+        #    mDNS (5353) is dropped unconditionally, full stop. [Precedent: the
+        #    real ICPC World Finals ruleset REJECTs 5353 outright — onsite
+        #    printers are statically configured, no Avahi/mDNS broadcast on
+        #    contestant machines at all.] GallosOS follows the same default:
+        #    [contest.printing] mode = "hosted" targets a static CUPS server
+        #    IP (printer_host) by default; mDNS discovery is opt-in only via
+        #    enable_mdns_discovery = true, which — if set — narrowly reopens
+        #    5353 scoped to allowed_venue_controller_ip alone (not shown here,
+        #    since it's off by default).
+        udp dport { 137, 1124, 3289, 3702, 5353, 8610, 8612 } drop
         ip daddr { 224.0.0.1, 224.0.0.22, 239.255.255.250, 255.255.255.255 } drop
 
         # 4. Hard-Drop Hardcoded IDE DNS Resolvers & DoT/DoH
@@ -125,20 +139,29 @@ table inet gallos_filter {
         udp dport 53 ip daddr 192.168.1.1 accept
         tcp dport 53 ip daddr 192.168.1.1 accept
 
-        # 6. Allow NTP Time Synchronization (Port 123)
-        udp dport 123 accept
+        # 6. Allow NTP Time Synchronization (Port 123) — scoped to the
+        #    Venue Controller (if it hosts NTP) or the organizer-configured
+        #    campus NTP pool IP(s), never wide open. An unrestricted NTP rule
+        #    is an unmonitored outbound channel regardless of judge whitelisting.
+        udp dport 123 ip daddr @allowed_venue_controller_ip accept
 
         # 7. Allow HTTP/HTTPS exclusively to Whitelisted Judge IPs
         tcp dport { 80, 443 } ip daddr @allowed_judge_ips accept
 
-        # 7a. Venue Controller printing: CUPS/IPP (631) and Avahi/mDNS (5353)
-        #     discovery, scoped to the Controller's single IP only
-        udp dport { 631, 5353 } ip daddr @allowed_venue_controller_ip accept
+        # 7a. Venue Controller printing: CUPS/IPP (631), static IP only —
+        #     no mDNS (5353) unless enable_mdns_discovery = true (see rule 3)
         tcp dport 631 ip daddr @allowed_venue_controller_ip accept
 
         # 7b. Venue Controller audit/telemetry upload (fleet metrics,
         #     screenshot sync, code backup) — HTTPS to the Controller only
         tcp dport 443 ip daddr @allowed_venue_controller_ip accept
+
+        # 7c. ICMP: asymmetric, not blanket-dropped. [Precedent: the real
+        #     World Finals ruleset accepts ping only from its backup/admin
+        #     subnet and drops+logs everything else.] Diagnostic ping is
+        #     useful for on-site troubleshooting without opening a general
+        #     ICMP hole.
+        icmp type echo-request ip saddr @allowed_venue_controller_ip accept
 
         # 8. Rate-limited Audit Logging for Denied Outbound Attempts
         limit rate 5/minute burst 7 packets log prefix "GALLOS_DENIED: " flags all
@@ -180,11 +203,15 @@ This ensures that even if `omegaup.com` is whitelisted in the firewall, contesta
 
 `gallos.toml`'s `allowed_websites` is declared by **domain name** (e.g. `boca.icpcmexico.org`), but `nftables` filters only by IP address. GallosOS resolves this gap differently depending on judge topology:
 
-- **Self-hosted LAN judges (BOCA, DOMjudge, CMS — the typical ICPC/IOI onsite case):** These run on a dedicated machine on the venue LAN with a fixed IP. `gallos-daemon` resolves the configured domain once at startup (or the organizer supplies the IP directly) and writes it into `allowed_judge_ips` as a single host. No further tracking is needed since the IP does not change during the contest.
-- **CDN-fronted remote judges (Codeforces, AtCoder, omegaUp, used in `Event`/`Default` practice profiles):** These sit behind shared CDN infrastructure with edge IPs that rotate and are frequently shared with unrelated tenants. `gallos-daemon` periodically (every 30–60 seconds) re-resolves each whitelisted domain via the allowed local DNS server and diffs the result into `allowed_judge_ips` (`nft add element` / `nft delete element`), keeping the set current as CDN IPs rotate.
+- **Self-hosted LAN judges (BOCA, DOMjudge, CMS — the typical ICPC/IOI onsite case):** These run on a dedicated machine on the venue LAN with a fixed IP. Rather than resolving the domain at every boot, `gallos-daemon` resolves it **once at configure-time and writes a static `/etc/hosts` entry** pinning the domain to that IP, which is also what populates `allowed_judge_ips`. [Precedent: this directly follows `maratona-firewall`'s real `config-ip-boca.sh` script, which hardcodes the resolved judge IP into `/etc/hosts` at configure-time and never re-resolves it live — simpler than a periodic-repin daemon, and correct for this case because a self-hosted LAN judge's IP does not change during the contest.] The organizer can also supply the IP directly, skipping resolution entirely.
+- **CDN-fronted remote judges (Codeforces, AtCoder, omegaUp, used in `Event`/`Default` practice profiles):** These sit behind shared CDN infrastructure with edge IPs that rotate and are frequently shared with unrelated tenants — the static-pin approach above does not fit here. `gallos-daemon` periodically (every 30–60 seconds) re-resolves each whitelisted domain via the allowed local DNS server and diffs the result into `allowed_judge_ips` (`nft add element` / `nft delete element`), keeping the set current as CDN IPs rotate.
 
 > [!WARNING]
 > **Documented residual limitation, not a solved problem:** IP-based allowlisting — with or without periodic re-resolution — cannot distinguish between two hostnames that happen to share the same CDN edge IP, because `nftables` has no visibility into the TLS SNI or HTTP Host header. A contestant who already knows a whitelisted domain's current edge IP could, in principle, reach unrelated content hosted behind the same edge if the CDN routes by SNI rather than IP. Closing this gap requires SNI-aware filtering (e.g. an inline stream proxy with `ssl_preread`-style hostname matching), which is heavier infrastructure than the in-band Bash/Python daemon is designed to run and is not currently planned for the MVP. This is why strict `Contest`-mode lockdowns should prefer self-hosted LAN judges wherever possible — the CDN-sharing risk does not apply to them — and why CDN-fronted judges are treated as acceptable for lower-stakes `Event`/`Default` practice contexts rather than official lockdown scenarios.
+>
+> **IDEA FOR LATER, not adopted:** `icpc-environment/icpc-env` closes this exact gap for real — it forces all contestant traffic through a local Squid instance with full TLS interception (`ssl_bump bump all`, a self-signed CA installed system-wide, UID-locked to the contestant user) backed by an nginx reverse proxy doing per-path filtering on the decrypted traffic (`files/squid/squid.conf.j2`, `files/nginx.conf.j2`). This would give real hostname/path-level filtering instead of IP allowlisting, at the cost of trusting a MITM proxy in the TCB and installing a CA cert everywhere. Flagged as a documented option for a future design decision, not implemented here.
+>
+> **Independent corroboration at World Finals scale:** `icpc-env` itself has been dormant since 2024-10-03, but the actively-maintained `icpcsysops/ansible` (pushed 2026-03-25 — the same team running real ICPC World Finals/NAC infrastructure) independently arrived at the same class of fix: its `roles/reverseproxy` role redirects specific whitelisted judge/CDN domains to a local TLS-terminating nginx proxy that filters by hostname and path (not by IP), and its example inventory reserves a dedicated `squidserver` host alongside its other production server roles (the role/playbook configuring that host is not present in the tree available for inspection). This is evidence that TLS-terminating traffic filtering is current practice at the highest tier of ICPC infrastructure, not a stale idea from one inactive regional repo — see [`docs/COMPARATIVE_ANALYSIS.md`](./COMPARATIVE_ANALYSIS.md) §9.1 for detail.
 
 ---
 
@@ -247,7 +274,19 @@ This ensures that even if `omegaup.com` is whitelisted in the firewall, contesta
 During **`Contest` Mode**:
 
 - **HID Allowed:** USB keyboards, mice, and assistive devices are permitted.
-- **Mass Storage Blocked:** When `allow_usb_storage = false`, a dynamic `udev` rule unbinds the `usb-storage` and `uas` kernel modules:
+- **Mass Storage Blocked (primary mechanism — polkit/udisks2 denial):** When `allow_usb_storage = false`, `gallos-daemon` installs a `polkit` `.pkla` rule denying the `contestant` user all `org.freedesktop.udisks2.*` actions outright (`ResultAny=no`), so mass-storage devices are refused at the policy layer before they're ever mounted. [Precedent: this directly follows `maratona-usuario-icpc`'s real polkit rules, which deny the `icpc` user `NetworkManager.*`, `timedate1.*`, and `udisks2.*` actions the same way.]
+
+  ```ini
+  # /etc/polkit-1/localauthority/50-local.d/99-gallos-usb-block.pkla
+  [Block mass storage for contestant]
+  Identity=unix-user:contestant
+  Action=org.freedesktop.udisks2.*
+  ResultAny=no
+  ResultInactive=no
+  ResultActive=no
+  ```
+
+- **Fallback mechanism (systems without polkit/udisks2 enforcement):** a dynamic `udev` rule unbinds the `usb-storage` and `uas` kernel modules directly:
 
   ```bash
   # Block new USB mass storage devices from being exposed as block nodes
@@ -255,7 +294,7 @@ During **`Contest` Mode**:
   udevadm control --reload-rules
   ```
 
-- At the end of the contest, USB storage is re-authorized so contestants can manually export their source code.
+- At the end of the contest, USB storage is re-authorized (polkit rule removed, or `udev` rule reverted) so contestants can manually export their source code.
 
 ---
 
@@ -296,11 +335,13 @@ For official tournaments requiring strict proctoring (such as ICPC Regionals, IO
 
 - **Wayland-Safe Capture:** While unprivileged student applications cannot snoop on the screen, a privileged system service running as root/daemon captures periodic desktop frames via compositor protocols (`grim` / `wlr-screencopy`).
 - **Interval & Storage:** Configurable via `gallos.toml` (e.g. every 60 seconds). Images are tagged with timestamp, team ID, and hostname, and stored in `/var/log/gallos/audit/screenshots/` or synced to the central administrative server.
+- **IDEA FOR LATER, not adopted:** IOI 2025 Contestant-VM's real `contest.sh monitor` (cron, every minute) captures a screenshot with only 50% probability per invocation rather than a deterministic fixed interval — a cheaper-storage sampling alternative worth considering. Not implemented here.
 
 ### 8.2 Automated Incremental Code Backups
 
 - **Dispute Resolution & Crash Protection:** Inspired by IOI's `ioibackup.sh` (IOI Contestant-VM) and ICPC World Finals SysOps' backup watchdog subsystem (`roles/icpc_host_backup/files/backup_watchdog` and `sh.backupclient` in `icpcsysops/ansible`), GallosOS runs an automated background snapshot of `/home/contestant/` every $N$ seconds (declaratively configured via `[contest.audit] backup_interval_secs` in `gallos.toml`, defaulting to 300 seconds / 5 minutes).
 - **Forensic Timeline & Rapid Disaster Recovery:** Allows the contest jury to review a timeline of source code changes in case of cheating allegations, and allows organizers to instantly restore a team's code via `recovery.sh` if physical workstation replacement is needed.
+- **IDEA FOR LATER, not adopted:** the real `ioibackup.sh` also enforces a 100KB per-file size cap and a 1MB/s bandwidth throttle on the rsync. GallosOS's `backup_interval_secs` has neither knob today — at 50–200 machines, a simultaneous unthrottled backup burst to the Venue Controller could saturate the venue LAN. Worth adding `backup_max_file_size` / `backup_bandwidth_limit_kbps` to `[contest.audit]` in a future revision; not implemented here.
 
 ### 8.3 Privileged Keystroke Forensics (Optional for IOI / Olympiads)
 
@@ -309,11 +350,13 @@ For official tournaments requiring strict proctoring (such as ICPC Regionals, IO
 - **ICPC vs. IOI Operational Profile:**
   - **ICPC / University Camps:** Keystroke logging is disabled by default (`enable_keystroke_forensics = false`); only firewall drop alerts, CUPS print jobs, and EarlyOOM kill events are collected.
   - **IOI / National Olympiads:** Full forensics (keystrokes and periodic screenshots) can be enabled declaratively for arbitration.
+- **IDEA FOR LATER, not adopted:** the real `martkeys` shipped config (`roles/martkeys/files/keys.yaml`) does **not** log raw keystroke content by default — only aggregated `modifier`/`metrics` (click rate, cadence sampled every 60s) feed its output; a raw per-key capture mode exists but is commented out, implying it's reserved for targeted forensic investigation rather than always-on. A metrics-only default (with raw capture as an explicit, separately-invoked escalation) may be a more privacy-defensible default than "raw JSONL stream" as currently described here. Not implemented — flagged for a future decision.
 
 ### 8.4 Process Hierarchy & Focused Window Tracking
 
 - **Forensic Activity Journal:** Inspired by `s.py` from ICPC SysOps, `gallos-daemon` optionally samples the active focused window and maps its parent-child process hierarchy via `/proc/<pid>/task/<pid>/children` and `comm` descriptors.
 - **Cheating & Anomaly Detection:** Allows arbiters to verify what editor, tool, or background process was running at any specific second of the contest timeline (e.g. distinguishing between interactive terminal execution vs. background scripts).
+- **IDEA FOR LATER, not adopted:** the real `s.py` (`roles/team/files/s.py`) detects the focused window via X11-only `xprop`/`_NET_ACTIVE_WINDOW`, which has no Wayland/labwc equivalent and cannot be ported as-is. The process-hierarchy half above is already portable. A Wayland-native replacement for the window-focus half (e.g. `wlr-foreign-toplevel-management`) is needed before this feature can be implemented; not designed here.
 
 ### 8.5 Fleet Telemetry & Monitoring
 

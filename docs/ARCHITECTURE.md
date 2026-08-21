@@ -136,7 +136,7 @@ sequenceDiagram
 
 ## 4. Storage & Filesystem Architecture
 
-GallosOS utilizes an **immutable root filesystem** with **OverlayFS** backed entirely by RAM (`tmpfs`). **The USB drive is never written to during normal OS operation.**
+GallosOS utilizes an **immutable root filesystem** with **OverlayFS** backed entirely by RAM (`tmpfs`). **The OS itself never writes to the USB drive during normal operation** — no swap-on-disk, no logs, no browser cache, no tmp files touch flash. This is what the ephemeral design actually protects against: it's high-frequency, OS-internal write *churn* that wears flash through repeated erase cycles, not the occasional, contestant-initiated save described in item 5 below.
 
 1. **Base SquashFS Layer (`rootfs.squashfs`):**
    Contains the core operating system, base libraries, desktop environment, and network daemons. Kept minimal (~1.2 GB compressed).
@@ -150,19 +150,31 @@ GallosOS utilizes an **immutable root filesystem** with **OverlayFS** backed ent
    *Note: The official default GallosOS ISO includes the complete standard CP toolchain pre-packaged, giving organizers instant out-of-the-box readiness while enabling granular module filtering via `gallos.toml`.*
 
 3. **Upper Writable Layer (`tmpfs` — 100% Ephemeral in RAM):**
-   All writes during contestant usage reside **entirely in system RAM (`tmpfs`)**. A hard reboot completely resets the OS to a pristine state, eliminating leftover state, malicious modifications, or accidental file corruption. **This intentionally avoids USB write wear and eliminates fragile multi-partition re-formatting.**
+   All OS and session-internal writes (logs, caches, `/home/contestant/` during the active session) reside **entirely in system RAM (`tmpfs`)**. A hard reboot completely resets the OS to a pristine state, eliminating leftover state, malicious modifications, or accidental file corruption.
 
-4. **Contestant Code & Session Lifecycle:**
+4. **`allow_usb_storage` vs. `event-data` — two different mechanisms, both called "USB":**
+   - **`allow_usb_storage`** (`docs/ANTI_CHEAT_AND_SECURITY.md` §5) governs *external* USB mass-storage devices a contestant plugs in during a session — a separate flash drive, not the drive GallosOS booted from.
+   - **`event-data`** (item 5 below) is a partition *on the boot drive itself*, mounted automatically by `gallos-daemon` when present, independent of `allow_usb_storage`.
+
+5. **Optional Persistent Storage (`event-data` partition):**
+   A contestant's own dedicated USB may carry a persistent `event-data` partition for `Event`/`Default`-mode workspace continuity across sessions (club practice, training camps) — an explicit, low-frequency-write exception to item 3's ephemeral design, not a contradiction of it. Two provisioning paths converge on the same runtime mechanism:
+   - **Dedicated `gallos-flash` dd-flash (organizer-provisioned fleets):** `gallos-flash` partitions the drive as `GALLOS_BOOT` (FAT32) + `event-data` (ext4, sized to consume all remaining drive capacity). This is the primary path for official events and is required regardless of Ventoy support below.
+   - **Ventoy multi-boot USB (BYOD / personal drives):** `Ventoy2Disk`'s own `-r SIZE_MB` flag ("preserve some space at the bottom of the disk") leaves the reserved region unallocated at install time; the user formats it ext4 afterward. [Verified against Ventoy's official docs: this is a real, documented feature, not a workaround — Ventoy's own docs state "you can create Part3 and Part4 with the reserved space and use them as you want." Whether a partition in that reserved space survives a later Ventoy *version update* is not documented upstream and should be verified empirically rather than assumed.] This targets the BYOD audience specifically — organizers mass-flashing 50-200 single-purpose tournament USBs have no reason to add Ventoy's multi-boot chainload overhead, and a student's personal multi-ISO Ventoy stick shouldn't be dd-wiped by `gallos-flash` for a club session.
+   - **Detection, either path:** `gallos-daemon` mounts `event-data` by **filesystem label**, never a fixed partition number/offset — the two provisioning paths produce different partition layouts (`gallos-flash`'s own vs. Ventoy's exFAT+EFI+reserved-space layout), so label-based discovery is what lets one detection code path serve both.
+   - **Contest mode never mounts it, at all.** This isn't a policy toggle — `event-data` is simply not mounted during a `Contest` window, full stop, matching the existing Clean State Wipe guarantee (`docs/CONFIG_SPEC.md` §6) and keeping the zero-USB-write-churn property intact even on drives that do carry the partition.
+   - **Note on huronOS's inherited 3-partition layout:** huronOS's own design (`docs/COMPARATIVE_ANALYSIS.md` §1) includes a separate `contest-data` partition for "isolated persistent Overlay storage during Contest mode." GallosOS deliberately does **not** carry this forward — it directly contradicts the Clean State Wipe / zero-write-during-Contest guarantee above, which is a firmer requirement here than in huronOS's own design. GallosOS uses a 2-partition layout (`GALLOS_BOOT`, `event-data`) instead of huronOS's 3.
+
+6. **Contestant Code & Session Lifecycle:**
 
    | Mode | Network & Storage State | Contestant Workflow |
    | :--- | :--- | :--- |
-   | **Default / Club Session** | Full internet & USB mass-storage unlocked | Normal development on BYOD or lab machines. Supports **WPA2 Enterprise / Eduroam** authentication before lockdown. Cloud sync or personal USB allowed. |
-   | **Event (Training Camp)** | Internet & USB storage unlocked; ephemeral RAM until reboot | Daily lecture practice; push solutions to Git or personal flash drive before end of day. |
-   | **Contest (Official Lockdown)** | Strict judge-only network; external USB storage locked | Ephemeral RAM scratchpad; background audit snapshots collected by Venue Controller if active. |
-   | **Post-Contest (Upsolving / Finish)** | Automatic transition to Default/Event mode: Network & USB storage unlocked | Contestants freely copy solutions to their personal USB drive, push to GitHub, or upload to their personal cloud. |
+   | **Default / Club Session** | Full internet & external USB mass-storage unlocked; `event-data` mounted if present | Normal development on BYOD or lab machines. Supports **WPA2 Enterprise / Eduroam** authentication before lockdown. Cloud sync, personal USB, or `event-data` allowed. |
+   | **Event (Training Camp)** | Internet & external USB storage unlocked; `event-data` mounted if present | Daily lecture practice; push solutions to Git, a personal flash drive, or the drive's own `event-data` partition before end of day. |
+   | **Contest (Official Lockdown)** | Strict judge-only network; external USB storage locked; `event-data` **not mounted** | Ephemeral RAM scratchpad only; background audit snapshots collected by Venue Controller if active. |
+   | **Post-Contest (Upsolving / Finish)** | Automatic transition to Default/Event mode: network, external USB storage, and `event-data` unlocked | Contestants freely copy solutions to their personal USB drive, `event-data`, push to GitHub, or upload to their personal cloud. |
 
    > [!NOTE]
-   > **Blank Slate Philosophy:** To simulate the exact conditions of a World Final, the `/home/contestant/workspace` directory starts completely empty. There are **no pre-loaded code templates** or extra files. IDEs (accessible cleanly from the Waybar menu) launch into this pristine environment.
+   > **Blank Slate Philosophy:** To simulate the exact conditions of a World Final, the `/home/contestant/workspace` directory starts completely empty during `Contest` mode specifically. There are **no pre-loaded code templates** or extra files. IDEs (accessible cleanly from the Waybar menu) launch into this pristine environment.
 
 5. **Organizer Audit vs. Contestant Data Separation:**
    - **Organizer Audit Archive:** Automated audit aggregation (`gallos-audit-YYYYMMDD.tar.gz`) is strictly a **Venue Controller / Organizer tool** to collect firewall logs, proctoring snapshots, and system health metrics for tournament arbitration.
@@ -426,6 +438,7 @@ Before physical USB mass-flashing, images are verified against multiple hypervis
 
 - Simply copy `gallos-os-amd64.iso` onto any standard Ventoy USB drive.
 - GallosOS detects the Ventoy partition and automatically mounts any `/gallos/gallos.toml` placed alongside the ISO, enabling instant rule/time updates without re-generating the ISO image.
+- **Optional persistent `event-data` on the same drive:** run `Ventoy2Disk` with `-r SIZE_MB` at install time to reserve unallocated space at the end of the disk, then format that reserved region as ext4 with the label `event-data`. `gallos-daemon` mounts it automatically using the same label-based detection it uses on a `gallos-flash`-provisioned drive — see §4 "Storage & Filesystem Architecture," item 5. This is the BYOD/personal-drive on-ramp to that same mechanism, not a separate feature.
 
 ---
 
@@ -455,7 +468,7 @@ No network infrastructure required — only power outlets. Everything is baked i
 - ✅ Works anywhere with a power outlet. Zero networking required.
 - ✅ Maximum resilience — no server, no internet, no single point of failure.
 - ✅ config_url discovery: **Priority 4 (baked-in only)**.
-- 💡 **Ventoy Friendly:** Drop `gallos-os-amd64.iso` onto any Ventoy USB drive; GallosOS auto-loads `/gallos/gallos.toml` from the Ventoy partition.
+- 💡 **Ventoy Friendly:** Drop `gallos-os-amd64.iso` onto any Ventoy USB drive; GallosOS auto-loads `/gallos/gallos.toml` from the Ventoy partition, and can optionally use a `-r`-reserved, ext4-formatted region as persistent `event-data` (§4 "Storage & Filesystem Architecture," item 5).
 - 💡 **VM Appliance Mode:** Same ISO boots in VirtualBox, VMware, or QEMU/KVM for remote contestants or home practice.
 - ⚠️ Config changes require re-flashing or manually updating the FAT32 partition.
 - ⚠️ No cross-machine monitoring or fleet control.
@@ -762,8 +775,9 @@ GallosOS models printing flexibility into three explicit modes configured via `[
 
 ```toml
 [contest.printing]
-mode = "hosted"            # "hosted", "external", or "none"
-printer_host = "192.168.1.50" # Required if mode = "external"
+mode = "hosted"                 # "hosted", "external", or "none"
+printer_host = "192.168.1.50"   # Required if mode = "external"; implicitly the Controller's own IP if mode = "hosted"
+enable_mdns_discovery = false   # Opt-in only — off by default (see below)
 max_pages_per_job = 10
 syntax_highlighting = true
 ```
@@ -774,8 +788,8 @@ syntax_highlighting = true
 
 2. **`hosted` Mode (Controller Hosts CUPS with Local USB Printer):**
    - The GallosOS Venue Controller machine has a physical printer plugged directly via USB.
-   - The Controller starts its own CUPS spooler with `gallos-cups-filter` and broadcasts the printer across the contest arena LAN via **Avahi / mDNS (IPP Everywhere)**.
-   - Contestant workstations automatically discover and bind the printer with zero manual IP setup.
+   - The Controller starts its own CUPS spooler with `gallos-cups-filter`. **By default, contestant workstations target the Controller's own known IP directly (static, no discovery step)** rather than broadcasting via Avahi/mDNS. [Precedent: the real ICPC World Finals firewall (`icpcsysops/ansible` `do_iptables.yml`) explicitly `REJECT`s port 5353 — onsite printers there are statically configured, with no mDNS broadcast on contestant machines at all.] GallosOS's own `nftables` ruleset (`docs/ANTI_CHEAT_AND_SECURITY.md` §3.1) follows the same default: mDNS is dropped unconditionally unless `enable_mdns_discovery = true` narrowly reopens it, scoped to the Controller's IP only.
+   - Zero manual IP setup is still required from the *organizer's* side: the Controller's IP is already known to `gallos-daemon` from the venue network layout, it just isn't broadcast/discovered dynamically by default.
 
 3. **`none` Mode (Disabled Printing):**
    - Printing is completely disabled for online exams, virtual camps, or paperless venues.

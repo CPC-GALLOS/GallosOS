@@ -193,7 +193,12 @@
           "type": "string",
           "enum": ["hosted", "external", "none"],
           "default": "none",
-          "description": "Printing deployment architecture: 'hosted' (Controller runs spooler & broadcasts Avahi/mDNS), 'external' (points to venue network CUPS/IPP server), or 'none' (printing disabled)."
+          "description": "Printing deployment architecture: 'hosted' (Controller runs the CUPS/IPP spooler, targeted via printer_host by default), 'external' (points to venue network CUPS/IPP server), or 'none' (printing disabled)."
+        },
+        "enable_mdns_discovery": {
+          "type": "boolean",
+          "default": false,
+          "description": "Opt-in Avahi/mDNS printer discovery for 'hosted' mode. Off by default: real ICPC World Finals deployments statically configure printer_host instead, since mDNS (UDP 5353) is dropped by the firewall unless explicitly enabled here."
         },
         "enabled": {
           "type": "boolean",

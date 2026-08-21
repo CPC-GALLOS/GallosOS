@@ -53,14 +53,14 @@ This matrix compares the environments engineered for national and international 
 | Dimension | **IOI Contestant-VM (`ioi-2025-v0.2.ova`)** | **EGOI European VM (`egoi23-vm-20230708.ova`)** | **NOI Linux 2.0 (China CCF)** | **GallosOS** |
 | :--- | :--- | :--- | :--- | :--- |
 | **Format** | Virtual Appliance (`.ova`, 4.5 GB) | Virtual Appliance (`.ova`, 5.65 GB / 50 GB VMDK) | Hybrid ISO / Virtual Appliance (3.63 GB) | **Multi-target (Live USB, `.ova`, `.qcow2`, PXE)** |
-| **Base OS** | Debian 12 / Ubuntu Minimal | Debian 11.7 "Bullseye" (Kernel 5.10.0-20) | Ubuntu 20.04.1 LTS (Kernel 5.4) | **Ubuntu 24.04 LTS (Kernel 6.8+)** |
+| **Base OS** | Ubuntu 24.04 Server | Debian 11.7 "Bullseye" (Kernel 5.10.0-20) | Ubuntu 20.04.1 LTS (Kernel 5.4) | **Ubuntu 24.04 LTS (Kernel 6.8+)** |
 | **Primary Judge** | CMS (Contest Management System) | CMS / Kattis | Lemonlime / Arbiter / CCF Judge | **CMS + Kattis + DOMjudge + BOCA** |
 | **Anti-Cheating & Audit** | `logkeys` keylogger + `take_screenshot.py` | `ffmpeg` x11grab (4 fps) + `restic` S3 backup + GNOME extension (`egoiusername`) | Disconnected physical LAN | **Process isolation (Wayland) + Audit hooks** |
 | **Network Lock** | `misc/iptables.save` (Default DROP) | `ufw` dynamic daemon (`/opt/egoi/egoi_conf.py`) | Air-gapped venue switches | **Kernel `nftables` Drop + Local Proxy** |
 | **Desktop Protocol** | X11 / GNOME (`gdm3` contest lock) | X11 / GNOME Shell 3.38.6 + `gdm3` | X11 / GNOME Flashback 3.36 | **Wayland (Labwc + Waybar)** |
 | **Offline Docs** | `cppreference` HTML in `/usr/share/doc` | `cppreference` in `/opt/documentation/cpp` | DevHelp + localized docs | **Offline DevDocs daemon (`127.0.0.1:9292`)** |
-| **Languages** | C++20, Python 3.12, Java 21 | C++20 (GCC 10.2 / Clang 11.0), Python 3.9, PyPy3 7.3 | C++14/17/20, C, Python, Free Pascal | **Full ICPC/IOI Matrix (C++, Java, Python, Kotlin, Rust)** |
-| **IDEs & Editors** | VS Code, CLion, Geany, Neovim | VS Code 1.80, Code::Blocks 20.03, Geany 1.37, Kate, Emacs 27, Vim 8.2 | VS Code 1.57, Code::Blocks, Geany, Vim, Sublime | **VSCodium, JetBrains CE, Geany, Neovim, CPH** |
+| **Languages** | C++20 (version pinned in editor config; Python 3 and Java present but unversioned upstream) | C++20 (GCC 10.2 / Clang 11.0), Python 3.9, PyPy3 7.3 | C++14/17/20, C, Python, Free Pascal | **Full ICPC/IOI Matrix (C++, Java, Python, Kotlin, Rust)** |
+| **IDEs & Editors** | VS Code, Eclipse, Geany, Neovim (also Atom, Sublime Text, emacs, kate, kdevelop) | VS Code 1.80, Code::Blocks 20.03, Geany 1.37, Kate, Emacs 27, Vim 8.2 | VS Code 1.57, Code::Blocks, Geany, Vim, Sublime | **VSCodium, JetBrains CE, Geany, Neovim, CPH** |
 
 *Note: EGOI 2026 (European Girls' Olympiad in Informatics) officially retired Code::Blocks from its workstation specifications ("this year CodeBlocks will not be available on the contest machines, and we will not accept any requests to make it available" - egoi2026.it), accelerating the international transition toward modern editors (VSCodium, CLion, Geany, Neovim).*
 
@@ -76,26 +76,23 @@ HuronOS was originally conceived and deployed for three major competitive progra
 2. **Training Camp Mexico (TCMX):** The official ICPC training camp in Mexico where daily cycles alternate between morning instruction (with persistent files) and afternoon simulated contests (with isolated, clean workspaces and post-contest upsolving).
 3. **ICPC "Gran Premio de México":** Synchronized multi-location regional qualifying dates across major universities (BUAP, UNAM, IPN, ITESM, UANL, UDG, etc.).
 
-### HuronOS Binary Anatomy (`huronOS-alpha-0.4-amd64.iso`, 5.3 GB)
+### HuronOS Binary Anatomy (`huronOS-alpha-0.4-amd64.iso`)
 
 Inspection of the official `huronOS-alpha-0.4-amd64.iso` binary image reveals the following architectural blueprint:
 
 1. **Modular SquashFS System Layers (`.hsl`)**:
-   - `01-core.hsl` (367 MB): Debian minimal base system.
-   - `02-firmware.hsl` (238 MB): Wireless and hardware firmware blobs.
-   - `03-budgie.hsl` (358 MB): Solus Budgie Desktop Environment over X11.
-   - `04-shared-libs.hsl` (201 MB): Shared GUI and compilation runtime libraries.
-   - `05-custom.hsl` (4 KB): Custom configuration overrides.
+   - `01-base.hsl`: Debian minimal base system.
+   - `02-firmware.hsl`: Wireless and hardware firmware blobs.
+   - `03-budgie.hsl`: Solus Budgie Desktop Environment over X11.
+   - `04-shared-libs.hsl`: Shared GUI and compilation runtime libraries.
+   - `05-custom.hsl`: Custom configuration overrides.
+   - (Layer sizes are not published in HuronOS's own documentation and are omitted here rather than estimated.)
 2. **Modular Software Packages (`.hsm`)**:
-   - 33 independent SquashFS modules across `debuggers/` (gdb, valgrind, visualvm), `internet/` (chromium, firefox, crow), `langs/` (gcc, g++, javac, kotlinc, dotnet, mono, pypy3, python3, ruby), `programming/` (CLion, IntelliJ, Rider, PyCharm, VS Code + offline extensions, Eclipse, Code::Blocks, Geany, Gvim, Neovim, Sublime, Kate), and `tools/` (byobu, konsole, mc).
-3. **Partitioning & Boot Chain (`install.sh`)**:
-   - Creates a 3-partition layout on the target flash drive:
-     - Partition 1 (FAT32 labeled `HURONOS`): Bootloader (`boot/extlinux.x64` + `boot/mbr.bin`), kernel, `.hsl` layers, and `.hsm` modules.
-     - Partition 2 (ext4 labeled `event-data`): Persistent Overlay storage during `Event` mode.
-     - Partition 3 (ext4 labeled `contest-data`): Isolated persistent Overlay storage during `Contest` mode.
-   - Injects partition UUIDs into `boot/huronos.cfg` passed to `huronos.flags` on the kernel command line.
+   - 38 independent SquashFS modules across four categories per HuronOS's own software-modules directive documentation: `internet/` (chromium, firefox, crow, among others), `langs/` (gcc, g++, javac, dotnet, mono, pypy3, python3, ruby, among others), `programming/` (IntelliJ, Rider, PyCharm, VS Code + offline extensions, Eclipse, Code::Blocks, Geany, gvim/vim, Atom, emacs, gedit, joe, kdevelop, Sublime, Kate), and `tools/` (byobu, konsole, make, midnight-commander).
+3. **Boot Chain (`install.sh`)**:
+   - The installer image root contains `boot/`, `checksums/`, `EFI/`, `huronOS/` (the `.hsl`/`.hsm` payload), `install.sh`, and `utils/`, using `extlinux`/EFI boot per HuronOS's own installation documentation. (The specific partition-label scheme used internally by `install.sh` is not documented upstream and is not restated here to avoid inventing detail.)
 4. **Kernel & Union Filesystem**:
-   - Relies on a custom-patched Linux 6.0.15 kernel (`vmlinuz-6.0.15-huronos+`) with **AUFS** (AnotherUnionFS) support in `initrfs.img`.
+   - Relies on a custom-patched Linux kernel with **AUFS** (AnotherUnionFS) support — HuronOS credits AUFS maintainer Junjiro Okajima directly — rather than in-tree OverlayFS. (The exact kernel version is not confirmed in HuronOS's own documentation and is omitted here rather than guessed.)
 
 ### HuronOS Key Strengths
 
@@ -111,21 +108,21 @@ Inspection of the official `huronOS-alpha-0.4-amd64.iso` binary image reveals th
 3. **Installer Fragility:** The installation script (`install-huronos.sh`) relies on extlinux and requires repeated manual `sync` commands to prevent filesystem corruption on USB drives.
 4. **Online-Dependent Translation:** Crow Translate is bundled without offline bilingual dictionary databases, meaning translation fails when the firewall isolates the network.
 5. **Mirror Bottleneck:** HuronOS distributes custom monolithic ISO images from limited custom host servers (`mirrors.huronos.org` / `archive.huronos.org`).
-6. **Project Stagnation & Incomplete Documentation:** Upstream development stalled after version Alpha 0.4 (2023–2024). Crucially, **14 essential documentation pages** across its official repository were left as empty `TODO: Write doc` stubs:
+6. **Project Stagnation & Incomplete Documentation:** Upstream development stalled after version Alpha 0.4 (2023–2024). **12 documentation pages** across its official repository are left as near-empty `TODO: Write doc` stubs (6–28 words each):
    - `internals/execution-modes.md`
    - `internals/firewall-manager.md`
    - `internals/multi-layered-persistence.md`
    - `internals/software-modules.md`
    - `internals/sync-manager.md`
    - `internals/system-layers.md`
-   - `development/building-manually.md`
    - `development/curret-goals.md`
    - `development/how-to-contribute.md`
    - `development/release-system.md`
    - `start/collaboration.md`
    - `start/using-for-training-camps.md`
    - `start/why-huronOS.md`
-   - `about/the-team.md`
+
+   Two further pages carry an internal `TODO` note but are not empty — `development/building-manually.md` has real build instructions and `about/the-team.md` has real team content pending review.
 
 ### Why GallosOS as a New OS Instead of Forking/Maintaining HuronOS?
 
@@ -167,7 +164,7 @@ Inspection of the official **`maratona-linux/maratona-linux`** super-repository 
    - Dynamically parses `/etc/maratona-firewall/hosts/*` and `/usr/share/maratona-firewall/hosts/*` (e.g. `boca.localdomain`), creating static `/etc/hosts` mappings and punching holes (`ufw allow out proto tcp/udp to "$IP"`) exclusively for BOCA judge instances.
 4. **User & Workspace Lifecycle (`maratona-usuario-icpc`):**
    - Manages the unprivileged `icpc` user (`uid` in `users` group, process limit `icpc hard nproc 1024` in `limits.conf`).
-   - Ships **`zera-home-icpc`**: Administrative cleanup script executed after warm-up practice. It places `/etc/nologin`, kills contestant processes, wipes `/home/icpc`, restores IDE configuration skeletons from `/usr/share/maratona-usuario-icpc/editores-config/`, and re-marks desktop shortcuts as trusted (`gio set ... metadata::trusted true`).
+   - Ships **`zera-home-icpc`**: Administrative cleanup script executed after warm-up practice. It places `/etc/nologin`, deletes all icpc-owned files across mounted volumes and `/home/icpc`, restores IDE configuration skeletons from `/usr/share/maratona-usuario-icpc/editores-config/`, and re-marks desktop shortcuts as trusted (`gio set ... metadata::trusted true`).
 5. **Time Synchronization (`maratona-kairos`):**
    - Configures **`chrony`** with Latin American NTP sources with NTS support (`*.ntp.br`, `gps.ntp.br`, `nutellaboot.naquadah.com.br`).
 6. **Contestant Wait Screen (`maratona-fancy-tools`):**
@@ -273,7 +270,7 @@ To ensure real-world architectural parity with actual 2024–2025 championship d
 - **Deployment Format:** Virtual Appliance (`.ova`, ~4.5 GB) paired with **CMS** or **Kattis**.
 - **Key Characteristics:**
   - **Strict Kernel Firewall (`iptables` DROP):** Allows outgoing traffic strictly to the CMS contest server, venue NTP, and central backup endpoints.
-  - **Proctoring & Audit Automation:** Continuous screen recording, periodic DBus desktop screenshots (`take_screenshot.py`), automated keylogger (`logkeys`), and 5-minute incremental backups (`ioibackup.sh`).
+  - **Proctoring & Audit Automation:** On-demand desktop screenshots via the GNOME Shell D-Bus screenshot API (`take_screenshot.py`), an automated keylogger (`logkeys`), and 5-minute incremental backups (`ioibackup.sh`).
   - **Offline VSIX & Docs:** Bundled offline extensions for VS Code / VSCodium and localized `cppreference` documentation.
 
 ### B. EGOI European Olympiad Appliance (`egoi23-vm-20230708.ova`, 5.65 GB OVA / 50 GB VMDK)
@@ -312,7 +309,7 @@ Binary and filesystem inspection of the official **EGOI 2023 Contestant VM** (`e
 ## 9. Specialized Analysis: ICPC World Finals & NAC SysOps Fleet Orchestration (`icpcsysops/ansible`)
 
 - **Repository Reference:** [`icpcsysops/ansible`](https://github.com/icpcsysops/ansible)
-- **Maintainers & Scope:** Developed and maintained by the ICPC Systems Operations team (including `ubergeek42`, Keith Johnson, and Troy) for managing infrastructure at the **ICPC World Finals** (*WF 2024 Luxor, WF 2025 Astana, WF 2026 Dubai*) and **ICPC North America Championship** (*NAC 2024–2026 Florida*).
+- **Maintainers & Scope:** Developed and maintained by the ICPC Systems Operations team for managing infrastructure at the **ICPC World Finals** (*WF 2023 Luxor, WF 2024 Astana, WF 2026 Dubai*) and **ICPC North America Championship** (*NAC 2026 Florida*).
 - **Target Ecosystem:** High-density, networked Tier 3 and Tier 4 championship arenas with 150–300+ live contestant workstations, dedicated judging clusters, presentation screens, live television broadcast streaming, automated balloon printing, and redundant contest servers.
 
 ### 9.1 Anatomy & Production Blueprint of `icpcsysops/ansible`
@@ -337,17 +334,20 @@ Source and playbook inspection of the `icpcsysops/ansible` infrastructure tree r
      - Rejects broadcast and multicast clutter: NetBIOS (`udp/137`), Apple Bonjour / mDNS (`udp/5353`), UPnP / SSDP (`udp/3702`), and CUPS SNMP discovery.
      - Selectively allows CCS endpoints (DOMjudge/PC^2), CDS ports, package mirrors, CUPS printing (`tcp/631`), Prometheus node exporters (`tcp/9100`), Syslog (`udp/514`), and SSH from the management subnet (`10.3.3.208/29`).
      - Logs rejected packets with rate-limiting (`drop-n-log`: `limit 5/m burst 7`).
-5. **Real-Time Video Broadcast Infrastructure (`roles/mediamtx` & `roles/vlc`):**
+5. **Hostname/Path-Level Judge Traffic Filtering (`roles/reverseproxy`):**
+   - Beyond plain IP-based `nftables` rules, a dedicated `reverseproxy` host role rewrites contestant `/etc/hosts` so specific whitelisted judge/CDN domains (e.g. `nac22.kattis.com`, `domjudge.nac.icpc.global`, plus a curated allowlist of CDN asset paths for fonts and JS libraries the scoreboard needs) resolve to the proxy instead of the real internet. The proxy (nginx, TLS-terminating) forwards only enumerated `location` paths per domain to the real backend — genuine hostname- and path-level filtering that IP allowlisting alone cannot provide, the same class of fix as `icpc-env`'s Squid `ssl_bump` approach (§10.1) but independently implemented.
+   - The example inventory (`hosts.yml.example`) also reserves a dedicated **`squidserver`** host with its own static IP alongside `cds`/`backup`/`packages`/`scoreboard`, confirming Squid is part of the real production fleet — though the role/playbook that configures it is not present in the tree available for inspection here, so its exact behavior (full TLS interception vs. a plain forward proxy) cannot be confirmed from source.
+6. **Real-Time Video Broadcast Infrastructure (`roles/mediamtx` & `roles/vlc`):**
    - Integrates **MediaMTX** (RTSP, WebRTC, and Low-Latency HLS) paired with hardware-accelerated `ffmpeg` via Intel Quick Sync Video (`intel-media-va-driver-non-free` / `mjpeg_qsv`, `h264_qsv`).
    - Captures contestant desktop screens (`x11grab` at 30 fps) and webcams (`/dev/video*` via `v4l2`) on demand, streaming low-latency feeds directly to the ICPC Live broadcast production room.
-6. **Auditing, Proctoring & Telemetry (`roles/martkeys` & `roles/team` `s.py`):**
+7. **Auditing, Proctoring & Telemetry (`roles/martkeys` & `roles/team` `s.py`):**
    - **`martkeys`:** Go-based background binary logging hardware-level keystroke events into structured JSON logs for audit trails.
    - **`s.py`:** Active window surveillance script extracting the foreground window title, WM class, and child process hierarchy (e.g. detecting `vim` inside `gnome-terminal`) via `xprop` and `/proc/<pid>/task/<pid>/children`.
    - **Centralized Metrics:** Prometheus `node_exporter` + Grafana dashboards tracking workstation metrics across the entire arena in real time.
-7. **Contest Lifecycle & Rapid Disaster Recovery (`do_contest_template.yml`, `reimage.sh`, `recovery.sh`):**
+8. **Contest Lifecycle & Rapid Disaster Recovery (`do_contest_template.yml`, `reimage.sh`, `recovery.sh`):**
    - **Workspace Preparation:** Wipes `/home`, generates hashed credentials per team from `linux_accounts.yaml`, and unarchives contest sample archives (`files/{{ contest }}-samples.zip`) into `/etc/skel/Desktop/samps`.
    - **Codeforces Challenge Phase:** `enable_challenge.yml` dynamically adjusts firewall rules, updates `resolved.conf`, deletes DOMjudge shortcuts, and deploys `open-tests.tar.gz`.
-   - **Rapid Re-imaging & Backup Recovery:** `reimage.sh` triggers network PXE reboot using `efibootmgr -n <PXE_BOOT_ENTRY>` and `reboot`; `recovery.sh` locates the latest non-empty zip backup from the `/backups/` volume on the backup server and pushes it to a replaced team machine via `scp`.
+   - **Rapid Re-imaging & Backup Recovery:** `reimage.sh` dynamically detects the PXE boot entry via `efibootmgr` and triggers a network boot reboot; `recovery.sh` locates the latest non-empty per-team zip backup under `/backups/data/<date>/` on the backup server and prints the `scp` command for an operator to run against the replaced team machine (an advisory step, not an automated push).
 
 ---
 
@@ -422,14 +422,14 @@ graph TD
 These repositories provide both immediate technical acceleration and high narrative legitimacy when presenting GallosOS to ICPC regional directors, national olympiad committees, and university organizers:
 
 1. **[`icpc-environment/icpc-env`](https://github.com/icpc-environment/icpc-env) (Primary Architectural Peer):**
-   - **Ecosystem Grounding:** Active, maintained, and deployed in official **ICPC Pacific Northwest (PacNW)** regionals and North America championships.
-   - **Technical Coherence:** Like GallosOS, it is built directly on **Ubuntu LTS** (unlike HuronOS's Debian 11 base). Its package curation, compiler dependencies, and toolchain configurations port almost directly into `build.toml`.
+   - **Ecosystem Grounding:** Its own README identifies it as the build tooling for the **ICPC Southeast Regional** contestant image (distinct from the PacNW image covered separately in §6.A).
+   - **Technical Coherence:** Like GallosOS, it is built directly on **Ubuntu LTS** (20.04/22.04 variants, unlike HuronOS's Debian 11 base). Its package curation, compiler dependencies, and toolchain configurations port almost directly into `build.toml`.
    - **Strategic Legitimacy:** Engaging with or referencing `icpc-env` connects GallosOS directly to established ICPC regional standards, offering far stronger institutional credibility than positioning the project merely as a local successor to a national olympiad tool.
 
-2. **[`maratona-linux/maratona-casper`](https://github.com/maratona-linux/maratona-casper) (Core Live-Boot Hook Engine):**
-   - **Ecosystem Grounding:** The core live-boot engine of **Maratona Linux**, battle-tested across dozens of university sites throughout the **ICPC South America / Brazilian Finals (SBC)**.
-   - **Technical Coherence:** GallosOS explicitly uses **Casper** as its live-boot foundation ([`docs/BUILD_SYSTEM.md`](./BUILD_SYSTEM.md)). `maratona-casper` has already solved the critical, contest-specific Casper hooks: automated partition mounting, contest user session initialization, and runtime ephemeral tmpfs binding.
-   - **Strategic Value:** Unlike rebuilding boot hooks from scratch or rewriting legacy HuronOS AUFS scripts, `maratona-casper` provides an active, production-proven Casper foundation that integrates seamlessly with GallosOS's OverlayFS and Wayland desktop.
+2. **[`maratona-linux/maratona-casper`](https://github.com/maratona-linux/maratona-casper) (Contest-Specific Casper Hook Package):**
+   - **Ecosystem Grounding:** A small, contest-tested Casper initramfs hook package from **Maratona Linux**, used across university sites throughout the **ICPC South America / Brazilian Finals (SBC)**.
+   - **Technical Coherence:** GallosOS explicitly uses **Casper** as its live-boot foundation ([`docs/BUILD_SYSTEM.md`](./BUILD_SYSTEM.md)). Its single hook script (`55maratona-fixes`) runs after casper's standard root-mount stage and handles contest-specific fixups: cleaning up a leftover snapd overlay directory, bootstrapping the `icpc` home directory with a `.clean-home` marker, and — when `factoryreset`/`mlinstall` kernel cmdline flags are set — chrooting in to trigger factory-reset/install scripts before reboot. It does not itself implement partition mounting or tmpfs overlay binding; those remain standard Casper behavior that GallosOS still needs to design independently.
+   - **Strategic Value:** As a small, working example of contest-specific Casper hooks rather than rebuilding boot-time fixups from scratch, it is a useful reference for GallosOS's own hook scripts even though the core OverlayFS integration work remains GallosOS's own to do.
 
 ---
 
@@ -449,6 +449,10 @@ These projects offer well-tested software lists, user permission configs, and pa
    - Rather than maintaining a centralized static organization, the IOI Technical Committee releases annual repositories (e.g. `ioi-2023/contestant-vm`, `ioi-2025/contestant-vm`), with `ioi-2025` representing the current baseline.
    - While the VM infrastructure itself differs from GallosOS's Live USB architecture, the software manifest represents the **gold standard approved by the IOI Technical Committee**.
    - Serves as the canonical reference for exact compiler versions, flags, and editor plugins whenever targeting IOI and national olympiad profiles (`examples/ioi-cms.toml`).
+
+4. **[`icpcsysops/devdocs`](https://github.com/icpcsysops/devdocs) (Production Precedent for Offline Docs):**
+   - A fork of upstream [`freeCodeCamp/devdocs`](https://github.com/freeCodeCamp/devdocs) maintained by the same ICPC Systems Operations team behind `icpcsysops/ansible` (§9), actively pushed as recently as **2026-08-20**.
+   - Real production precedent for running **DevDocs** as the offline documentation backend at ICPC World Finals/NAC scale — a direct reference for wiring GallosOS's own `Offline DevDocs daemon (127.0.0.1:9292)` (§1/§2 matrices) and its theme customization, rather than starting from vanilla upstream `devdocs`.
 
 ---
 

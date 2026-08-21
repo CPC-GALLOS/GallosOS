@@ -10,6 +10,9 @@
 /icpc-env/
 /maratona-linux/
 /ansible/
+# cpc-gallos Forks
+/maratona-casper/ 
+/huronOS-build-tools/
 
 # ------------------------------------------------------------------------------
 # Large Binary Images & VM Artifacts (Never commit multi-GB files)
