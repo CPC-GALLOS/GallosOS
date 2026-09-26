@@ -8,7 +8,6 @@ contest completion for contestant code export.
 import os
 import stat
 import subprocess
-import sys
 
 POLKIT_RULES_DIR = "/etc/polkit-1/rules.d"
 POLKIT_RULE_FILE = os.path.join(POLKIT_RULES_DIR, "99-gallos-usb-block.rules")
@@ -47,20 +46,21 @@ def set_usb_storage_allowed(allowed: bool) -> None:
     if allowed:
         # Re-authorize USB mass storage
         print("[usb_manager] Unlocking USB mass-storage for code extraction.")
-        try:
-            if os.path.exists(POLKIT_RULE_FILE):
-                os.remove(POLKIT_RULE_FILE)
-            if os.path.exists(UDEV_RULE_FILE):
-                os.remove(UDEV_RULE_FILE)
-            subprocess.run(["udevadm", "control", "--reload-rules"], check=False)
-        except Exception as e:
-            print(f"[usb_manager] Error removing USB lockdown rules: {e}", file=sys.stderr)
+        if os.path.exists(POLKIT_RULE_FILE):
+            os.remove(POLKIT_RULE_FILE)
+        if os.path.exists(UDEV_RULE_FILE):
+            os.remove(UDEV_RULE_FILE)
     else:
         # Block USB mass storage
         print("[usb_manager] Locking USB mass-storage (Contest mode active).")
-        try:
-            _write_rule_file(POLKIT_RULE_FILE, POLKIT_JS_RULE)
-            _write_rule_file(UDEV_RULE_FILE, UDEV_STORAGE_BLOCK_RULE)
-            subprocess.run(["udevadm", "control", "--reload-rules"], check=False)
-        except Exception as e:
-            print(f"[usb_manager] Error deploying USB lockdown rules: {e}", file=sys.stderr)
+        _write_rule_file(POLKIT_RULE_FILE, POLKIT_JS_RULE)
+        _write_rule_file(UDEV_RULE_FILE, UDEV_STORAGE_BLOCK_RULE)
+    result = subprocess.run(
+        ["udevadm", "control", "--reload-rules"],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"udev rule reload failed: {result.stderr.strip()}")

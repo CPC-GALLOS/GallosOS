@@ -20,9 +20,9 @@ OOMScoreAdjust=-900
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/run /etc/nftables.conf /etc/polkit-1/rules.d /etc/udev/rules.d /etc/chromium/policies/managed /etc/firefox/policies /etc/shadow /etc/shadow- /home/contestant /tmp /media/event-data
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_ADMIN CAP_KILL CAP_SETUID CAP_SETGID CAP_DAC_OVERRIDE
-AmbientCapabilities=CAP_NET_ADMIN CAP_SYS_ADMIN
+ReadWritePaths=/run /etc/nftables.conf /etc/polkit-1/rules.d /etc/udev/rules.d /etc/chromium/policies/managed /etc/firefox/policies /home/contestant /tmp
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_KILL CAP_SETUID CAP_SETGID CAP_DAC_OVERRIDE CAP_CHOWN
+AmbientCapabilities=CAP_NET_ADMIN
 
 [Install]
 WantedBy=multi-user.target

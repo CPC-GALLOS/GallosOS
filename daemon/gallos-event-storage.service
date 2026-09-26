@@ -1,0 +1,15 @@
+[Unit]
+Description=GallosOS optional event workspace mount
+After=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/usr/libexec
+ExecStart=/usr/bin/python3 -m gallos_daemon.event_storage_host mount
+ExecStop=/usr/bin/python3 -m gallos_daemon.event_storage_host unmount
+NoNewPrivileges=true
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER
+PrivateMounts=no
+TimeoutStartSec=30
+TimeoutStopSec=30

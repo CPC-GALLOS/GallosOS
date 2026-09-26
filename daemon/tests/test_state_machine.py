@@ -39,7 +39,7 @@ def test_state_machine_auto_start_on_boot():
     assert 590 <= rem <= 600
 
 
-def test_first_transition_to_default_mounts_event_data():
+def test_first_transition_to_default_mounts_event_data(tmp_path):
     """A boot straight into Default mode must still run _switch_open_mode()
     (and thus mount_event_data()) — current_mode must not start equal to
     the first evaluated target, or transition_to() short-circuits."""
@@ -51,6 +51,9 @@ def test_first_transition_to_default_mounts_event_data():
         patch("daemon.src.state_machine.apply_browser_policy"),
         patch("daemon.src.state_machine.update_wallpaper"),
         patch("daemon.src.state_machine.export_waybar_state"),
+        patch("daemon.src.state_machine.stop_kiosk"),
+        patch("daemon.src.state_machine.release_kiosk"),
+        patch("daemon.src.transition_record.RECORD", tmp_path / "transition.json"),
     ):
         sm.transition_to("Default", 0)
         mock_mount.assert_called_once()

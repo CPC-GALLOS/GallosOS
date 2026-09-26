@@ -1,27 +1,33 @@
-"""Root Recovery Access module for GallosOS Daemon.
-
-Applies or clears a locally-declared root password hash for `su` recovery
-access from within the kiosk session. No SSH/network component — see
-docs/ROOT_ACCESS.md for the full design and its explicitly-deferred scope.
-"""
+"""Apply a local recovery hash through a dedicated host service."""
 
 import subprocess
-import sys
+
+SERVICE = "gallos-root-access.service"
+
+
+def apply_local_root_password() -> None:
+    """Run the host helper, which reads the trusted local configuration."""
+    result = subprocess.run(
+        ["systemctl", "start", SERVICE],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"root recovery service failed: {result.stderr.strip()}")
 
 
 def set_root_password(password_hash: str | None) -> None:
     """Applies the configured root password hash, or re-locks root if unset."""
     if password_hash:
         print("[root_access] Applying configured root password hash for local su recovery.")
-        try:
-            subprocess.run(
-                ["chpasswd", "-e"],
-                input=f"root:{password_hash}\n",
-                text=True,
-                check=True,
-            )
-        except subprocess.CalledProcessError as e:
-            print(f"[root_access] Failed to apply root password hash: {e}", file=sys.stderr)
+        subprocess.run(
+            ["chpasswd", "-e"],
+            input=f"root:{password_hash}\n",
+            text=True,
+            check=True,
+        )
     else:
         print("[root_access] No root password hash configured; keeping root locked.")
-        subprocess.run(["passwd", "-l", "root"], check=False)
+        subprocess.run(["passwd", "-l", "root"], check=True)

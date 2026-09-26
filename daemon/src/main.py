@@ -17,7 +17,7 @@ from typing import Any
 from .config import load_active_config, load_machine_config
 from .firewall import FirewallManager
 from .identity import apply_machine_identity
-from .root_access import set_root_password
+from .root_access import apply_local_root_password
 from .state_machine import ModeStateMachine
 
 SOCKET_PATH = "/run/gallos/daemon.sock"
@@ -53,9 +53,10 @@ class GallosDaemon:
         self.config = load_active_config()
         self.machine_cfg = load_machine_config()
         apply_machine_identity(self.config, self.machine_cfg)
-        set_root_password(self.config.get("recovery", {}).get("root_password_hash"))
+        apply_local_root_password()
         if self.state_machine:
             self.state_machine.config = self.config
+            self.state_machine.request_reapply()
 
     def setup_socket(self) -> None:
         """Initializes the control Unix domain socket for gallos-ctl."""
@@ -76,19 +77,30 @@ class GallosDaemon:
         duration = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 300
         if self.state_machine:
             self.state_machine.set_manual_mode("Contest", duration_minutes=duration)
-        return b"OK Contest mode activated\n"
+        return b"OK Contest transition requested\n"
 
     def _cmd_stop(self, _parts: list[str]) -> bytes:
         if self.state_machine:
             self.state_machine.set_manual_mode("Default")
-        return b"OK Contest mode stopped\n"
+        return b"OK Default transition requested\n"
 
     def _cmd_status(self, _parts: list[str]) -> bytes:
         cur_mode = self.state_machine.current_mode if self.state_machine else "Unknown"
         rem = 0
         if self.state_machine:
             _, rem = self.state_machine.evaluate_target_mode()
-        return (json.dumps({"mode": cur_mode, "remaining_seconds": rem}) + "\n").encode("utf-8")
+        status = {
+            "mode": cur_mode,
+            "remaining_seconds": rem,
+            "target_mode": self.state_machine.target_mode if self.state_machine else "Unknown",
+            "transition_status": (
+                self.state_machine.transition_status if self.state_machine else "error"
+            ),
+            "last_error": (
+                self.state_machine.last_error if self.state_machine else "Daemon initializing"
+            ),
+        }
+        return (json.dumps(status) + "\n").encode("utf-8")
 
     def _cmd_reload(self, _parts: list[str]) -> bytes:
         self.reload_config()

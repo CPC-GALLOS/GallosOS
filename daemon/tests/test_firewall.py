@@ -43,3 +43,5 @@ def test_firewall_apply_contest_mode():
         assert "192.168.50.10" in rules
         assert "192.168.50.1" in rules
         assert "GALLOS_DENIED: " in rules
+        assert "udp sport 68 udp dport 67 accept" in rules
+        assert "udp sport 67 udp dport 68 accept" in rules

@@ -44,7 +44,9 @@ def send_desktop_notification(title: str, message: str, urgency: str = "normal")
         print(f"[desktop] Error sending notification: {e}", file=sys.stderr)
 
 
-def export_waybar_state(mode: str, remaining_seconds: int = 0) -> None:
+def export_waybar_state(
+    mode: str, remaining_seconds: int = 0, transition_status: str = "ready", last_error: str = ""
+) -> None:
     """Writes /run/gallos/state.json for Waybar custom status modules."""
     os.makedirs("/run/gallos", exist_ok=True)
     state_file = "/run/gallos/state.json"
@@ -61,6 +63,8 @@ def export_waybar_state(mode: str, remaining_seconds: int = 0) -> None:
         "badge": f"MODE: {mode.upper()}",
         "time_str": f"⏳ {time_str}",
         "remaining_sec": remaining_seconds,
+        "transition_status": transition_status,
+        "last_error": last_error,
     }
 
     try:

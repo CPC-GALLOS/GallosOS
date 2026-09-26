@@ -1,0 +1,13 @@
+[Unit]
+Description=GallosOS physical root recovery login
+Conflicts=getty@tty1.service
+After=gallos-daemon.service
+
+[Service]
+Type=simple
+ExecStart=-/sbin/agetty --noclear -o '-p -- root' tty1 linux
+Restart=always
+RestartSec=1
+StandardInput=tty
+StandardOutput=tty
+TTYPath=/dev/tty1

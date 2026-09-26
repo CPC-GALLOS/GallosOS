@@ -84,6 +84,13 @@ class FirewallManager:
     def apply_mode_firewall(self, mode: str, config: dict[str, Any]) -> None:
         """Applies dynamic firewall rules based on the active mode."""
         with self._lock:
+            previous = (
+                self._current_mode,
+                self._allowed_websites,
+                self._venue_controller_ip,
+                self._local_dns_ip,
+                self._resolved_judge_ips,
+            )
             self._current_mode = mode
             contest_cfg = config.get("contest", {})
             self._allowed_websites = contest_cfg.get("allowed_websites", [])
@@ -103,7 +110,17 @@ class FirewallManager:
                 new_ips.add(DEFAULT_FALLBACK_LOOPBACK_IP)
 
             self._resolved_judge_ips = new_ips
-            self._render_nftables()
+            try:
+                self._render_nftables()
+            except Exception:
+                (
+                    self._current_mode,
+                    self._allowed_websites,
+                    self._venue_controller_ip,
+                    self._local_dns_ip,
+                    self._resolved_judge_ips,
+                ) = previous
+                raise
 
     def _render_nftables(self) -> None:
         """Generates and applies the nftables ruleset via nft -f -."""
@@ -146,7 +163,7 @@ table ip gallos_filter {{
         tcp dport {{ 22, 853 }} drop
 
         # 4. Allow DHCP Client Requests
-        udp sport 68 dport 67 accept
+        udp sport 68 udp dport 67 accept
 
         # 5. Allow Local DNS to Gateway
         udp dport 53 accept
@@ -172,7 +189,7 @@ table ip gallos_filter {{
         type filter hook input priority 0; policy drop;
         iif "lo" accept
         ct state established,related accept
-        udp sport 67 dport 68 accept
+        udp sport 67 udp dport 68 accept
     }}
 }}
 """
@@ -198,19 +215,20 @@ table ip gallos_filter {{
     }}
 }}
 """
-        try:
-            proc = subprocess.run(
-                ["nft", "-f", "-"], input=nft_rules, text=True, capture_output=True, check=False
-            )
-            if proc.returncode == 0:
-                print(
-                    f"[firewall] Applied {self._current_mode} firewall ruleset successfully "
-                    f"(Whitelisted: {self._resolved_judge_ips})"
-                )
-            else:
-                print(f"[firewall] Error applying nftables: {proc.stderr}", file=sys.stderr)
-        except Exception as e:
-            print(f"[firewall] Failed to invoke nft command: {e}", file=sys.stderr)
+        proc = subprocess.run(
+            ["nft", "-f", "-"],
+            input=nft_rules,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=10,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"nft failed: {proc.stderr.strip()}")
+        print(
+            f"[firewall] Applied {self._current_mode} firewall ruleset successfully "
+            f"(Whitelisted: {self._resolved_judge_ips})"
+        )
 
     def _dns_resolver_loop(self) -> None:
         """Background loop re-resolving judge domains every 45s."""
@@ -232,5 +250,10 @@ table ip gallos_filter {{
                         f"[firewall] Detected dynamic DNS change: "
                         f"{self._resolved_judge_ips} -> {updated_ips}"
                     )
+                    previous_ips = self._resolved_judge_ips
                     self._resolved_judge_ips = updated_ips
-                    self._render_nftables()
+                    try:
+                        self._render_nftables()
+                    except Exception as exc:
+                        self._resolved_judge_ips = previous_ips
+                        print(f"[firewall] DNS refresh failed: {exc}", file=sys.stderr)

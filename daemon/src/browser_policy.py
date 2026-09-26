@@ -6,7 +6,6 @@ browser navigation down to specific sub-URL paths during Contest mode.
 
 import json
 import os
-import sys
 from typing import Any
 
 CHROMIUM_POLICY_FILE = "/etc/chromium/policies/managed/gallos_policy.json"
@@ -77,9 +76,6 @@ def apply_browser_policy(mode: str, config: dict[str, Any]) -> None:
 
     chromium_payload, firefox_payload = _create_policy_payloads(mode, allowed_urls, blocked_urls)
 
-    try:
-        _write_policy_json(CHROMIUM_POLICY_FILE, chromium_payload)
-        _write_policy_json(FIREFOX_POLICY_FILE, firefox_payload)
-        print(f"[browser_policy] Applied browser policies for mode '{mode}'")
-    except Exception as e:
-        print(f"[browser_policy] Error writing browser policies: {e}", file=sys.stderr)
+    _write_policy_json(CHROMIUM_POLICY_FILE, chromium_payload)
+    _write_policy_json(FIREFOX_POLICY_FILE, firefox_payload)
+    print(f"[browser_policy] Applied browser policies for mode '{mode}'")

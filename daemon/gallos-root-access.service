@@ -1,0 +1,14 @@
+[Unit]
+Description=GallosOS local root recovery password update
+After=local-fs.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/usr/libexec
+ExecStart=/usr/bin/python3 -m gallos_daemon.root_access_host
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/etc
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER
+TimeoutStartSec=30

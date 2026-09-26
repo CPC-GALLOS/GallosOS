@@ -15,7 +15,9 @@ from typing import Any
 from .browser_policy import apply_browser_policy
 from .desktop import export_waybar_state, send_desktop_notification, update_wallpaper
 from .firewall import FirewallManager
+from .session_gate import release_kiosk, start_recovery_console, stop_kiosk
 from .storage import mount_event_data, unmount_event_data
+from .transition_record import read_record, write_record
 from .usb_manager import set_usb_storage_allowed
 
 UTC_TZ_OFFSET = "+00:00"
@@ -47,13 +49,13 @@ def _wipe_directory_contents(dir_path: str) -> None:
             else:
                 os.remove(item_path)
         except Exception as e:
-            print(f"[state_machine] Error removing {item_path}: {e}", file=sys.stderr)
+            raise RuntimeError(f"Could not wipe {item_path}: {e}") from e
 
 
 def _populate_from_skel(skel_dir: str, target_dir: str) -> None:
     """Restores default files and directories from skeleton template."""
     if not os.path.isdir(skel_dir):
-        return
+        raise RuntimeError(f"Missing contestant skeleton: {skel_dir}")
     for item in os.listdir(skel_dir):
         src = os.path.join(skel_dir, item)
         dst = os.path.join(target_dir, item)
@@ -63,7 +65,7 @@ def _populate_from_skel(skel_dir: str, target_dir: str) -> None:
             else:
                 shutil.copy2(src, dst)
         except Exception as e:
-            print(f"[state_machine] Error copying skeleton item {src}: {e}", file=sys.stderr)
+            raise RuntimeError(f"Could not restore {src}: {e}") from e
 
 
 def perform_clean_state_wipe() -> None:
@@ -71,15 +73,10 @@ def perform_clean_state_wipe() -> None:
     print("[state_machine] Performing destructive Clean State Wipe of /home/contestant/...")
     home_dir = "/home/contestant"
     skel_dir = "/etc/skel"
-    try:
-        subprocess.run(["pkill", "-KILL", "-u", "contestant"], check=False)
-        time.sleep(0.5)
-        _wipe_directory_contents(home_dir)
-        _populate_from_skel(skel_dir, home_dir)
-        subprocess.run(["chown", "-R", "contestant:contestant", home_dir], check=False)
-        print("[state_machine] Clean State Wipe completed successfully.")
-    except Exception as e:
-        print(f"[state_machine] Error during Clean State Wipe: {e}", file=sys.stderr)
+    _wipe_directory_contents(home_dir)
+    _populate_from_skel(skel_dir, home_dir)
+    subprocess.run(["chown", "-R", "contestant:contestant", home_dir], check=True, timeout=30)
+    print("[state_machine] Clean State Wipe completed successfully.")
 
 
 def _is_window_active(window: dict[str, Any], now_utc: datetime) -> tuple[bool, int]:
@@ -115,7 +112,12 @@ class ModeStateMachine:
     def __init__(self, config: dict[str, Any], firewall: FirewallManager) -> None:
         self.config = config
         self.firewall = firewall
-        self.current_mode: str = _BOOT_SENTINEL_MODE
+        record = read_record()
+        self.current_mode: str = record["mode"] if record else _BOOT_SENTINEL_MODE
+        self.target_mode: str = record["target_mode"] if record else "Unknown"
+        self.transition_status: str = record["transition_status"] if record else "pending"
+        self.last_error: str = record["last_error"] if record else ""
+        self._needs_reapply = bool(record and self.transition_status == "ready")
         self.manual_override: str | None = None
         self._boot_monotonic = time.monotonic()
         self._manual_start_time: float | None = None
@@ -123,6 +125,10 @@ class ModeStateMachine:
 
     def set_manual_mode(self, mode: str | None, duration_minutes: int | None = None) -> None:
         """Allows manual CLI triggers to override state."""
+        if self.transition_status == "error":
+            self.transition_status = "pending"
+            self.last_error = ""
+            self._needs_reapply = True
         self.manual_override = mode
         if mode == "Contest":
             self._manual_start_time = time.monotonic()
@@ -130,6 +136,10 @@ class ModeStateMachine:
         else:
             self._manual_start_time = None
             self._manual_duration_sec = None
+
+    def request_reapply(self) -> None:
+        """Reapply a changed config, including when its mode name is unchanged."""
+        self._needs_reapply = True
 
     def _eval_manual_override(self) -> tuple[str, int] | None:
         """Evaluates manual override mode and expiration."""
@@ -190,11 +200,11 @@ class ModeStateMachine:
 
     def _enter_contest_mode(self) -> None:
         """Applies all security and system lockdowns for Contest entry."""
-        perform_clean_state_wipe()
-        unmount_event_data()
         self.firewall.apply_mode_firewall("Contest", self.config)
+        unmount_event_data()
         set_usb_storage_allowed(False)
         apply_browser_policy("Contest", self.config)
+        perform_clean_state_wipe()
         update_wallpaper("Contest")
         send_desktop_notification(
             "Contest Mode Activated",
@@ -207,9 +217,9 @@ class ModeStateMachine:
         print(
             "[state_machine] Post-Contest transition: Unlocking USB storage and restoring network."
         )
+        self.firewall.apply_mode_firewall(target_mode, self.config)
         set_usb_storage_allowed(True)
         mount_event_data()
-        self.firewall.apply_mode_firewall(target_mode, self.config)
         apply_browser_policy(target_mode, self.config)
         update_wallpaper(target_mode)
         send_desktop_notification(
@@ -228,19 +238,52 @@ class ModeStateMachine:
 
     def transition_to(self, target_mode: str, remaining_sec: int) -> None:
         """Performs state transition actions if mode changed."""
-        if target_mode == self.current_mode:
-            export_waybar_state(self.current_mode, remaining_sec)
+        self.target_mode = target_mode
+        if self.transition_status == "error":
+            export_waybar_state(self.current_mode, remaining_sec, "error", self.last_error)
+            return
+        if target_mode == self.current_mode and not self._needs_reapply:
+            export_waybar_state(self.current_mode, remaining_sec, "ready")
             return
 
         old_mode = self.current_mode
         print(f"[state_machine] MODE TRANSITION: {old_mode} -> {target_mode}")
-        self.current_mode = target_mode
+        try:
+            stop_kiosk()
+            if old_mode != _BOOT_SENTINEL_MODE:
+                write_record(old_mode, target_mode, "pending", "")
+            self._apply_target_mode(target_mode, old_mode)
+            self.current_mode = target_mode
+            self.transition_status = "ready"
+            self.last_error = ""
+            write_record(target_mode, target_mode, "ready", "")
+            release_kiosk()
+            self._needs_reapply = False
+            export_waybar_state(target_mode, remaining_sec, "ready")
+        except Exception as exc:
+            self.transition_status = "error"
+            self.last_error = str(exc)
+            saved_mode = old_mode if old_mode in ("Contest", "Event", "Default") else "Default"
+            self.current_mode = saved_mode
+            write_record(saved_mode, target_mode, "error", self.last_error)
+            try:
+                recovery_hash = self.config.get("recovery", {}).get("root_password_hash")
+                start_recovery_console(bool(recovery_hash))
+            except Exception as recovery_exc:
+                self.last_error += f"; recovery console failed: {recovery_exc}"
+                write_record(saved_mode, target_mode, "error", self.last_error)
+            print(f"[state_machine] Transition failed: {self.last_error}", file=sys.stderr)
+            export_waybar_state(saved_mode, remaining_sec, "error", self.last_error)
 
-        if target_mode == "Contest":
+    def _apply_target_mode(self, target_mode: str, old_mode: str) -> None:
+        if target_mode == "Contest" and old_mode != "Contest":
             self._enter_contest_mode()
-        elif old_mode == "Contest" and target_mode in ("Default", "Event"):
+        elif target_mode == "Contest":
+            self.firewall.apply_mode_firewall("Contest", self.config)
+            unmount_event_data()
+            set_usb_storage_allowed(False)
+            apply_browser_policy("Contest", self.config)
+        elif old_mode == "Contest":
             self._exit_contest_mode(target_mode)
         else:
             self._switch_open_mode(target_mode)
-
-        export_waybar_state(self.current_mode, remaining_sec)

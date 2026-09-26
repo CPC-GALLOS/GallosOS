@@ -5,13 +5,15 @@ import os
 import socket
 import sys
 
-
 SOCKET_PATH = "/run/gallos/daemon.sock"
 
 
 def send_command(cmd: str) -> None:
     if not os.path.exists(SOCKET_PATH):
-        print(f"Error: GallosOS Daemon is not running (socket {SOCKET_PATH} not found).", file=sys.stderr)
+        print(
+            f"Error: GallosOS Daemon is not running (socket {SOCKET_PATH} not found).",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     try:
@@ -20,6 +22,8 @@ def send_command(cmd: str) -> None:
             client.sendall((cmd + "\n").encode("utf-8"))
             resp = client.recv(4096).decode("utf-8")
             print(resp.strip())
+            if resp.startswith("ERROR"):
+                sys.exit(1)
     except Exception as e:
         print(f"Error communicating with GallosOS Daemon: {e}", file=sys.stderr)
         sys.exit(1)
