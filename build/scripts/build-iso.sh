@@ -1,54 +1,119 @@
 #!/usr/bin/env bash
-# Stage 5b: Squash & Stitch, ISO half (docs/BUILD_SYSTEM.md §3 Stage 5 /
-# ROADMAP.md Phase 1 "Hybrid ISO Stitched Image").
-#
-# Uses grub-mkrescue (which itself shells out to xorriso) to produce a
-# hybrid BIOS + UEFI bootable ISO from $STAGING.
-#
-# NOTE (walking-skeleton scope, see the approved plan): this produces a
-# genuinely bootable UEFI image using grub's own unsigned EFI binary, NOT
-# yet the Canonical-signed shim/grub-efi-amd64-signed SecureBoot chain that
-# ROADMAP.md's "Dual Bootloader Chain" item calls for. Swapping in the
-# signed shim as the EFI System Partition's bootx64.efi is the concrete
-# next step once this walking skeleton is proven to boot — do not claim
-# SecureBoot support until that lands.
-#
-# NOTE: no md5sum.txt manifest is generated onto the ISO, so the stock
-# casper-md5check.service has nothing to verify against and fails at every
-# boot (harmless — systemd just logs [FAILED] and continues to
-# multi-user.target, verified interactively). This means the produced media
-# currently has no integrity self-check for corrupted USB writes/downloads.
-# Fix: `find` the staging tree, `md5sum` everything, write md5sum.txt at
-# the ISO root here, before the grub-mkrescue call below.
+# Assemble a BIOS/UEFI hybrid ISO with Ubuntu's signed EFI boot chain.
 set -euo pipefail
 
-STAGING="$1"
-OUT_ISO="$2"
+STAGING="${1:?staging directory required}"
+OUT_ISO="${2:?ISO output path required}"
 VOLID="GALLOS_BOOT"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-mkdir -p "$STAGING/boot/grub" "$STAGING/gallos/config"
-# Canonical GALLOS_BOOT layout (docs/BUILD_SYSTEM.md's Tier 2/3 module
-# spec, docs/ARCHITECTURE.md §4 item 5): /gallos/config/gallos.toml at
-# the ISO/USB root, not under /boot/ — 55gallos-live's ${rootmnt}/boot/gallos
-# symlink and daemon/src/config.py's candidate paths both expect this.
+SHIM=/usr/lib/shim/shimx64.efi.signed.latest
+GRUB_SIGNED=/usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed
+MOK=/usr/lib/shim/mmx64.efi
+BIOS_MBR=/usr/lib/grub/i386-pc/boot_hybrid.img
+
+for artifact in "$SHIM" "$GRUB_SIGNED" "$MOK" "$BIOS_MBR" \
+    "$STAGING/casper/vmlinuz" "$STAGING/casper/initrd"; do
+    if [[ ! -s "$artifact" ]]; then
+        echo "build-iso.sh: required boot artifact missing: $artifact" >&2
+        exit 1
+    fi
+done
+if ! sbverify --list "$SHIM" >/dev/null 2>&1; then
+    echo "build-iso.sh: unsigned shim artifact: $SHIM" >&2
+    exit 1
+fi
+for signed in "$GRUB_SIGNED" "$MOK" "$STAGING/casper/vmlinuz"; do
+    if ! sbverify --cert /usr/share/grub/canonical-uefi-ca.crt "$signed" >/dev/null 2>&1; then
+        echo "build-iso.sh: invalid Canonical signature: $signed" >&2
+        exit 1
+    fi
+done
+
+mkdir -p "$STAGING/boot/grub" "$STAGING/gallos/config" "$(dirname "$OUT_ISO")"
 if [[ -f "$REPO_ROOT/examples/icpc-onsite.toml" ]]; then
     cp "$REPO_ROOT/examples/icpc-onsite.toml" "$STAGING/gallos/config/gallos.toml"
 fi
 cat > "$STAGING/boot/grub/grub.cfg" <<EOF
+serial --unit=0 --speed=115200
+terminal_input serial console
+terminal_output serial console
 set default=0
 set timeout=5
 
-menuentry "GallosOS Live (walking skeleton)" {
+menuentry "GallosOS Live" {
     search --no-floppy --set=root --label $VOLID
     linux /casper/vmlinuz boot=casper console=ttyS0,115200n8 ipv6.disable=1
     initrd /casper/initrd
 }
+menuentry "GallosOS Live (toram)" {
+    search --no-floppy --set=root --label $VOLID
+    linux /casper/vmlinuz boot=casper console=ttyS0,115200n8 ipv6.disable=1 toram
+    initrd /casper/initrd
+}
 EOF
 
-echo "Assembling hybrid ISO -> $OUT_ISO..."
-mkdir -p "$(dirname "$OUT_ISO")"
-grub-mkrescue -o "$OUT_ISO" "$STAGING" -- -volid "$VOLID"
+WORK_DIR="$(mktemp -d)"
+trap 'rm -rf "$WORK_DIR"' EXIT
 
+# Ubuntu's signed GRUB embeds /EFI/ubuntu as its config prefix. This small
+# config selects the ISO filesystem before loading the shared GRUB menu.
+cat > "$WORK_DIR/efi-grub.cfg" <<EOF
+serial --unit=0 --speed=115200
+terminal_input serial console
+terminal_output serial console
+search --no-floppy --set=root --label $VOLID
+configfile /boot/grub/grub.cfg
+EOF
+# On optical boot, Ubuntu's signed GRUB reports fw_path on the ISO (cd0),
+# while USB firmware loads it from the appended FAT ESP. Provide both paths.
+mkdir -p "$STAGING/EFI/BOOT" "$STAGING/EFI/ubuntu"
+cp "$WORK_DIR/efi-grub.cfg" "$STAGING/EFI/ubuntu/grub.cfg"
+cp "$WORK_DIR/efi-grub.cfg" "$STAGING/EFI/BOOT/grub.cfg"
+cp "$SHIM" "$STAGING/EFI/BOOT/BOOTX64.EFI"
+cp "$GRUB_SIGNED" "$STAGING/EFI/BOOT/grubx64.efi"
+cp "$MOK" "$STAGING/EFI/BOOT/mmx64.efi"
+ESP_IMAGE="$WORK_DIR/efi.img"
+truncate -s 16M "$ESP_IMAGE"
+mkfs.vfat -F 16 -n GALLOS_EFI "$ESP_IMAGE" >/dev/null
+mmd -i "$ESP_IMAGE" ::/EFI ::/EFI/BOOT ::/EFI/ubuntu
+mcopy -i "$ESP_IMAGE" "$SHIM" ::/EFI/BOOT/BOOTX64.EFI
+mcopy -i "$ESP_IMAGE" "$GRUB_SIGNED" ::/EFI/BOOT/grubx64.efi
+mcopy -i "$ESP_IMAGE" "$MOK" ::/EFI/BOOT/mmx64.efi
+mcopy -i "$ESP_IMAGE" "$WORK_DIR/efi-grub.cfg" ::/EFI/ubuntu/grub.cfg
+mcopy -i "$ESP_IMAGE" "$WORK_DIR/efi-grub.cfg" ::/EFI/BOOT/grub.cfg
+
+# Keep the BIOS core below GRUB's boot-sector size limit. Its embedded
+# configuration searches for the shared menu on the ISO filesystem.
+cp "$WORK_DIR/efi-grub.cfg" "$WORK_DIR/bios-grub.cfg"
+grub-mkimage -O i386-pc-eltorito -C xz -o "$STAGING/boot/grub/bios.img" \
+    -p /boot/grub -c "$WORK_DIR/bios-grub.cfg" \
+    biosdisk iso9660 normal search search_label linux part_msdos part_gpt configfile serial terminal
+
+# casper-md5check expects a manifest at the ISO root. Generate it after all
+# staged files are final; the manifest itself cannot include its own digest.
+(
+    cd "$STAGING"
+    find . -type f ! -name md5sum.txt ! -path './boot/grub/bios.img' -print0 \
+        | LC_ALL=C sort -z | xargs -0 md5sum \
+        > "$WORK_DIR/md5sum.txt"
+)
+cp "$WORK_DIR/md5sum.txt" "$STAGING/md5sum.txt"
+
+echo "Assembling signed BIOS/UEFI hybrid ISO -> $OUT_ISO..."
+xorriso -as mkisofs -R -J -iso-level 3 -volid "$VOLID" \
+    -b boot/grub/bios.img -no-emul-boot -boot-load-size 4 -boot-info-table \
+    --grub2-mbr "$BIOS_MBR" -partition_offset 16 \
+    -eltorito-alt-boot -e --interval:appended_partition_2:all:: -no-emul-boot \
+    -append_partition 2 0xef "$ESP_IMAGE" \
+    -o "$OUT_ISO" "$STAGING"
+
+dpkg-query -W -f='${Package} ${Version}\n' shim-signed grub-efi-amd64-signed \
+    > "${OUT_ISO%.iso}.boot-packages.txt"
+(
+    cd "$(dirname "$OUT_ISO")"
+    iso_name="$(basename "$OUT_ISO")"
+    sha256sum "$iso_name" > "${iso_name%.iso}.sha256"
+)
 echo "Stage 5b complete: $OUT_ISO"

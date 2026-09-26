@@ -1,108 +1,105 @@
 #!/usr/bin/env bash
-# test-iso-qemu.sh — Boot the GallosOS ISO in QEMU/KVM for rapid testing.
-# Usage:
-#   bash scripts/test-iso-qemu.sh                  # Legacy BIOS (fast)
-#   bash scripts/test-iso-qemu.sh --uefi           # UEFI (SecureBoot-compatible path)
-#   bash scripts/test-iso-qemu.sh --iso /path/to/other.iso
-#   bash scripts/test-iso-qemu.sh --toram          # append toram to the kernel cmdline
-#   bash scripts/test-iso-qemu.sh --usb-image /path/to/disk.img  # attach a synthetic USB disk
-# Requires: qemu-system-x86_64, edk2-ovmf (for --uefi)
+# Boot the actual ISO firmware path in QEMU, optionally enforcing Secure Boot.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-ISO="${REPO_ROOT}/build/output/gallosos-icpc-amd64.iso"
+ISO="$REPO_ROOT/build/output/gallosos-icpc-amd64.iso"
 UEFI=0
+SECURE_BOOT=0
 TORAM=0
+SMOKE=0
+HEADLESS=0
+EXPECT_REJECTION=0
 USB_IMAGE=""
-OVMF_CODE="/usr/share/edk2/ovmf/OVMF_CODE.fd"
-MEM="4096"
-CPUS="2"
+MEM=4096
+CPUS=2
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --uefi)      UEFI=1 ;;
-        --iso)       shift; ISO="$1" ;;
-        --mem)       shift; MEM="$1" ;;
-        --toram)     TORAM=1 ;;
-        --usb-image) shift; USB_IMAGE="$1" ;;
-        *)      echo "Unknown option: $1"; exit 1 ;;
+        --uefi) UEFI=1 ;;
+        --secure-boot) UEFI=1; SECURE_BOOT=1 ;;
+        --toram) TORAM=1; SMOKE=1; HEADLESS=1 ;;
+        --smoke) SMOKE=1; HEADLESS=1 ;;
+        --headless) HEADLESS=1 ;;
+        --expect-rejection) UEFI=1; SECURE_BOOT=1; SMOKE=1; HEADLESS=1; EXPECT_REJECTION=1 ;;
+        --iso) shift; ISO="${1:?--iso needs a path}" ;;
+        --usb-image) shift; USB_IMAGE="${1:?--usb-image needs a path}" ;;
+        --mem) shift; MEM="${1:?--mem needs a value}" ;;
+        *) echo "Unknown option: $1" >&2; exit 2 ;;
     esac
     shift
 done
 
 if [[ ! -f "$ISO" ]]; then
-    echo "ERROR: ISO not found at $ISO"
-    echo "Run 'make iso CONFIG=profiles/icpc.toml' first (or pass --iso for a different profile's output)."
+    echo "ISO not found: $ISO" >&2
     exit 1
 fi
 if [[ -n "$USB_IMAGE" && ! -f "$USB_IMAGE" ]]; then
-    echo "ERROR: USB image not found at $USB_IMAGE"
-    echo "Run 'bash build/scripts/make-test-usb-image.sh $USB_IMAGE' first."
+    echo "USB image not found: $USB_IMAGE" >&2
     exit 1
 fi
 
-echo "============================================="
-echo " GallosOS ISO QEMU Test"
-echo "============================================="
-echo " ISO   : $ISO"
-echo " Mode  : $([ $UEFI -eq 1 ] && echo 'UEFI' || echo 'Legacy BIOS')"
-echo " toram : $([ $TORAM -eq 1 ] && echo 'yes' || echo 'no')"
-echo " USB   : ${USB_IMAGE:-none}"
-echo " RAM   : ${MEM} MB  |  CPUs: ${CPUS}"
-echo "============================================="
-
-QEMU_ARGS=(
-    -enable-kvm
-    -m "$MEM"
-    -smp "$CPUS"
-    -cpu host
-    -vga virtio
-    -display gtk
-    -netdev "user,id=net0"
-    -device "virtio-net-pci,netdev=net0"
-    -device "usb-ehci,id=ehci"
-    -usb
-    -device usb-tablet
-)
-
-if [[ $TORAM -eq 1 ]]; then
-    # The ISO's own grub.cfg (build/scripts/build-iso.sh) hardcodes its
-    # kernel cmdline, so testing an extra boot parameter means bypassing
-    # GRUB: extract /casper/{vmlinuz,initrd} straight out of the ISO9660
-    # filesystem with xorriso (no loop-mount / root privileges needed)
-    # and boot them directly via QEMU's -kernel/-initrd/-append, mirroring
-    # build-iso.sh's own cmdline plus toram.
-    EXTRACT_DIR="$(mktemp -d)"
-    trap 'rm -rf "$EXTRACT_DIR"' EXIT
-    xorriso -indev "$ISO" -osirrox on \
-        -extract /casper/vmlinuz "$EXTRACT_DIR/vmlinuz" \
-        -extract /casper/initrd "$EXTRACT_DIR/initrd" \
-        >/dev/null
-    QEMU_ARGS+=(
-        -kernel "$EXTRACT_DIR/vmlinuz"
-        -initrd "$EXTRACT_DIR/initrd"
-        -append "boot=casper console=ttyS0,115200n8 ipv6.disable=1 toram"
-        -cdrom "$ISO"
-    )
+QEMU_ARGS=(-m "$MEM" -smp "$CPUS" -netdev "user,id=net0"
+    -device "virtio-net-pci,netdev=net0" -cdrom "$ISO" -boot d)
+if [[ -r /dev/kvm && -w /dev/kvm ]]; then
+    QEMU_ARGS+=(-enable-kvm -cpu host)
 else
-    QEMU_ARGS+=(-cdrom "$ISO" -boot d)
+    QEMU_ARGS+=(-accel tcg -cpu qemu64)
 fi
-
+if [[ $HEADLESS -eq 1 ]]; then
+    QEMU_ARGS+=(-nographic)
+else
+    QEMU_ARGS+=(-vga virtio -display gtk -serial mon:stdio)
+fi
 if [[ -n "$USB_IMAGE" ]]; then
-    QEMU_ARGS+=(-drive "if=none,id=gallosusb,format=raw,file=$USB_IMAGE" -device "usb-storage,drive=gallosusb")
+    QEMU_ARGS+=(-drive "if=none,id=gallosusb,format=raw,file=$USB_IMAGE"
+        -device usb-ehci -device "usb-storage,drive=gallosusb")
 fi
 
-if [[ $UEFI -eq 1 ]]; then
-    if [[ ! -f "$OVMF_CODE" ]]; then
-        echo "ERROR: OVMF not found at $OVMF_CODE"
-        echo "Install with: sudo dnf install -y edk2-ovmf"
+if [[ $SECURE_BOOT -eq 1 ]]; then
+    CODE=""
+    VARS=""
+    for pair in \
+        /usr/share/edk2/ovmf/OVMF_CODE.secboot.fd:/usr/share/edk2/ovmf/OVMF_VARS.secboot.fd \
+        /usr/share/OVMF/OVMF_CODE_4M.secboot.fd:/usr/share/OVMF/OVMF_VARS_4M.ms.fd \
+        /usr/share/OVMF/OVMF_CODE.secboot.fd:/usr/share/OVMF/OVMF_VARS.ms.fd; do
+        candidate_code="${pair%%:*}"
+        candidate_vars="${pair#*:}"
+        if [[ -s "$candidate_code" && -s "$candidate_vars" ]]; then
+            CODE="$candidate_code"
+            VARS="$candidate_vars"
+            break
+        fi
+    done
+    if [[ ! -s "$CODE" || ! -s "$VARS" ]]; then
+        echo "Secure Boot OVMF CODE/VARS with enrolled Microsoft keys are missing" >&2
         exit 1
     fi
-    QEMU_ARGS+=(-bios "$OVMF_CODE")
+    OVMF_DIR="$(mktemp -d)"
+    trap 'rm -rf "$OVMF_DIR"' EXIT
+    cp "$VARS" "$OVMF_DIR/vars.fd"
+    QEMU_ARGS+=(-machine "q35,smm=on"
+        -global "driver=cfi.pflash01,property=secure,value=on"
+        -drive "if=pflash,format=raw,unit=0,readonly=on,file=$CODE"
+        -drive "if=pflash,format=raw,unit=1,file=$OVMF_DIR/vars.fd")
+elif [[ $UEFI -eq 1 ]]; then
+    CODE=/usr/share/edk2/ovmf/OVMF_CODE.fd
+    if [[ ! -s "$CODE" ]]; then
+        CODE=/usr/share/OVMF/OVMF_CODE_4M.fd
+        if [[ ! -s "$CODE" ]]; then
+            echo "OVMF firmware not found" >&2
+            exit 1
+        fi
+    fi
+    QEMU_ARGS+=(-bios "$CODE")
 fi
 
-echo "Launching QEMU..."
-# Not exec'd: the --toram EXTRACT_DIR cleanup trap above needs this shell
-# to still be alive when qemu exits.
-qemu-system-x86_64 "${QEMU_ARGS[@]}"
+echo "Booting $ISO (UEFI=$UEFI, Secure Boot=$SECURE_BOOT, toram=$TORAM)"
+if [[ $SMOKE -eq 1 ]]; then
+    python3 "$SCRIPT_DIR/watch-qemu-boot.py" --toram "$TORAM" \
+        --secure-boot "$SECURE_BOOT" --expect-rejection "$EXPECT_REJECTION" -- \
+        qemu-system-x86_64 "${QEMU_ARGS[@]}"
+else
+    qemu-system-x86_64 "${QEMU_ARGS[@]}"
+fi

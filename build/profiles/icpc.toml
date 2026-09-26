@@ -65,4 +65,3 @@ telemetry_dns_blacklist = [
 ]
 blocked_tcp_ports = [22, 853]
 allow_usb_storage = false
-

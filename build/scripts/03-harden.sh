@@ -41,12 +41,13 @@ chroot_mount "$ROOTFS"
 # rootfs next within the same container run. chroot_umount runs once, at
 # the end of 04-optimize.sh, after every chroot-dependent stage is done.
 
-echo "Installing security packages (nftables, earlyoom)..."
+echo "Installing security packages (nftables, earlyoom, kbd)..."
 chroot "$ROOTFS" /bin/bash -euxc "
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
     apt-get install -y --no-install-recommends \
         nftables \
+        kbd \
         earlyoom
 "
 
@@ -107,7 +108,7 @@ table ip gallos_filter {
         # without it a DHCP-addressed machine can never acquire an IP at all
         # under a default-drop policy (chicken-and-egg — no address yet
         # means no venue_controller_ip/judge_ips to scope any other rule to).
-        udp sport 68 dport 67 accept
+        udp sport 68 udp dport 67 accept
 
         # 4. Hard-Drop Telemetry DNS & Blocked Ports (e.g. SSH 22, DoT 853)
         ip daddr @telemetry_dns_blacklist drop
@@ -140,7 +141,7 @@ table ip gallos_filter {
         # DHCP server reply (offer/ack) — same conntrack caveat as the
         # outbound rule above; the broadcast reply isn't reliably matched
         # as established/related, so it needs an explicit allow.
-        udp sport 67 dport 68 accept
+        udp sport 67 udp dport 68 accept
     }
 }
 EOF
@@ -277,12 +278,13 @@ echo "Installing and enabling gallos-daemon.service..."
 # each one back to read-write over the otherwise read-only root, which
 # fails outright (226/NAMESPACE) for a path that isn't there yet. Chromium/
 # Firefox aren't installed on every profile (this walking-skeleton one
-# installs neither), and /media/event-data is only ever created at runtime
-# by daemon/src/storage.py — so all of them must be pre-created here,
-# regardless of what [packages] actually bakes in, or the daemon
+# installs neither), so their directories must be pre-created or the daemon
 # crash-loops on every single boot of a profile lacking a browser.
 mkdir -p "$ROOTFS/etc/chromium/policies/managed" "$ROOTFS/etc/firefox/policies" "$ROOTFS/media/event-data"
 install -m 0644 "$REPO_ROOT/daemon/gallos-daemon.service" "$ROOTFS/etc/systemd/system/gallos-daemon.service"
+install -m 0644 "$REPO_ROOT/daemon/gallos-event-storage.service" "$ROOTFS/etc/systemd/system/gallos-event-storage.service"
+install -m 0644 "$REPO_ROOT/daemon/gallos-root-access.service" "$ROOTFS/etc/systemd/system/gallos-root-access.service"
+install -m 0644 "$REPO_ROOT/daemon/gallos-recovery-console.service" "$ROOTFS/etc/systemd/system/gallos-recovery-console.service"
 chroot "$ROOTFS" systemctl enable gallos-daemon.service
 
 echo "Stage 3 complete."

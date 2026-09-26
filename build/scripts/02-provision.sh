@@ -281,6 +281,9 @@ make_png('$ROOTFS/usr/share/backgrounds/gallos/contest.png', 46, 20, 20)
 # Graphical Kiosk Autologin on tty1
 mkdir -p "$ROOTFS/etc/systemd/system/getty@tty1.service.d"
 cat > "$ROOTFS/etc/systemd/system/getty@tty1.service.d/autologin.conf" <<'EOF'
+[Unit]
+ConditionPathExists=/run/gallos/kiosk-ready
+
 [Service]
 ExecStart=
 ExecStart=-/sbin/agetty --autologin contestant --noclear %I $TERM

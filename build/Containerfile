@@ -23,6 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     grub-efi-amd64-bin \
     grub-efi-amd64-signed \
     shim-signed \
+    sbsigntool \
     grub-common \
     && rm -rf /var/lib/apt/lists/*
 

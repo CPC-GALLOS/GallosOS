@@ -25,9 +25,14 @@ STAGING="$2"   # ISO staging root, e.g. build/output/staging
 mkdir -p "$STAGING/casper"
 
 vmlinuz="$(find "$ROOTFS/boot" -maxdepth 1 -name 'vmlinuz-*' | sort -V | tail -1)"
-initrd="$(find "$ROOTFS/boot" -maxdepth 1 -name 'initrd.img-*' | sort -V | tail -1)"
-if [[ -z "$vmlinuz" || -z "$initrd" ]]; then
+kernel_version="${vmlinuz##*/vmlinuz-}"
+initrd="$ROOTFS/boot/initrd.img-$kernel_version"
+if [[ -z "$vmlinuz" || ! -f "$initrd" ]]; then
     echo "build-squashfs.sh: no kernel/initrd found under $ROOTFS/boot" >&2
+    exit 1
+fi
+if ! sbverify --cert /usr/share/grub/canonical-uefi-ca.crt "$vmlinuz" >/dev/null 2>&1; then
+    echo "build-squashfs.sh: selected kernel lacks a valid Canonical signature: $vmlinuz" >&2
     exit 1
 fi
 cp "$vmlinuz" "$STAGING/casper/vmlinuz"
