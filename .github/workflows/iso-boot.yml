@@ -40,4 +40,4 @@ jobs:
         run: bash build/scripts/test-iso-qemu.sh --secure-boot --toram --mem 4096
 
       - name: Verify modified kernel is rejected
-        run: bash build/scripts/test-secure-boot-rejection.sh build/output/gallosos-icpc-amd64.iso
+        run: bash build/scripts/test-secure-boot-rejection.sh build/output/gallosos-universal-amd64.iso

@@ -88,7 +88,7 @@ When assisting in this repository, follow these core tenets:
 
 3. **Factual Grounding, Real Links & Zero Hallucination Policy:**
    - **Zero Hallucination:** Every technical claim, package name, version number, compiler flag, kernel parameter, and architectural feature MUST be grounded in reality and cross-referenced with local reference trees (`HuronOS/`, `maratona-linux/`, `icpc-env/`, `contestant-vm/`) or official upstream sources.
-   - **Verifiable & Canonical Links:** All references, headers, and citations in documentation and example files (`examples/*.toml`) MUST point to real, publicly accessible URLs (official contest PDFs, official GitHub repositories, or authoritative contest committee portals). Never fabricate links, use placeholder domains, or cite non-existent publications.
+   - **Verifiable & Canonical Links:** All references, headers, and citations in documentation and example files (`examples/*.gallos.toml`) MUST point to real, publicly accessible URLs (official contest PDFs, official GitHub repositories, or authoritative contest committee portals). Never fabricate links, use placeholder domains, or cite non-existent publications.
    - **Unambiguous Specificity:** Avoid vague claims or hand-waving. Specify exact package versions (e.g. GCC 14.2.0, OpenJDK 21.0.8, Free Pascal 3.0.4) and verify package lifecycles before claiming software is deprecated or active.
 
 4. **Cross-Document Coherence & Integrity:**

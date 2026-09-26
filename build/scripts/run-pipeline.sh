@@ -8,7 +8,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT_DIR="/repo/build/output"
 ROOTFS="$OUT_DIR/rootfs"
 STAGING="$OUT_DIR/staging"
-PROFILE_NAME="$(basename "$CONFIG" .toml)"
+PROFILE_NAME="$(basename "$CONFIG")"
+PROFILE_NAME="${PROFILE_NAME%.build.toml}"
+PROFILE_NAME="${PROFILE_NAME%.toml}"
 ISO="$OUT_DIR/gallosos-$PROFILE_NAME-amd64.iso"
 
 echo "=== Stage 1: Bootstrap ==="
@@ -28,5 +30,10 @@ echo "=== Stage 5a: Squash ==="
 
 echo "=== Stage 5b: ISO ==="
 "$SCRIPT_DIR/build-iso.sh" "$STAGING" "$ISO"
+
+if [[ "$PROFILE_NAME" == "universal" ]]; then
+    ln -sf "gallosos-universal-amd64.iso" "$OUT_DIR/gallos-os-amd64.iso"
+    ln -sf "gallosos-universal-amd64.iso" "$OUT_DIR/gallosos-icpc-amd64.iso"
+fi
 
 echo "=== Done: $ISO ==="

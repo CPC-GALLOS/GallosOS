@@ -20,8 +20,15 @@ def main() -> int:
     target_patterns = [
         "pyproject.toml",
         ".taplo.toml",
+        "examples/*.gallos.toml",
         "examples/*.toml",
+        "build/profiles/*.build.toml",
         "build/profiles/*.toml",
+        "*.gallos.toml",
+        "*.build.toml",
+        "gallos.toml",
+        "build.toml",
+        "machine.toml",
     ]
     files = []
     for pattern in target_patterns:
@@ -47,7 +54,10 @@ def main() -> int:
             with open(filepath, "rb") as f:
                 data = tomllib.load(f)
 
-            if filepath.startswith("examples/") and schema_data and HAS_JSONSCHEMA:
+            is_directives_file = filepath.endswith("gallos.toml") or filepath.startswith(
+                "examples/"
+            )
+            if is_directives_file and schema_data and HAS_JSONSCHEMA:
                 jsonschema.validate(instance=data, schema=schema_data)
                 print(f"[toml] ✓ Validated {filepath} (syntax + schema)")
             else:

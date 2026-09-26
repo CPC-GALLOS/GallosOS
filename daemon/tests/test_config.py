@@ -5,12 +5,14 @@ from unittest.mock import mock_open, patch
 
 from daemon.src.config import (
     DEFAULT_CONFIG,
+    _load_cmdline_config,
     fetch_remote_config,
     get_cmdline_config_param,
     is_config_expired,
     load_active_config,
     load_local_config,
     load_machine_config,
+    resolve_config_path,
 )
 
 
@@ -130,3 +132,70 @@ def test_load_active_config_no_local_recovery_hash_defaults_to_none():
     ):
         result = load_active_config()
         assert result["recovery"]["root_password_hash"] is None
+
+
+def test_resolve_config_path_variants(tmp_path):
+    config_dir = tmp_path / "boot" / "gallos"
+    config_dir.mkdir(parents=True)
+    target_file = config_dir / "codeforces-training.gallos.toml"
+    target_file.write_text('mode = "Event"\n', encoding="utf-8")
+
+    search_dirs = [str(config_dir)]
+
+    # Exact filename with .gallos.toml
+    assert resolve_config_path("codeforces-training.gallos.toml", search_dirs=search_dirs) == str(
+        target_file
+    )
+    # Stem without extension
+    assert resolve_config_path("codeforces-training", search_dirs=search_dirs) == str(target_file)
+    # Stem with generic .toml extension
+    assert resolve_config_path("codeforces-training.toml", search_dirs=search_dirs) == str(
+        target_file
+    )
+    # Non-existent
+    assert resolve_config_path("non-existent", search_dirs=search_dirs) is None
+
+
+def test_load_cmdline_config_resolves_relative_profile(tmp_path):
+    config_dir = tmp_path / "boot" / "gallos"
+    config_dir.mkdir(parents=True)
+    target_file = config_dir / "icpc-onsite.gallos.toml"
+    target_file.write_text('mode = "Contest"\n', encoding="utf-8")
+
+    data, source = _load_cmdline_config("icpc-onsite", search_dirs=[str(config_dir)])
+    assert data is not None
+    assert data["mode"] == "Contest"
+    assert source == f"cmdline file ({target_file})"
+
+
+def test_load_local_config_auto_discovers_unique_profile(tmp_path):
+    config_dir = tmp_path / "boot" / "gallos"
+    config_dir.mkdir(parents=True)
+    target_file = config_dir / "maratona-sbc.gallos.toml"
+    target_file.write_text('mode = "Contest"\n', encoding="utf-8")
+
+    data, source = load_local_config(search_dirs=[str(config_dir)])
+    assert data is not None
+    assert data["mode"] == "Contest"
+    assert source == str(target_file)
+
+
+def test_load_local_config_multiple_profiles_ambiguity_returns_none(tmp_path):
+    config_dir = tmp_path / "boot" / "gallos"
+    config_dir.mkdir(parents=True)
+    (config_dir / "p1.gallos.toml").write_text('mode = "Contest"\n', encoding="utf-8")
+    (config_dir / "p2.gallos.toml").write_text('mode = "Event"\n', encoding="utf-8")
+
+    data, source = load_local_config(search_dirs=[str(config_dir)])
+    assert data is None
+    assert source == ""
+
+
+def test_load_machine_config_auto_discovers_unique_profile(tmp_path):
+    config_dir = tmp_path / "boot" / "gallos"
+    config_dir.mkdir(parents=True)
+    target_file = config_dir / "pc-42.machine.toml"
+    target_file.write_text('hostname = "pc-42"\n', encoding="utf-8")
+
+    data = load_machine_config(search_dirs=[str(config_dir)])
+    assert data.get("hostname") == "pc-42"

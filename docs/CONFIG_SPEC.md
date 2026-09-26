@@ -76,8 +76,10 @@ Before fetching a remote directives file, GallosOS resolves the target URL throu
 
 ### Method B: Baked-In / Burn-Time Directives (Air-Gapped / Offline)
 
-- **Default Profile:** Directives are placed directly on the USB drive during creation in `/boot/gallos/gallos.toml` or `/etc/gallos/gallos.toml`. The system automatically loads this file at boot.
-- **Support for Multiple Profiles (Boot Parameter):** If an organizer wants to store multiple profiles on the same USB (e.g., `practice.toml`, `regional.toml`), they can instruct the Linux kernel via the GRUB boot menu to load a specific file using a boot parameter: `gallos.config=regional.toml`. This provides maximum flexibility for offline labs.
+- **Default Profile:** Directives are placed directly on the USB drive during creation in `/boot/gallos/config/gallos.toml`, `/boot/gallos/gallos.toml`, or `/gallos/gallos.toml`. The system automatically loads this file at boot.
+- **Support for Multiple Profiles (Boot Parameter & Auto-Discovery):**
+  - **Single Discovered Profile:** If a drive contains a single directives profile (e.g., `/boot/gallos/codeforces-training.gallos.toml`) without a canonical `gallos.toml`, `gallos-daemon` automatically discovers and loads it without requiring manual renaming.
+  - **Explicit Profile Selection:** If an organizer stores multiple profiles on the same USB (e.g., `practice.gallos.toml`, `regional.gallos.toml`), they can instruct the Linux kernel via the GRUB boot menu to load a specific file using a boot parameter: `gallos.config=regional` or `gallos.config=regional.gallos.toml`. The runtime resolver checks candidate search directories (`/boot/gallos/config/`, `/boot/gallos/`, `/gallos/`, `/etc/gallos/`) and tests name variants (`<target>`, `<target>.gallos.toml`, `<target>.toml`). This provides maximum flexibility for multi-day offline labs.
 - **Advantage:** Requires zero internet or external server connectivity. Perfect for air-gapped rooms or offline school invitationals.
 
 ### Method C: Resilient Hybrid Fallback
@@ -88,17 +90,17 @@ Before fetching a remote directives file, GallosOS resolves the target URL throu
 
 ### 2.4 Architectural Separation: `build.toml` vs. `gallos.toml` vs. `machine.toml`
 
-To prevent configuration pollution and keep deployment modular, GallosOS enforces a strict separation of configuration roles:
+To prevent configuration pollution and keep deployment modular, GallosOS enforces a strict separation of configuration roles using standardized compound extensions:
 
-| Configuration Entity | Purpose & Scope | Target Audience | Example Content |
-| :--- | :--- | :--- | :--- |
-| **`build.toml`** | **Container Build Recipe (HOW & BASE):** Used exclusively during ISO compilation. Defines what core Ubuntu packages, kernels, and optimizations are permanently baked into the base OS before the USB is even flashed. | Developers & System Admins (`gallos-builder`) | `base_os = "ubuntu-24.04-minimal"`, `preinstall_apt = ["python3"]`, `strip_docs = true`. |
-| **`gallos.toml`** | **Global Contest Policy (WHAT & WHEN):** Identical for all 50–200 machines in the arena. Governs the rules, schedules, and security constraints of the event. | Contest Organizers & Jury | Schedule windows, `allowed_websites` (judge IPs), available IDEs, firewall rules, printing mode. |
-| **`machine.toml`** | **Local Station Identity (WHO & WHERE):** Unique to each individual USB / physical PC. Defines the physical seat and assigned team metadata. | Flashing station (`gallos-flash`) / Venue Controller | `pc_name = "PC-14"`, `room = "Lab-A"`, `team_name = "Team-42"`, `seat_label = "Desk 03"`. |
-| **`examples/*.toml`** | **Production-Ready Blueprints & Templates:** Pre-baked configuration recipes for popular contest platforms. | Event Organizers | `icpc-onsite.toml`, `maratona-sbc.toml`, `ioi-cms.toml`, `codeforces-training.toml`. |
+| Configuration Entity | Compound Extension | Purpose & Scope | Target Audience | Example Content |
+| :--- | :--- | :--- | :--- | :--- |
+| **`build.toml`** | `*.build.toml` (e.g., `universal.build.toml`) | **Container Build Recipe (HOW & BASE):** Used exclusively during ISO compilation. Defines what core Ubuntu packages, kernels, and optimizations are permanently baked into the base OS before the USB is even flashed. | Developers & System Admins (`gallos-builder`) | `base_os = "ubuntu-24.04-minimal"`, `preinstall_apt = ["python3"]`, `strip_docs = true`. |
+| **`gallos.toml`** | `*.gallos.toml` (e.g., `icpc-onsite.gallos.toml`) | **Global Contest Policy (WHAT & WHEN):** Identical for all 50–200 machines in the arena. Governs the rules, schedules, and security constraints of the event. | Contest Organizers & Jury | Schedule windows, `allowed_websites` (judge IPs), available IDEs, firewall rules, printing mode. |
+| **`machine.toml`** | `*.machine.toml` (e.g., `seat-14.machine.toml`) | **Local Station Identity (WHO & WHERE):** Unique to each individual USB / physical PC. Defines the physical seat and assigned team metadata. | Flashing station (`gallos-flash`) / Venue Controller | `pc_name = "PC-14"`, `room = "Lab-A"`, `team_name = "Team-42"`, `seat_label = "Desk 03"`. |
+| **`examples/*.gallos.toml`** | `.gallos.toml` | **Production-Ready Blueprints & Templates:** Pre-baked configuration recipes for popular contest platforms. | Event Organizers | `icpc-onsite.gallos.toml`, `maratona-sbc.gallos.toml`, `ioi-cms.gallos.toml`, `codeforces-training.gallos.toml`. |
 
 > [!TIP]
-> **How to use `examples/`:** Organizers do not write `gallos.toml` from scratch. For an ICPC regional, simply copy [`examples/icpc-onsite.toml`](../examples/icpc-onsite.toml) (or [`examples/maratona-sbc.toml`](../examples/maratona-sbc.toml) for South America / BOCA) to `gallos.toml` on your server or USB, adjust the competition timestamps, and deploy!
+> **How to use `examples/`:** Organizers do not write `gallos.toml` from scratch. For an ICPC regional, simply copy [`examples/icpc-onsite.gallos.toml`](../examples/icpc-onsite.gallos.toml) (or [`examples/maratona-sbc.gallos.toml`](../examples/maratona-sbc.gallos.toml) for South America / BOCA) to your server or USB, adjust the competition timestamps, and deploy!
 
 ---
 

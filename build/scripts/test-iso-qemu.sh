@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-ISO="$REPO_ROOT/build/output/gallosos-icpc-amd64.iso"
+ISO=""
 UEFI=0
 SECURE_BOOT=0
 TORAM=0
@@ -30,6 +30,18 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
+
+if [[ -z "$ISO" ]]; then
+    for candidate in "$REPO_ROOT/build/output/gallosos-universal-amd64.iso" \
+                     "$REPO_ROOT/build/output/gallos-os-amd64.iso" \
+                     "$REPO_ROOT/build/output/gallosos-icpc-amd64.iso"; do
+        if [[ -f "$candidate" ]]; then
+            ISO="$candidate"
+            break
+        fi
+    done
+    ISO="${ISO:-$REPO_ROOT/build/output/gallosos-universal-amd64.iso}"
+fi
 
 if [[ ! -f "$ISO" ]]; then
     echo "ISO not found: $ISO" >&2

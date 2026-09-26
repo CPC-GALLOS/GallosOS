@@ -1,7 +1,7 @@
 #:schema n/a — build.toml has no published JSON Schema yet (see docs/BUILD_SYSTEM.md).
-# ICPC build profile for the containerized build pipeline (docs/BUILD_SYSTEM.md).
-# Produces a bare bootable console image: no .gsm software modules and no
-# Wayland kiosk shell yet (both deferred to the next increment).
+# Universal base build profile for the containerized build pipeline (docs/BUILD_SYSTEM.md).
+# Compiles the single, universal Live ISO distributed for the GallosOS MVP,
+# capable of running any tournament format via runtime gallos.toml directives.
 
 [build]
 base_os = "ubuntu-24.04-minimal"

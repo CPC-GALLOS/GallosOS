@@ -2,7 +2,7 @@
 # https://taplo.tamasfe.dev/configuration/developing-schemas.html
 
 [[rule]]
-include = ["examples/*.toml", "**/*gallos.toml"]
+include = ["**/*gallos.toml", "examples/*.toml"]
 [rule.schema]
 path = "schema/directives.schema.json"
 

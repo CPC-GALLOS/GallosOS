@@ -32,8 +32,10 @@ for signed in "$GRUB_SIGNED" "$MOK" "$STAGING/casper/vmlinuz"; do
 done
 
 mkdir -p "$STAGING/boot/grub" "$STAGING/gallos/config" "$(dirname "$OUT_ISO")"
-if [[ -f "$REPO_ROOT/examples/icpc-onsite.toml" ]]; then
-    cp "$REPO_ROOT/examples/icpc-onsite.toml" "$STAGING/gallos/config/gallos.toml"
+DEFAULT_DIRECTIVES="$REPO_ROOT/examples/icpc-onsite.gallos.toml"
+DIRECTIVES_SRC="${DIRECTIVES_PROFILE:-$DEFAULT_DIRECTIVES}"
+if [[ -f "$DIRECTIVES_SRC" ]]; then
+    cp "$DIRECTIVES_SRC" "$STAGING/gallos/config/gallos.toml"
 fi
 cat > "$STAGING/boot/grub/grub.cfg" <<EOF
 serial --unit=0 --speed=115200

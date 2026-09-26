@@ -4,9 +4,9 @@ This directory contains production-ready configuration blueprints for the canoni
 
 ---
 
-## 🧭 `gallos.toml` vs. `machine.toml` vs. `examples/*.toml`
+## 🧭 `gallos.toml` vs. `machine.toml` vs. `examples/*.gallos.toml`
 
-To keep deployment modular and easy to manage, GallosOS separates configuration into three clean roles:
+To keep deployment modular and easy to manage, GallosOS separates configuration into three clean roles using standardized compound extensions:
 
 1. **`gallos.toml` (Global Contest Policy — WHAT & WHEN):**
    - The master configuration file governing the **entire competition**.
@@ -16,9 +16,21 @@ To keep deployment modular and easy to manage, GallosOS separates configuration 
    - Unique to each physical workstation / USB drive.
    - Defines: `pc_name = "PC-14"`, `room = "Lab-A"`, `team_name = "Team-42"`, and `seat_label = "Desk 03"`.
    - Injected per-USB automatically by `gallos-flash` during mass writing or assigned dynamically via MAC matching by the **Venue Controller**.
-3. **`examples/*.toml` (Production-Ready Templates):**
+3. **`examples/*.gallos.toml` (Production-Ready Blueprints):**
    - Pre-configured blueprints for popular competitive programming platforms.
-   - **How to use:** Pick the template that matches your contest, copy/rename it to `gallos.toml`, customize your timestamps, and deploy!
+   - **How to use:** Pick the template that matches your contest, customize your timestamps, and deploy!
+   - **Automatic Discovery:** If you drop a single profile (e.g. `codeforces-training.gallos.toml`) onto a Live USB or Ventoy partition, `gallos-daemon` automatically detects and loads it without requiring manual renaming to `gallos.toml`.
+   - **Multi-Profile Selection:** If you keep multiple profiles on the same USB (e.g. Day 1 warmup vs Day 2 finals), select between them via the GRUB boot menu parameter `gallos.config=<profile-name>` (e.g. `gallos.config=codeforces-training`).
+
+---
+
+## ⚙️ Why are all blueprints `*.gallos.toml`? (Build-Time vs. Run-Time)
+
+A common point of confusion for new users is why this directory contains only runtime directives (`*.gallos.toml`) and no build manifests (`*.build.toml`):
+
+- **Build-Time Recipes (`build/profiles/*.build.toml`):** Used strictly during ISO compilation by developers running the containerized build pipeline (`gallos-builder`). The repository maintains its canonical base build recipe at [`build/profiles/universal.build.toml`](../build/profiles/universal.build.toml) (with [`icpc.build.toml`](../build/profiles/icpc.build.toml) symlinked for backwards compatibility; see [`build/profiles/README.md`](../build/profiles/README.md) and [`docs/BUILD_SYSTEM.md`](../docs/BUILD_SYSTEM.md)).
+- **Run-Time Directives (`examples/*.gallos.toml`):** Blueprints in this directory are intended for **contest organizers**. Organizers do not compile custom OS images from scratch; they simply flash the official release ISO and supply one of these blueprints at runtime.
+- **The "Single Universal Base ISO" Principle:** The underlying base system (Ubuntu 24.04 LTS minimal, Linux kernel, Wayland kiosk stack, audio, and device management) is identical across all competitions. **A single ISO built with `universal.build.toml` runs every single contest archetype listed below.** All contest-specific constraints — judge IP whitelists, allowed IDEs, countdown clocks, and desktop lockouts — are evaluated dynamically at boot time by `gallos-daemon`.
 
 ---
 
@@ -28,19 +40,19 @@ Each configuration profile in this directory demonstrates a distinct **real-worl
 
 ### 1. 🏆 In-Person Sanctioned Tournaments (Strict Arena Lockdown)
 
-- [**`icpc-onsite.toml`**](./icpc-onsite.toml) — **Collegiate Regional Championship (ICPC / DOMjudge / BOCA)**
+- [**`icpc-onsite.gallos.toml`**](./icpc-onsite.gallos.toml) — **Collegiate Regional Championship (ICPC / DOMjudge / BOCA)**
   - **Operational Context:** 3 contestants per team sharing 1 workstation for a strict 5-hour window.
   - **Network & Security:** Default-DROP firewall permitting only judge and scoreboard IPs; USB mass storage disabled.
   - **Printing:** External arena CUPS server (`mode = "external"`) with automated team metadata header injection (`[GallosOS Print] Team-42`).
   - **Toolchain:** GCC 14.2.0, OpenJDK 21, PyPy3, Kotlin 1.9, VSCodium, CLion, Geany, Neovim, and offline DevDocs.
 
-- [**`maratona-sbc.toml`**](./maratona-sbc.toml) — **Latin American Multi-Site Championship (Maratona SBC / BOCA)**
+- [**`maratona-sbc.gallos.toml`**](./maratona-sbc.gallos.toml) — **Latin American Multi-Site Championship (Maratona SBC / BOCA)**
   - **Operational Context:** Official Brazilian & South American ICPC regional final.
   - **Network & Security:** Strict BOCA judge whitelisting (`boca.sbc.org.br`), Portuguese/ABNT2 (`br`) default keyboard layout.
   - **Printing:** Venue Controller hosted print spooler (`mode = "hosted"`), targeted via its static IP by default (mDNS discovery is opt-in only — see `docs/ANTI_CHEAT_AND_SECURITY.md` §3.1).
   - **Toolchain:** Parity with SBC contest rules (GCC 14, Java 21, Python 3.12, PyPy3, Byobu terminal multiplexer).
 
-- [**`ioi-cms.toml`**](./ioi-cms.toml) — **International Secondary School Olympiad (IOI / CMS)**
+- [**`ioi-cms.gallos.toml`**](./ioi-cms.gallos.toml) — **International Secondary School Olympiad (IOI / CMS)**
   - **Operational Context:** 1 contestant per workstation, two 5-hour competition days.
   - **Network & Security:** Air-gapped LAN connecting to a local CMS (Contest Management System) server; full root-isolated Wayland kiosk.
   - **Printing:** Arena hall printing queue (`mode = "external"`) for task statements and submitted code review.
@@ -50,7 +62,7 @@ Each configuration profile in this directory demonstrates a distinct **real-worl
 
 ### 2. 🎓 Multi-Day Training Camps & Daily Upsolving (Flexible Time Cycles)
 
-- [**`codeforces-training.toml`**](./codeforces-training.toml) — **Summer/Winter Camps & University Club Practice**
+- [**`codeforces-training.gallos.toml`**](./codeforces-training.gallos.toml) — **Summer/Winter Camps & University Club Practice**
   - **Operational Context:** Multi-day intensive training (e.g., TCMX, ICPC training camps, university labs).
   - **Automated Time Cycle:** Morning lectures/practice $\to$ afternoon virtual contest simulation $\to$ evening upsolving.
   - **Network & Security:** Whitelist for major public practice platforms (Codeforces, AtCoder, CSES, Kattis, VJudge, GitHub).
@@ -61,7 +73,7 @@ Each configuration profile in this directory demonstrates a distinct **real-worl
 
 ### 3. 🛡️ Proctored Remote Examinations & Online Qualifiers (Anti-Cheat Kiosk)
 
-- [**`icpc-online-exam.toml`**](./icpc-online-exam.toml) — **Remote Preliminary Round & Online Assessment**
+- [**`icpc-online-exam.gallos.toml`**](./icpc-online-exam.gallos.toml) — **Remote Preliminary Round & Online Assessment**
   - **Operational Context:** Remote contestants taking an online qualifier or hiring assessment from home or unmonitored labs.
   - **Network & Security:** Strict single-purpose exam lockdown (CodeChef Exam Mode); blocks all external LLMs, AI endpoints, and communication tools.
   - **Auditing:** Scheduled background desktop screenshots and fleet telemetry streaming.
@@ -71,7 +83,7 @@ Each configuration profile in this directory demonstrates a distinct **real-worl
 
 ### 4. 🏫 School & Regional Informatics Olympiads (Bilingual & Accessible)
 
-- [**`omegaup-omi.toml`**](./omegaup-omi.toml) — **National Informatics Olympiad (OMI / omegaUp)**
+- [**`omegaup-omi.gallos.toml`**](./omegaup-omi.gallos.toml) — **National Informatics Olympiad (OMI / omegaUp)**
   - **Operational Context:** High school and junior olympiads (Olimpiada Mexicana de Informática).
   - **Network & Security:** Whitelists omegaUp grader endpoints, CDNs, and official committee portals.
   - **Printing:** Venue Controller hosted print spooler (`mode = "hosted"`).
@@ -93,22 +105,22 @@ When preparing physical drives, **`gallos-flash`** burns the ISO to multiple USB
 ```bash
 # Flash 10 USBs concurrently with the baked-in ICPC profile and sequential PC numbers
 gallos-flash --image gallos-os-amd64.iso \
-             --profile examples/icpc-onsite.toml \
+             --profile examples/icpc-onsite.gallos.toml \
              --drives /dev/sd[b-k] \
              --room "Lab-A" \
              --prefix "PC-"
 ```
 
-### 2. Dynamic Remote Override (`gallos.config_url`) — *Live On-The-Fly Updates*
+### 2. Dynamic Remote Override (`gallos.config`) — *Live On-The-Fly Updates*
 
-- Simply point the bootloader to a remote URL (e.g. via GRUB boot parameter, DHCP option, or `/etc/gallos/sync-server.conf`):
+- Simply point the bootloader to a remote URL (e.g. via GRUB boot parameter `gallos.config=https://...`, DHCP option 235, or `/etc/gallos/sync-server.conf`):
 
   ```text
-  gallos.config_url=https://gist.githubusercontent.com/.../raw/gallos.toml
+  gallos.config=https://gist.githubusercontent.com/.../raw/gallos.toml
   ```
 
 - **Precedence Rule:** At boot, GallosOS checks the remote URL. If available, the **remote directives take precedence and dynamically override the baked-in profile**.
-- **Automatic Fallback:** If the network goes down or the URL times out (5-second safety limit), GallosOS automatically falls back to the **baked-in baseline** created during flashing.
+- **Automatic Fallback:** If the network goes down or the URL times out (5-second safety limit), GallosOS automatically falls back to the **baked-in baseline** created during flashing or discovered on local storage.
 
 ### 3. Visual Authoring (`GallosOS Config Builder`)
 

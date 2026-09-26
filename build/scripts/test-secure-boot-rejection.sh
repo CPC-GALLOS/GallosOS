@@ -3,7 +3,19 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ISO="${1:?Usage: $0 /path/to/gallosos.iso}"
+ISO="${1:-}"
+if [[ -z "$ISO" ]]; then
+    REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+    for candidate in "$REPO_ROOT/build/output/gallosos-universal-amd64.iso" \
+                     "$REPO_ROOT/build/output/gallos-os-amd64.iso" \
+                     "$REPO_ROOT/build/output/gallosos-icpc-amd64.iso"; do
+        if [[ -f "$candidate" ]]; then
+            ISO="$candidate"
+            break
+        fi
+    done
+    ISO="${ISO:-${1:?Usage: $0 /path/to/gallosos.iso}}"
+fi
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 

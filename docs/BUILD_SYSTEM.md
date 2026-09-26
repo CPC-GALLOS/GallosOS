@@ -8,7 +8,7 @@ The ISO assembler uses Ubuntu's packaged signed shim, GRUB, and kernel and write
 make -C build iso
 bash build/scripts/test-iso-qemu.sh --secure-boot --smoke
 bash build/scripts/test-iso-qemu.sh --secure-boot --toram
-bash build/scripts/test-secure-boot-rejection.sh build/output/gallosos-icpc-amd64.iso
+bash build/scripts/test-secure-boot-rejection.sh build/output/gallosos-universal-amd64.iso
 ```
 
 This approach completely eliminates host OS pollution and allows developers to build GallosOS on Linux, macOS, or Windows (via WSL2) without installing tools like `debootstrap`, `mksquashfs`, or `xorriso` on their local machines.
@@ -17,13 +17,21 @@ This approach completely eliminates host OS pollution and allows developers to b
 
 ## 1. The Holy Trinity of GallosOS Configurations
 
-GallosOS separates concerns across three distinct TOML configuration files:
+GallosOS separates concerns across three distinct TOML configuration files using standardized compound extensions:
 
-| Config File | Phase | Description | Web UI? |
-| :--- | :--- | :--- | :--- |
-| **`build.toml`** | **Build-Time** | Used by the `gallos-builder` container to generate a custom ISO (strip blobs, inject apt packages). | ❌ No |
-| **`gallos.toml`** | **Run-Time** | The global contest rules, branding, and mode logic (`Contest`/`Event`/`Default`). | ✅ **Yes (Config Builder)** |
-| **`machine.toml`** | **Run-Time** | The physical identity of the specific workstation (Seat ID, Static IP). | ❌ No (Local Script) |
+| Config File | Compound Extension | Phase | Description | Web UI? |
+| :--- | :--- | :--- | :--- | :--- |
+| **`build.toml`** | `*.build.toml` (e.g. `universal.build.toml`) | **Build-Time** | Used by the `gallos-builder` container to generate a custom ISO (strip blobs, inject apt packages). | ❌ No |
+| **`gallos.toml`** | `*.gallos.toml` (e.g. `icpc-onsite.gallos.toml`) | **Run-Time** | The global contest rules, branding, and mode logic (`Contest`/`Event`/`Default`). | ✅ **Yes (Config Builder)** |
+| **`machine.toml`** | `*.machine.toml` (e.g. `pc-14.machine.toml`) | **Run-Time** | The physical identity of the specific workstation (Seat ID, Static IP). | ❌ No (Local Script) |
+
+### 1.1 The Single Universal Base ISO Principle
+
+A critical design choice in GallosOS is the decoupling of the **immutable operating system base** from **contest-specific runtime rules**:
+
+- **One Base Image for All Contests:** Organizers do not compile distinct ISOs for ICPC vs. IOI vs. Codeforces. A single universal Live ISO image built from [`build/profiles/universal.build.toml`](../build/profiles/universal.build.toml) contains the core kernel, systemd runtime, Wayland compositor (`labwc`), `waybar`, and base utilities.
+- **Dynamic Runtime Personalization:** All tournament-specific variations (whitelisted judge IPs, IDE choices, countdown clocks, USB lockdown policies) are governed by runtime directives in [`examples/*.gallos.toml`](../examples/README.md) loaded dynamically by `gallos-daemon`.
+- **Directory Roles:** Build manifests live in [`build/profiles/`](../build/profiles/README.md) (used by system builders), whereas runtime competition blueprints live in [`examples/`](../examples/README.md) (used by contest organizers).
 
 ---
 
@@ -122,13 +130,13 @@ sudo mount -t tmpfs -o size=8G tmpfs build/output/
 
 (or bind a `/dev/shm`-backed directory there instead). Rootfs population (Stages 2–4) and squashing (Stage 5a) are disk-I/O-bound operations — reading/writing many files, then one large archive — so routing them through RAM instead of a disk-backed filesystem removes that disk round-trip. No speedup is claimed here; this is architectural reasoning about where the I/O goes, not a benchmarked result.
 
-Caveats: `size=8G` is not a spec, just headroom above one observed data point — an `icpc.toml` run on this machine produced a ~1.4 GB rootfs and ~1 GB of staging output (`$STAGING/casper/filesystem.squashfs` alone was ~900 MB), so `build/output/` needs roughly 2.5 GB free plus room for the final ISO; a profile pulling in more `.gsm` modules or `[optimization]` settings will need more. Re-check with `du -sh build/output` against your own profile rather than assuming this figure holds. tmpfs contents don't survive a reboot or unmount, so this is a purely transient build accelerant, not a substitute for `.cache/base-images/`'s cross-run persistence. This is a manual, opt-in host-level step; nothing in `build.toml`, the `Makefile`, or the pipeline scripts currently detects, requires, or automates it.
+Caveats: `size=8G` is not a spec, just headroom above one observed data point — a `universal.build.toml` run on this machine produced a ~1.4 GB rootfs and ~1 GB of staging output (`$STAGING/casper/filesystem.squashfs` alone was ~900 MB), so `build/output/` needs roughly 2.5 GB free plus room for the final ISO; a profile pulling in more `.gsm` modules or `[optimization]` settings will need more. Re-check with `du -sh build/output` against your own profile rather than assuming this figure holds. tmpfs contents don't survive a reboot or unmount, so this is a purely transient build accelerant, not a substitute for `.cache/base-images/`'s cross-run persistence. This is a manual, opt-in host-level step; nothing in `build.toml`, the `Makefile`, or the pipeline scripts currently detects, requires, or automates it.
 
 ---
 
 ## 3. The 5-Stage Container Pipeline (`Makefile` / `Containerfile`)
 
-When a developer runs `make iso CONFIG=profiles/icpc.toml`, the container executes the following stages internally:
+When a developer runs `make iso CONFIG=profiles/universal.build.toml`, the container executes the following stages internally:
 
 ### Stage 1: Base Bootstrap (`debootstrap` or `ubuntu-base` tarball)
 
@@ -164,7 +172,7 @@ To keep the Live OS memory footprint minimal (Crucial for `toram` boot):
 ### Stage 5: Squash & Stitch (`mksquashfs` & `xorriso`)
 
 1. **Stage 5a (Squash):** Compresses the entire optimized rootfs into `filesystem.squashfs` (using `zstd` for high-speed decompression in RAM).
-2. **Stage 5b (ISO):** Sets up the GRUB bootloader for UEFI and Legacy BIOS with `ipv6.disable=1` and uses `xorriso` to output the final hybrid bootable image: `gallosos-<profile>-amd64.iso` (profile-derived from the `CONFIG` `build.toml` filename, e.g. `gallosos-icpc-amd64.iso`). Copying `[modules]` `.gsm` bundles from `build.toml` onto the ISO's `/gallos/modules/` directory is not yet wired into `build-iso.sh` — the `.gsm` *mounting mechanism* (this stage's casper-side counterpart) is implemented per ROADMAP.md Phase 1, but populating an ISO with real bundled modules at build time is separate, still-open work.
+2. **Stage 5b (ISO):** Sets up the GRUB bootloader for UEFI and Legacy BIOS with `ipv6.disable=1` and uses `xorriso` to output the final hybrid bootable image: `gallosos-<profile>-amd64.iso` (profile-derived from the `CONFIG` `*.build.toml` filename, e.g. `gallosos-universal-amd64.iso` from `profiles/universal.build.toml`). Copying `[modules]` `.gsm` bundles from `build.toml` onto the ISO's `/gallos/modules/` directory is not yet wired into `build-iso.sh` — the `.gsm` *mounting mechanism* (this stage's casper-side counterpart) is implemented per ROADMAP.md Phase 1, but populating an ISO with real bundled modules at build time is separate, still-open work.
 
 ---
 

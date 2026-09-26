@@ -1,5 +1,5 @@
 # GallosOS containerized build pipeline (docs/BUILD_SYSTEM.md).
-# Run from build/: `make iso CONFIG=profiles/icpc.toml`
+# Run from build/: `make iso CONFIG=profiles/universal.build.toml`
 
 CONTAINER_ENGINE ?= $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
 
@@ -8,7 +8,7 @@ $(error Neither 'podman' nor 'docker' was found in PATH. Please install Podman o
 endif
 
 IMAGE := gallos-builder
-CONFIG ?= profiles/icpc.toml
+CONFIG ?= profiles/universal.build.toml
 REPO_ROOT := $(abspath ..)
 
 .PHONY: image iso clean
