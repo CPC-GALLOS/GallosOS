@@ -1,7 +1,7 @@
 # GallosOS
 
 > [!WARNING]
-> **Work In Progress:** GallosOS's MVP (Phase 1–3 of `ROADMAP.md`) is implemented — the containerized Live ISO build pipeline, the `gallos-daemon` runtime configuration engine (with full unit-test coverage), and the Wayland kiosk desktop shell. The build pipeline has produced a bootable Phase-1 "walking-skeleton" ISO. One Phase 1 item is still partial (Casper live-boot module mounting, USB auto-mount, `toram`, and remote `gallos.toml` detection at boot), and organizer tooling (`gallos-flash`, `gallos-inject`, `gallos-convert`, the Config Builder — Phase 5) has not been started. **Hardware benchmarking, physical lab trials, and formal academic publications have not occurred** — see `ROADMAP.md` for the full phase-by-phase status.
+> **Work In Progress:** The Phase 1–3 implementation has passed a complete Live-image QEMU test of the signed ISO, host-visible event storage, transition failure recovery, and a Contest-to-Default retry sequence. Physical venue hardware and contestant desktop workflows still need acceptance testing before deployment. Organizer tooling (Phase 5) has not been started. **Hardware benchmarking, physical lab trials, and formal academic publications have not occurred** — see `ROADMAP.md` for the exact status.
 
 **GallosOS** is a modern, lightweight, modular, and reproducible Linux Live distribution engineered specifically for competitive programming across **all scenarios**: weekly university club practices, multi-day training camps, and official ICPC / IOI style tournaments.
 
@@ -74,7 +74,7 @@ pip install ruff
 
 - **Dynamic Online Configuration:** Host a single canonical `gallos.toml` directives file (or legacy `.hdf` migrated via `gallos-convert`) on a **GitHub Gist**, Raw repository, or campus server and update contest times, allowed websites, or bookmarks on the fly *without re-flashing USB drives*.
 - **Baked-In Offline Fallback:** Embed configurations directly onto the USB image at burn-time for 100% offline, air-gapped laboratory environments.
-- **Workspace Persistence Is Not a Built-In Sync Feature:** GallosOS's filesystem is always immutable and never writes to the USB itself, so saving work outside `Contest` mode happens through one of three paths, none of which GallosOS implements directly: an opt-in `event-data` partition on the contestant's own BYOD drive, a manual USB export when mass storage is unlocked outside a Contest window, or reaching a service like GitHub, GitLab, or Google Drive in the browser — which only works because the organizer's `gallos.toml` whitelist happens to permit that domain as part of the semi-free internet policy, the same way it permits any other bookmarked site. All three are hard-suspended or unavailable the instant a `Contest` window starts (see [`docs/CONFIG_SPEC.md`](./docs/CONFIG_SPEC.md) § Mode Hierarchy).
+- **Optional Local Workspace:** Outside `Contest`, the host-mounted `event-data` partition exposes `/media/event-data/contestant` for files the contestant intentionally saves. Contest entry must unmount it before releasing the fresh session. Manual USB export and organizer-allowed external services are separate options (see [`docs/CONFIG_SPEC.md`](./docs/CONFIG_SPEC.md) § Mode Hierarchy).
 
 ---
 
@@ -83,7 +83,6 @@ pip install ruff
 The repository includes comprehensive context documents and architectural specifications:
 
 - **[`AGENTS.md`](./AGENTS.md):** Guidelines, conventions, and context for AI pair-programming agents and human contributors — the canonical ruleset.
-- **[`CLAUDE.md`](./CLAUDE.md):** Claude Code-specific entry point; points back to `AGENTS.md` as the canonical source and adds repo-navigation context for that tool.
 - **[`ROADMAP.md`](./ROADMAP.md):** The step-by-step engineering checklist and feature tracker broken down into Alpha, Beta, and RC phases.
 - **[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md):** Layered filesystem (OverlayFS + SquashFS), Wayland kiosk desktop (Labwc + Waybar), containerized build engine (Podman/Docker), Windows WSL2 + `usbipd-win` workflows, and VM deployment matrices (`.ova`, `.qcow2`).
 - **[`docs/CONFIG_SPEC.md`](./docs/CONFIG_SPEC.md):** Canonical `gallos.toml` directives specification, GallosOS Config Builder web/GUI configurator, 3-tier mode hierarchy ($\text{Contest} \succ \text{Event} \succ \text{Default}$), and `gallos-convert` migration tool.
@@ -91,7 +90,7 @@ The repository includes comprehensive context documents and architectural specif
 - **[`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md):** How to lint, format, and test `gallos-daemon` (`daemon/`) locally with `./scripts/check.sh`, install the pre-commit hooks, and what the GitHub Actions CI gate checks.
 - **[`docs/WAYLAND_DESKTOP.md`](./docs/WAYLAND_DESKTOP.md):** Wayland kiosk desktop specification (Labwc + Waybar + Foot + Mako), keybindings, ergonomic UI modules, and tamper-resistant dotfile architecture.
 - **[`docs/BOOT_BRANDING.md`](./docs/BOOT_BRANDING.md):** Design (not yet implemented, targets Phase 4) for a custom Plymouth boot splash and GRUB boot menu theme, plus an inventory of remaining stock-Ubuntu branding to remove.
-- **[`docs/ROOT_ACCESS.md`](./docs/ROOT_ACCESS.md):** Local-only root recovery mechanism (`su` via an organizer-declared password hash in `gallos.toml`, no SSH/network exposure), available in every mode including Contest.
+- **[`docs/ROOT_ACCESS.md`](./docs/ROOT_ACCESS.md):** Local root recovery (`su` during a normal session, or a password-protected tty1 prompt after transition failure). It requires a locally declared password hash.
 - **[`docs/HARDWARE_COMPATIBILITY.md`](./docs/HARDWARE_COMPATIBILITY.md):** Firmware support (UEFI SecureBoot & Legacy BIOS), RAM boot (`toram`), and minimal hardware specs.
 - **[`docs/ANTI_CHEAT_AND_SECURITY.md`](./docs/ANTI_CHEAT_AND_SECURITY.md):** Threat model, `nftables` kernel packet filtering, Anti-Cheat extension purging (VSCodium / JetBrains), telemetry disabling, USB storage locking, and keyboard layout switching.
 - **[`docs/COMPARATIVE_ANALYSIS.md`](./docs/COMPARATIVE_ANALYSIS.md):** Detailed, source-verified comparison matrix evaluating GallosOS against HuronOS, Maratona Linux, ICPC-Env, and IOI Contestant-VM.
@@ -104,8 +103,8 @@ The repository includes comprehensive context documents and architectural specif
 1. **Ubuntu 24.04 LTS Base, Global Mirrors & UEFI SecureBoot:**
    - Built on Ubuntu 24.04 LTS "Noble Numbat" (Linux Kernel 6.8+): 5-year LTS security updates through 2029+, out-of-the-box driver support for modern Intel/AMD processors, Wi-Fi 6E/7, and Ethernet chipsets common in university labs, and access to Canonical's global package mirrors (build-time) plus GitHub's global CDN and the official Google Drive mirror (`cpc.gallos@gmail.com`) for direct full-sized ISO distribution so organizers building or downloading in Mexico, Brazil, Poland, India, or Japan aren't bottlenecked by a single origin server.
    - Direct `.deb` binary compatibility with Maratona Linux tooling (`maratona-firewall`, `maratona-usuario-icpc`) and official ICPC packages, since both share the Debian/Ubuntu package ecosystem.
-   - **Fully supports UEFI SecureBoot out of the box** — unlike huronOS, which patches the out-of-tree AUFS union filesystem into a custom kernel (breaking cryptographic signatures and forcing organizers to manually disable SecureBoot on every contestant laptop), GallosOS pairs Canonical's signed `shim`, the unmodified signed Ubuntu kernel, and in-tree `overlayfs`/`nftables` modules, so a contestant's personal Windows 11 laptop (which mandates SecureBoot) boots the USB immediately with no BIOS setting changes.
-   - A hybrid GRUB2/Syslinux bootloader also covers Legacy BIOS (CSM), keeping pre-2015 lab hardware usable in venues that haven't upgraded.
+   - The ISO builder assembles Ubuntu's signed shim, GRUB, and kernel and verifies the latter two against Canonical's certificate. The complete GallosOS Live image reached `multi-user.target` in QEMU with Secure Boot enforced, including a `toram` boot. Physical hardware still requires validation before compatibility can be claimed for a venue.
+   - A GRUB BIOS El Torito image and hybrid MBR provide a Legacy BIOS boot path; older lab machines still need venue testing.
    - **Configurable base OS version (`build.toml`):** Ubuntu 24.04 LTS is the only version the GallosOS maintainer builds and tests against, and remains the default for every official release. Organizers needing a different target — an older LTS (`ubuntu-22.04-minimal`) for legacy hardware, a newer LTS (`ubuntu-26.04-minimal`), or an interim non-LTS release for bleeding-edge hardware support — can set `base_os` in `build.toml` and compile a bespoke image via Track 2 (see `docs/BUILD_SYSTEM.md` § 2). These alternate targets are architecturally compatible but **not validated by the upstream maintainer** — treat them as community-supported.
    - **Optional proprietary GPU drivers (`drivers/nvidia-proprietary` `.gsm` module):** For venues with discrete NVIDIA GPUs and no integrated-graphics fallback (e.g. an Intel CPU with no iGPU paired with an RTX-series card), organizers can opt into a proprietary NVIDIA driver module for full graphics acceleration and video playback. This is explicit opt-in — it taints the kernel and requires a one-time, per-machine MOK enrollment to keep SecureBoot enforced (see `docs/HARDWARE_COMPATIBILITY.md` § 1.2). The default image's unmodified-kernel, never-tainted guarantee is unaffected unless a venue turns this on.
 
@@ -192,19 +191,19 @@ The following terms are used consistently across all GallosOS documentation:
 ```text
 GallosOS/
 ├── AGENTS.md                  # Project rules for AI agents and human contributors
-├── CLAUDE.md                  # Claude Code entry point; defers to AGENTS.md as canonical
 ├── ROADMAP.md                 # Development phases and feature checklist
 ├── README.md                  # Project overview and quickstart
 ├── LICENSE                    # GNU General Public License v2.0 or later
 ├── pyproject.toml             # Ruff & Pytest configuration for daemon/
-├── .pre-commit-config.yaml    # Local git pre-commit hooks (Ruff, ShellCheck, hygiene)
+├── .pre-commit-config.yaml    # Local git hooks (Conventional Commits, Ruff, ShellCheck, hygiene)
 ├── .github/
-│   └── workflows/ci.yml       # GitHub Actions: lint, format-check, tests, shellcheck, TOML validation
+│   └── workflows/ci.yml       # GitHub Actions: PR title & commit checks, lint, format, tests, shellcheck, TOML
 ├── daemon/                    # gallos-daemon: runtime mode/config/firewall daemon (Python)
 │   ├── src/                   # main.py, config.py, state_machine.py, firewall.py, etc.
 │   └── tests/                 # Pytest unit test suite (test_*.py, one per src module)
 ├── scripts/                   # Repo-local dev tooling (not part of the ISO build pipeline)
-│   ├── check.sh               # Single pre-flight command: ruff + pytest + shellcheck + TOML
+│   ├── check.sh               # Single pre-flight command: ruff + pytest + shellcheck + TOML + commits
+│   ├── check_commits.py       # Conventional Commits validator (local, git hook, and CI)
 │   └── validate_toml.py       # Syntax-only TOML fallback validator used by check.sh
 ├── docs/                      # Architectural & design specifications
 │   ├── ARCHITECTURE.md        # System design, Wayland, OverlayFS, Build & VM testing

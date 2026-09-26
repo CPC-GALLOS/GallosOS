@@ -13,7 +13,7 @@ This document covers the local development workflow for the Python code in this 
 | [`pytest`](https://docs.pytest.org/) | Yes | Runs the `daemon/tests/` unit test suite. |
 | [`shellcheck`](https://www.shellcheck.net/) | Optional locally | Lints `build/scripts/*.sh`. `scripts/check.sh` skips this step with a warning if `shellcheck` isn't on `PATH`, but it is required in CI and via the pre-commit hook. |
 | [`taplo`](https://taplo.tamasfe.dev/) | Optional locally | Validates TOML files against `schema/directives.schema.json`. If absent, `scripts/check.sh` falls back to `scripts/validate_toml.py`, which only checks TOML *syntax*, not schema conformance. |
-| [`pre-commit`](https://pre-commit.com/) | Optional | Runs a subset of these checks automatically on every `git commit`. |
+| [`pre-commit`](https://pre-commit.com/) | Recommended | Automates local checks on every `git commit` (code formatting, linting, hygiene) and commit message validation via `commit-msg`. |
 
 Install the Python tools with `pip install ruff pytest` (matching what `.github/workflows/ci.yml` installs in CI).
 
@@ -54,9 +54,10 @@ Each `daemon/tests/test_*.py` file mirrors the `daemon/src/*.py` module it exerc
 
 1. **Ruff lint** — `ruff check .`
 2. **Ruff format check** — `ruff format --check .`
-3. **Pytest** — `python3 -m pytest daemon/tests/ -v`
+3. **Pytest** — `python3 -m pytest daemon/tests/ -v` (including `test_check_commits.py`)
 4. **ShellCheck** — `shellcheck build/scripts/*.sh` (skipped with a warning if `shellcheck` isn't installed)
 5. **TOML validation** — `taplo check` if `taplo` is installed (schema-aware), else `python3 scripts/validate_toml.py` (syntax-only fallback covering `pyproject.toml`, `.taplo.toml`, `examples/*.toml`, `build/profiles/*.toml`)
+6. **Conventional Commits validation** — `python3 scripts/check_commits.py` (checks unpushed branch commits against upstream or `HEAD`)
 
 ```sh
 ./scripts/check.sh
@@ -80,6 +81,7 @@ ruff format --check .
 # Run all daemon tests, or a single file
 python3 -m pytest daemon/tests/ -v
 python3 -m pytest daemon/tests/test_state_machine.py -v
+python3 -m pytest daemon/tests/test_check_commits.py -v
 
 # Shell scripts
 shellcheck build/scripts/*.sh
@@ -87,6 +89,12 @@ shellcheck -x build/scripts/*.sh   # also follow `# shellcheck source=` into lib
 
 # TOML syntax only (fallback validator)
 python3 scripts/validate_toml.py
+
+# Conventional Commits validation
+python3 scripts/check_commits.py              # checks unpushed branch commits or HEAD
+python3 scripts/check_commits.py --last 5     # checks last 5 commits
+python3 scripts/check_commits.py --range origin/main..HEAD
+python3 scripts/check_commits.py --msg "feat(daemon): add dynamic reload"
 ```
 
 ---
@@ -97,14 +105,17 @@ Install the hooks once per clone:
 
 ```sh
 pip install pre-commit
-pre-commit install
+pre-commit install --install-hooks
 ```
 
-`.pre-commit-config.yaml` then runs automatically on every `git commit`:
+`pre-commit install --install-hooks` sets up both `pre-commit` and `commit-msg` hooks (as defined in `default_install_hook_types`). `.pre-commit-config.yaml` then runs automatically:
 
-- `ruff` (with `--fix`) and `ruff-format`
-- `shellcheck`, scoped to `build/scripts/*.sh`
-- Standard `pre-commit-hooks`: `trailing-whitespace`, `end-of-file-fixer`, `check-yaml`, `check-toml`, `check-added-large-files`
+- **On `git commit` (pre-commit stage):**
+  - `ruff` (with `--fix`) and `ruff-format`
+  - `shellcheck`, scoped to `build/scripts/*.sh`
+  - Standard `pre-commit-hooks`: `trailing-whitespace`, `end-of-file-fixer`, `check-yaml`, `check-toml`, `check-added-large-files`
+- **On `commit-msg` stage:**
+  - `compilerla/conventional-pre-commit` verifies that the commit message conforms to [Conventional Commits 1.0.0](https://www.conventionalcommits.org/). If the message is non-conforming, the commit is rejected immediately with actionable guidance.
 
 This does not run `pytest` — the test suite is intentionally left to `./scripts/check.sh` and CI, since running the full suite on every commit slows down the local git workflow.
 
@@ -114,19 +125,62 @@ This does not run `pytest` — the test suite is intentionally left to `./script
 
 `.github/workflows/ci.yml` defines a `GallosOS CI` workflow, job `lint-and-test`, triggered on every `push` and `pull_request` targeting `main`. It runs on `ubuntu-24.04` with Python 3.12 and executes:
 
-1. `ruff check .`
-2. `ruff format --check .`
-3. `pytest daemon/tests/ -v`
-4. ShellCheck via `ludeeus/action-shellcheck@master`, scanning `build/scripts`
-5. TOML syntax validation — an inline Python step using `tomllib`, globbing `**/*.toml` **recursively across the entire repository**
+1. Checkout with full commit history (`fetch-depth: 0`)
+2. Pull Request title check via [`amannn/action-semantic-pull-request@v5`](https://github.com/amannn/action-semantic-pull-request) (on `pull_request` events)
+3. Commit messages validation via `python3 scripts/check_commits.py --ci` (validates all commits on the PR branch or push range)
+4. `ruff check .`
+5. `ruff format --check .`
+6. `pytest daemon/tests/ -v`
+7. ShellCheck via `ludeeus/action-shellcheck@master`, scanning `build/scripts` and `scripts/check.sh`
+8. TOML syntax validation — an inline Python step using `tomllib`, globbing `**/*.toml` **recursively across the entire repository**
 
-**Note the TOML-check asymmetry:** CI's step 5 checks every `*.toml` file in the repo, while the local fallback (`scripts/validate_toml.py`, used by `./scripts/check.sh` when `taplo` isn't installed) only checks `pyproject.toml`, `.taplo.toml`, `examples/*.toml`, and `build/profiles/*.toml`. A TOML file outside those patterns can pass locally and still be caught by CI. Also, neither CI nor `pytest` checks the JSON *schema* conformance of `examples/*.toml` / `gallos.toml` against `schema/directives.schema.json` — that's still `taplo`-only (local CLI or the VS Code `tamasfe.even-better-toml` extension).
+**Note the TOML-check asymmetry:** CI's step 8 checks every `*.toml` file in the repo, while the local fallback (`scripts/validate_toml.py`, used by `./scripts/check.sh` when `taplo` isn't installed) only checks `pyproject.toml`, `.taplo.toml`, `examples/*.toml`, and `build/profiles/*.toml`. A TOML file outside those patterns can pass locally and still be caught by CI. Also, neither CI nor `pytest` checks the JSON *schema* conformance of `examples/*.toml` / `gallos.toml` against `schema/directives.schema.json` — that's still `taplo`-only (local CLI or the VS Code `tamasfe.even-better-toml` extension).
 
-This CI workflow covers code quality (`daemon/`, `build/scripts/*.sh`, TOML syntax) — it does not build or boot the ISO itself; that remains a manual process (see [`docs/BUILD_SYSTEM.md`](./BUILD_SYSTEM.md)).
+The main CI workflow covers code quality (`daemon/`, `build/scripts/*.sh`, TOML syntax, Conventional Commits). The separate `iso-boot.yml` workflow builds and boots the ISO in QEMU for pull requests that change `build/` or `daemon/`, including Secure Boot and a modified-kernel rejection check. Physical hardware validation remains manual (see [`docs/BUILD_SYSTEM.md`](./BUILD_SYSTEM.md)).
+
+Before deploying a changed ISO, run the QEMU Secure Boot smoke and rejection commands in `docs/BUILD_SYSTEM.md`. They require QEMU and OVMF on the host. The smoke test checks that the guest reports Secure Boot enforcement and reaches the multi-user target; the negative test changes one kernel byte and checks GRUB rejects it.
 
 ---
 
-## 7. Centralized tool configuration (`pyproject.toml`)
+## 7. Conventional Commits Specification
+
+All commit messages in GallosOS MUST adhere to [Conventional Commits 1.0.0](https://www.conventionalcommits.org/):
+
+```text
+<type>(<optional scope>): <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+### Allowed Types
+
+| Type | When to Use |
+| :--- | :--- |
+| `feat` | Adds a new feature or runtime capability to GallosOS. |
+| `fix` | Fixes a bug or defect in runtime, build scripts, or desktop environment. |
+| `docs` | Documentation-only changes (`docs/`, `README.md`, `AGENTS.md`, etc.). |
+| `style` | Formatting, whitespace, or cosmetic adjustments with no code behavior change. |
+| `refactor` | Code restructuring without fixing a bug or adding a feature. |
+| `perf` | Performance optimizations (e.g. build acceleration, faster boot hooks). |
+| `test` | Adding or updating tests (`daemon/tests/`). |
+| `build` | Changes to build pipelines, Containerfiles, packaging, or dependencies. |
+| `ci` | Changes to CI workflows (`.github/workflows/`), linters, or check scripts. |
+| `chore` | Maintenance tasks, repository hygiene, or gitignore updates. |
+| `revert` | Reverts a previous commit. |
+
+### Rules & Formatting
+
+1. **Imperative Mood:** Use the imperative present tense ("add", "fix", not "added", "fixes").
+2. **Lowercase Subject:** The description starts with a lowercase letter and does not end with a period.
+3. **Optional Scope:** Specify the subsystem when appropriate, e.g. `feat(daemon):`, `fix(ci):`, `docs(anti-cheat):`, `refactor(storage):`.
+4. **Breaking Changes:** Indicate breaking changes with `!` right before the colon (e.g. `feat(daemon)!: drop deprecated IPC command`) or by including a `BREAKING CHANGE:` footer.
+5. **Blank Line Before Body:** If providing a commit body or footer, a blank line MUST separate the subject header from the body.
+
+---
+
+## 8. Centralized tool configuration (`pyproject.toml`)
 
 All Ruff and Pytest configuration lives in `pyproject.toml`, not in ad hoc CLI flags:
 

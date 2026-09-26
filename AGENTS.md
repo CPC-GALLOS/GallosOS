@@ -126,6 +126,14 @@ When assisting in this repository, follow these core tenets:
     - **In-Band (Live OS Core):** Any script running *inside* the contest environment (`gallos-daemon`, hooks) MUST be written in **Bash or Python** to guarantee on-the-fly hackability during a regional event without needing a compiler.
     - **Out-of-Band (Organizer CLI Tools):** Any tool run by the organizer on their host machine (`gallos-flash`, `gallos-convert`) MUST be built as **Statically Compiled Binaries (Rust)** to prevent dependency hell and ensure they work instantly.
 
+11. **Conventional Commits Enforcement:**
+    All git commit messages MUST strictly adhere to the [Conventional Commits 1.0.0](https://www.conventionalcommits.org/) specification:
+    - **Allowed Types:** `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`.
+    - **Structure:** `<type>(<optional scope>): <description>` (e.g., `feat(daemon): implement dynamic reload`, `fix(ci): quote ShellCheck arguments`, `docs: update deployment spec`).
+    - **Imperative Mood & Lowercase:** Write descriptions in the imperative, present tense ("add", "fix", not "added", "fixes"), starting in lowercase, without a trailing period.
+    - **Breaking Changes:** Designated with a `!` directly before the colon (e.g., `feat(daemon)!: drop legacy IPC command`) or an uppercase `BREAKING CHANGE:` footer.
+    - **Rejection Policy:** Vague, non-conforming messages (e.g. `wip`, `update`, `misc fixes`, `changes`) are strictly prohibited and will be rejected automatically by pre-commit hooks (`compilerla/conventional-pre-commit`) and CI pipelines (`.github/workflows/ci.yml`).
+
 ---
 
 ## 💻 Cross-Platform & Virtualization Support
@@ -146,4 +154,5 @@ Agents should ensure instructions and tooling support:
 - Use Mermaid diagrams for complex multi-tier architectures.
 - Include practical code snippets, TOML blocks, and shell commands.
 - Keep documentation up-to-date whenever system specifications evolve.
-- Run `./scripts/check.sh` before proposing changes as complete — it runs Ruff lint/format, the `daemon/tests/` `pytest` suite, `shellcheck` on `build/scripts/*.sh`, and TOML validation in one shot (see `docs/DEVELOPMENT.md`). Run `pre-commit install` once per clone so Ruff and ShellCheck also run automatically on every commit.
+- **Commit messages MUST strictly adhere to [Conventional Commits](https://www.conventionalcommits.org/).**
+- Run `./scripts/check.sh` before proposing changes as complete — it runs Ruff lint/format, the `daemon/tests/` `pytest` suite, `shellcheck` on `build/scripts/*.sh`, TOML validation, and Conventional Commits verification in one shot (see `docs/DEVELOPMENT.md`). Run `pre-commit install --install-hooks` once per clone so Ruff, ShellCheck, and Conventional Commits validation also run automatically on every commit.

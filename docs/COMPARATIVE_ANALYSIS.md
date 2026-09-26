@@ -95,7 +95,7 @@ HuronOS grew into the primary live distribution deployed across three major comp
 
 To deploy huronOS for the official ICPC Gran Premio de México dates and local laboratory workstations at the **Universidad Autónoma de Aguascalientes (UAA)**, the **CPC-GALLOS** competitive programming club created and maintained the repository [**`CPC-GALLOS/icpc-gpm-uaa-huronos`**](https://github.com/CPC-GALLOS/icpc-gpm-uaa-huronos).
 
-Through practical, multi-date contest deployments and workstation provisioning across university computer laboratories, the CPC-GALLOS team encountered severe real-world failure modes and hardware incompatibilities in huronOS alpha 0.4. Mitigating these issues required building complex out-of-band injection scripts (`02-inject-custom-layer.sh`, `02b-inject-vscode-extensions.sh`, `03-configure-nvidia-boot.sh`) to graft missing drivers, network workarounds, and offline toolchains directly into huronOS SquashFS layers. 
+Through practical, multi-date contest deployments and workstation provisioning across university computer laboratories, the CPC-GALLOS team encountered severe real-world failure modes and hardware incompatibilities in huronOS alpha 0.4. Mitigating these issues required building complex out-of-band injection scripts (`02-inject-custom-layer.sh`, `02b-inject-vscode-extensions.sh`, `03-configure-nvidia-boot.sh`) to graft missing drivers, network workarounds, and offline toolchains directly into huronOS SquashFS layers.
 
 The compounding weight of these upstream architectural limitations—combined with the project's stagnation—directly motivated CPC-GALLOS to conceptualize and architect **GallosOS** as a robust, modern, and ground-up replacement.
 

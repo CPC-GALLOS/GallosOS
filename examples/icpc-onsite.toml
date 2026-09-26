@@ -141,4 +141,3 @@ printer_host = "192.168.10.1"
 default_printer = "Lab-A-Lexmark"
 print_metadata_header = true
 max_pages_per_job = 10
-

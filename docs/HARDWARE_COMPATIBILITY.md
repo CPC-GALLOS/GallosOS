@@ -12,23 +12,23 @@ GallosOS uses a hybrid bootloader architecture designed to maximize boot compati
 
 ### 1.1 Legacy BIOS (CSM) vs UEFI
 
-- **Legacy BIOS (PC-BIOS / CSM):** Fully supported. The Live USB includes an `mbr.bin` and the `grub-pc` payload in the boot sector. This ensures compatibility with older university lab computers (pre-2015) that do not support UEFI.
-- **UEFI (Unified Extensible Firmware Interface):** Fully supported. The Live USB includes an EFI System Partition (ESP) with `grub-efi-amd64` binaries, supporting modern 64-bit UEFI firmware natively.
+- **Legacy BIOS (PC-BIOS / CSM):** The hybrid ISO includes a GRUB BIOS El Torito image and hybrid MBR. Verify the actual machine before venue deployment.
+- **UEFI (Unified Extensible Firmware Interface):** The ISO includes an appended FAT EFI System Partition with Ubuntu's signed shim, GRUB, and MokManager. The ISO also carries their optical-media lookup paths.
 
 ### 1.2 The SecureBoot Advantage
 
-Unlike legacy contest distributions (like HuronOS) that relied on patching custom, out-of-tree filesystem modules (AUFS) into the Linux kernel—which inherently breaks cryptographic signatures and forces organizers to manually disable SecureBoot on hundreds of laptops—**GallosOS fully supports UEFI SecureBoot out of the box.**
+The build uses Ubuntu's signed boot chain: Microsoft-trusted shim, Canonical-signed GRUB, and a Canonical-signed kernel. The builder rejects missing signatures and verifies GRUB and the kernel against Canonical's certificate. The complete Live ISO reached `multi-user.target` in QEMU with Secure Boot enforced; a modified kernel was rejected by GRUB in a separate negative test. Physical-machine validation is still required before organizer deployment.
 
 > [!WARNING]
 > **The Legacy Firmware Risk:** The official *Manual de Instalación de Huron OS para Delegados Estatales y Competidores* (OMI 2023) explicitly mandated that delegates and contestants disable both **Secure Boot** and **TPM (Trusted Platform Module)** in firmware. The manual accompanied this with a severe warning: disabling Secure Boot and TPM on modern Windows 11 laptops with BitLocker encryption active can trigger permanent boot failures, BitLocker recovery lockouts, and potential data loss.
 
-GallosOS completely eliminates this hazard by leveraging:
+GallosOS avoids requiring Secure Boot to be disabled by using:
 
 1. **Canonical's Signed `shim` Bootloader:** Microsoft-trusted shim loads the GRUB bootloader.
 2. **Canonical's Signed Linux Kernel:** We use the unmodified, upstream Ubuntu LTS kernel.
 3. **In-Tree Kernel Modules by Default:** By adopting standard `overlayfs` (for the Live filesystem) and `nftables` (for the Anti-Cheat firewall) instead of third-party patches, the signed kernel never complains about tainted or unsigned modules **on the default image**. The one documented, explicit-opt-in exception is the proprietary GPU driver module described in § 1.3 below — everything else stays in-tree.
 
-**Advantage:** Contestants can bring their personal Windows 11 laptops (which mandate SecureBoot) to a competition, plug in the provided GallosOS USB, and boot immediately without digging into BIOS security settings or risking BitLocker key lockouts.
+**Trust boundary:** This conventional Secure Boot chain validates EFI executables and the kernel. It does not authenticate the mutable `gallos.toml`, the initrd, or SquashFS content. Firmware keys and revocation lists differ across machines, so organizers must test the actual venue hardware.
 
 ### 1.3 Optional Proprietary GPU Drivers & MOK-Signed Kernel Taint
 

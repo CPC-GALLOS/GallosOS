@@ -101,7 +101,7 @@ wallpaper = "default"
 software = ["langs/gcc", "langs/g++", "programming/geany"]
 
 # ------------------------------------------------------------------------------
-# Printing Subsystem: Disabled 
+# Printing Subsystem: Disabled
 # ------------------------------------------------------------------------------
 [contest.printing]
 mode = "none"

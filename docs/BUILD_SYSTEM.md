@@ -2,6 +2,15 @@
 
 GallosOS is designed to be **100% reproducible and infrastructure-agnostic**. To achieve this, the entire ISO generation process is isolated inside a **Podman/Docker Container Build System** (`gallos-builder`).
 
+The ISO assembler uses Ubuntu's packaged signed shim, GRUB, and kernel and writes both BIOS and EFI boot entries. It fails if the kernel or GRUB cannot be verified against Canonical's bundled certificate. It places `md5sum.txt` inside the ISO for Casper's media check and writes boot package versions and SHA-256 hashes alongside the ISO. Build verification is separate from physical-machine compatibility.
+
+```sh
+make -C build iso
+bash build/scripts/test-iso-qemu.sh --secure-boot --smoke
+bash build/scripts/test-iso-qemu.sh --secure-boot --toram
+bash build/scripts/test-secure-boot-rejection.sh build/output/gallosos-icpc-amd64.iso
+```
+
 This approach completely eliminates host OS pollution and allows developers to build GallosOS on Linux, macOS, or Windows (via WSL2) without installing tools like `debootstrap`, `mksquashfs`, or `xorriso` on their local machines.
 
 ---
@@ -255,7 +264,7 @@ Official GallosOS release images and organizer utilities are deployed across a d
 ```mermaid
 flowchart TD
     BuildPipeline["Containerized Build Pipeline<br>(GitHub Actions CI/CD / Local Podman)"] --> Artifacts["Generated Build Artifacts<br>• Full Monolithic ISO (3.5–5 GB)<br>• Split ISO Parts (2 GB chunks)<br>• CLI Binaries (gallos-flash, gallos-inject)<br>• Checksums & Signatures (SHA256SUMS, .sig)"]
-    
+
     Artifacts -->|<= 2 GB Assets / Split Parts| GH_Releases["Primary Channel: GitHub Releases CDN<br>• SHA256SUMS & GPG Signatures<br>• CLI Binaries (gallos-flash, gallos-inject, gallos-convert)<br>• Minimal Base ISOs & Split Multi-Part Archives"]
     Artifacts -->|Full Monolithic ISO| GDrive_Mirror["Official Mirror: Google Drive (cpc.gallos@gmail.com)<br>• Single-File Full Monolithic ISO Downloads<br>• High-Speed Regional Mirrors for Mexico & LATAM"]
 ```
@@ -267,4 +276,3 @@ flowchart TD
 2. **Official Monolithic Mirror (Google Drive via `cpc.gallos@gmail.com`):**
    * **Scope:** Managed directly by the CPC-GALLOS organization (`cpc.gallos@gmail.com`) to host full-sized, single-file monolithic `.iso` images without file splitting.
    * **Advantage:** Provides a single-click, direct download path for tournament organizers and university lab administrators across Mexico and Latin America, eliminating multi-part reassembly steps prior to flashing.
-

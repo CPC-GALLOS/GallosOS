@@ -64,7 +64,7 @@ The GallosOS specification mandates a **Strict Default-DROP** policy for all out
 ### 3.1 Kernel Packet Filter (`nftables`)
 
 > [!IMPORTANT]
-> **These sets are rendered per-event by `gallos-daemon`, never copy-pasted as-is.** The elements shown below are illustrative placeholders. `allowed_judge_ips` MUST resolve to the organizer's actual judge host(s) — never a whole RFC1918 supernet (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), which would let a contestant reach every other device on the venue LAN and defeat the judge-only guarantee entirely.
+> **These sets are rendered per-event by `gallos-daemon`, never copy-pasted as-is.** The elements shown below are illustrative placeholders. `allowed_judge_ips` MUST resolve to the organizer's actual judge host(s) — never a whole RFC1918 supernet (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), which would let a contestant reach every other device on the venue LAN and defeat the judge-only guarantee entirely. The daemon keeps the kiosk stopped if applying a required Contest policy fails and reports the error through `gallos-ctl status`.
 
 > [!NOTE]
 > **IPv6 is disabled network-wide, not merely un-whitelisted.** [Precedent: huronOS's own docs (`docs/start/requirements.md`) recommend disabling IPv6 outright because a dual-stack firewall that is only IPv4-aware can let contestants reach IPv6-only destinations unfiltered.] GallosOS follows the same posture: IPv6 is turned off at the kernel level (`ipv6.disable=1` boot parameter, or `net.ipv6.conf.all.disable_ipv6=1` at runtime), and the ruleset below uses `table ip` (IPv4-only), not `table inet` (dual-stack) — so there is no separate IPv6 chain to keep in sync or accidentally leave open.

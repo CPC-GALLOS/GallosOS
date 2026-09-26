@@ -211,15 +211,15 @@ $$\mathbf{Contest} \succ \mathbf{Event} \succ \mathbf{Default}$$
 ```mermaid
 flowchart TD
     Start([Current Time]) --> Q1{Is time inside<br>Contest Window?}
-    
+
     Q1 -- YES --> M1[CONTEST MODE<br>Priority 1]
     style M1 fill:#f9d0c4,stroke:#333,stroke-width:2px
-    
+
     Q1 -- NO --> Q2{Is time inside<br>Event Window?}
-    
+
     Q2 -- YES --> M2[EVENT MODE<br>Priority 2]
     style M2 fill:#d4edda,stroke:#333,stroke-width:2px
-    
+
     Q2 -- NO --> M3[DEFAULT MODE<br>Priority 3]
     style M3 fill:#cce5ff,stroke:#333,stroke-width:2px
 ```
@@ -271,6 +271,8 @@ The following matrix defines the **exact behavior** of every configurable subsys
 
 > [!IMPORTANT]
 > **The Clean State Wipe** is the single most critical anti-cheat mechanism. When `gallos-daemon` transitions into `Contest` mode from any other mode, it kills the Wayland session, purges `/home/contestant/` (destroying all browser caches, bash history, bookmarks, and saved files from the previous session), restores the pristine `/etc/skel` skeleton, and restarts the session. This guarantees that no student can pre-load answers, algorithm templates, or saved code before the contest begins.
+
+The daemon releases the contestant session only after the required firewall, storage, USB, browser-policy, and home-restoration steps succeed. `gallos-ctl status` reports the committed `mode`, `target_mode`, `transition_status` (`pending`, `ready`, or `error`), and `last_error`. If a required step fails, the kiosk stays stopped and the configured local root recovery prompt appears on tty1. Scheduled changes require no password entry; an organizer needs root authentication to issue manual CLI requests.
 
 #### 1. `Default` Mode (Fallback / Always)
 
@@ -457,7 +459,7 @@ end   = "2026-08-29T16:00:00Z"
 
 ### 7.2 `[recovery]` — Local Root Access
 
-See `docs/ROOT_ACCESS.md` for the full design and rationale. In short: `root_password_hash` is a `crypt(3)` hash (never a plaintext password), applied via `chpasswd -e` by `gallos-daemon` at every boot and on every `gallos-ctl reload`. It is available in every mode, including Contest — there is no mode-gating. This field is **always** sourced from the local baked-in `gallos.toml`, even when the rest of the active configuration came from a remote URL, so the hash can never transit or rest in a shared remote config file.
+See `docs/ROOT_ACCESS.md` for the operational behavior. `root_password_hash` is a `crypt(3)` hash (never a plaintext password), applied via `chpasswd -e` by the local `gallos-root-access.service` when the daemon boots or receives `gallos-ctl reload`. It is available in every mode, including Contest. The service reads this field only from local `gallos.toml`, even when the remaining active configuration came from a remote URL. A remote value is ignored; Organizers must keep the hash out of remotely hosted configuration files.
 
 ---
 
