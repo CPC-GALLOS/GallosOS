@@ -1,0 +1,43 @@
+name: GallosOS ISO Boot Verification
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "build/**"
+      - "daemon/**"
+      - ".github/workflows/iso-boot.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  iso-boot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install QEMU and ISO inspection tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 ovmf xorriso
+
+      - name: Build Ubuntu Live ISO in Docker
+        run: make -C build iso CONTAINER_ENGINE=docker
+
+      - name: Verify BIOS boot
+        run: bash build/scripts/test-iso-qemu.sh --smoke --mem 2048
+
+      - name: Verify UEFI boot
+        run: bash build/scripts/test-iso-qemu.sh --uefi --smoke --mem 2048
+
+      - name: Verify enforced Secure Boot
+        run: bash build/scripts/test-iso-qemu.sh --secure-boot --smoke --mem 2048
+
+      - name: Verify Secure Boot toram path
+        run: bash build/scripts/test-iso-qemu.sh --secure-boot --toram --mem 4096
+
+      - name: Verify modified kernel is rejected
+        run: bash build/scripts/test-secure-boot-rejection.sh build/output/gallosos-icpc-amd64.iso

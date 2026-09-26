@@ -13,6 +13,12 @@
       "skillPath": "plugins/shell-scripting/skills/bash-defensive-patterns/SKILL.md",
       "computedHash": "9c63659b9130b214b75f84ec11ac715b647250ca8e0cde2357f4c578d43cfc24"
     },
+    "cloudflare-security-audit-skill": {
+      "source": "reason-machines/security-skills",
+      "sourceType": "github",
+      "skillPath": "skills/cloudflare-security-audit-skill/SKILL.md",
+      "computedHash": "c9ef70c2fdc37e491ed252961999a660a3ec6ec76852a99b16075bce9d004a90"
+    },
     "code-review": {
       "source": "mattpocock/skills",
       "sourceType": "github",
