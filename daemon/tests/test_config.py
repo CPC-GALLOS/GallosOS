@@ -180,6 +180,56 @@ def test_load_local_config_auto_discovers_unique_profile(tmp_path):
     assert source == str(target_file)
 
 
+def test_load_local_config_prefers_unique_profile_over_bundled_baseline(tmp_path):
+    iso_config = tmp_path / "boot" / "gallos" / "config"
+    usb_config = tmp_path / "gallos"
+    iso_config.mkdir(parents=True)
+    usb_config.mkdir()
+    (iso_config / "baseline").mkdir()
+    (iso_config / "baseline" / "baseline.gallos.toml").write_text(
+        'mode = "Contest"\n', encoding="utf-8"
+    )
+    profile = usb_config / "training.gallos.toml"
+    profile.write_text('mode = "Event"\n', encoding="utf-8")
+
+    data, source = load_local_config(search_dirs=[str(iso_config), str(usb_config)])
+
+    assert data["mode"] == "Event"
+    assert source == str(profile)
+
+
+def test_load_local_config_prefers_organizer_canonical_over_named_profile(tmp_path):
+    config_dir = tmp_path / "gallos"
+    config_dir.mkdir()
+    canonical = config_dir / "gallos.toml"
+    canonical.write_text('mode = "Contest"\n', encoding="utf-8")
+    (config_dir / "training.gallos.toml").write_text('mode = "Event"\n', encoding="utf-8")
+    (config_dir / "baseline").mkdir()
+    (config_dir / "baseline" / "baseline.gallos.toml").write_text(
+        'mode = "Default"\n', encoding="utf-8"
+    )
+
+    data, source = load_local_config(search_dirs=[str(config_dir)])
+
+    assert data["mode"] == "Contest"
+    assert source == str(canonical)
+
+
+def test_load_local_config_uses_bundled_baseline_when_profiles_are_ambiguous(tmp_path):
+    config_dir = tmp_path / "boot" / "gallos" / "config"
+    config_dir.mkdir(parents=True)
+    baseline = config_dir / "baseline" / "baseline.gallos.toml"
+    baseline.parent.mkdir()
+    baseline.write_text('mode = "Default"\n', encoding="utf-8")
+    (config_dir / "day-one.gallos.toml").write_text('mode = "Event"\n', encoding="utf-8")
+    (config_dir / "day-two.gallos.toml").write_text('mode = "Contest"\n', encoding="utf-8")
+
+    data, source = load_local_config(search_dirs=[str(config_dir)])
+
+    assert data["mode"] == "Default"
+    assert source == str(baseline)
+
+
 def test_load_local_config_multiple_profiles_ambiguity_returns_none(tmp_path):
     config_dir = tmp_path / "boot" / "gallos"
     config_dir.mkdir(parents=True)

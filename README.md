@@ -105,8 +105,8 @@ The repository includes comprehensive context documents and architectural specif
    - Direct `.deb` binary compatibility with Maratona Linux tooling (`maratona-firewall`, `maratona-usuario-icpc`) and official ICPC packages, since both share the Debian/Ubuntu package ecosystem.
    - The ISO builder assembles Ubuntu's signed shim, GRUB, and kernel and verifies the latter two against Canonical's certificate. The complete GallosOS Live image reached `multi-user.target` in QEMU with Secure Boot enforced, including a `toram` boot. Physical hardware still requires validation before compatibility can be claimed for a venue.
    - A GRUB BIOS El Torito image and hybrid MBR provide a Legacy BIOS boot path; older lab machines still need venue testing.
-   - **Configurable base OS version (`build.toml`):** Ubuntu 24.04 LTS is the only version the GallosOS maintainer builds and tests against, and remains the default for every official release. Organizers needing a different target — an older LTS (`ubuntu-22.04-minimal`) for legacy hardware, a newer LTS (`ubuntu-26.04-minimal`), or an interim non-LTS release for bleeding-edge hardware support — can set `base_os` in `build.toml` and compile a bespoke image via Track 2 (see `docs/BUILD_SYSTEM.md` § 2). These alternate targets are architecturally compatible but **not validated by the upstream maintainer** — treat them as community-supported.
-   - **Optional proprietary GPU drivers (`drivers/nvidia-proprietary` `.gsm` module):** For venues with discrete NVIDIA GPUs and no integrated-graphics fallback (e.g. an Intel CPU with no iGPU paired with an RTX-series card), organizers can opt into a proprietary NVIDIA driver module for full graphics acceleration and video playback. This is explicit opt-in — it taints the kernel and requires a one-time, per-machine MOK enrollment to keep SecureBoot enforced (see `docs/HARDWARE_COMPATIBILITY.md` § 1.2). The default image's unmodified-kernel, never-tainted guarantee is unaffected unless a venue turns this on.
+    - **Configurable base OS version (`build.toml`):** Ubuntu 24.04 LTS is the only version the GallosOS maintainer builds and tests against, and remains the default for every official release. Organizers needing a different target — an older LTS (`ubuntu-22.04-minimal`) for legacy hardware, a newer LTS (`ubuntu-26.04-minimal`), or an interim non-LTS release for bleeding-edge hardware support — can set `base_os` in `build.toml` (e.g. `build/profiles/universal.build.toml`) and compile a bespoke image via Track 2 (see `docs/BUILD_SYSTEM.md` § 2). These alternate targets are architecturally compatible but **not validated by the upstream maintainer** — treat them as community-supported.
+    - **Optional proprietary GPU drivers (`drivers/nvidia-proprietary` `.gsm` module):** For venues with discrete NVIDIA GPUs and no integrated-graphics fallback (e.g. an Intel CPU with no iGPU paired with an RTX-series card), organizers can opt into a proprietary NVIDIA driver module for full graphics acceleration and video playback. This is explicit opt-in — it taints the kernel and requires a one-time, per-machine MOK enrollment to keep SecureBoot enforced (see `docs/HARDWARE_COMPATIBILITY.md` § 1.2). The default image's unmodified-kernel, never-tainted guarantee is unaffected unless a venue turns this on.
 
 2. **Containerized & Reproducible Build System:**
    - The entire ISO generation pipeline (`debootstrap` → chroot provisioning → strip/optimize → SquashFS + `xorriso` stitch) runs inside an isolated OCI container (Podman / Docker), guaranteeing identical builds on Linux, macOS, and Windows WSL2 without polluting the host OS, plus GitHub Actions CI/CD QA on every release.
@@ -115,7 +115,7 @@ The repository includes comprehensive context documents and architectural specif
    - Windows-based organizers can build, test, and flash without dual-booting via WSL2 + `usbipd-win` USB passthrough — a secondary convenience path; native Linux remains the primary development target for direct `/dev/sdX` block-device access.
 
 3. **Infrastructure-Agnostic Directives Ingestion (5-Tier Deployment Spectrum):**
-   - A `config_url` auto-discovery priority chain resolves where `gallos.toml` comes from — GRUB boot parameter → DHCP Option 235 (deliberately not the commonly-cited 252, which collides with WPAD on real campus networks) → the Venue Controller's `sync-server.conf` → baked-in local fallback — first match wins, and a 5-second remote-fetch timeout with automatic fallback to the cached local config (with a Plymouth + desktop warning) guarantees every machine still boots into a working state if the network is down.
+   - A configuration auto-discovery priority chain resolves where `gallos.toml` comes from — GRUB boot parameter (`gallos.config=<url_or_profile>`) → DHCP Option 235 (deliberately not the commonly-cited 252, which collides with WPAD on real campus networks) → the Venue Controller's `sync-server.conf` → baked-in local fallback — first match wins, and a 5-second remote-fetch timeout with automatic fallback to the cached local config (with a Plymouth + desktop warning) guarantees every machine still boots into a working state if the network is down.
    - Five deployment tiers, each a fully production-ready standalone deployment on its own: **Tier 0** fully air-gapped (baked-in config, zero networking required); **Tier 1** an existing lab router with one added DHCP Option 235 line; **Tier 2** URL-driven sync over any reachable HTTP endpoint — a Gist, campus server, or personal VPS (the HuronOS-style model); **Tier 3** an optional dedicated GallosOS Venue Controller adding fleet monitoring, MAC-based machine identity, printing, and audit aggregation; **Tier 4** externally managed institutional IT infrastructure integrated via standard DHCP/NTP/CUPS protocols. GallosOS never assumes any tier beyond 0 is present, nor that a Venue Controller, internet connectivity, or PXE infrastructure exists.
 
 4. **Trustworthy Time Synchronization:**
@@ -198,6 +198,11 @@ GallosOS/
 ├── .pre-commit-config.yaml    # Local git hooks (Conventional Commits, Ruff, ShellCheck, hygiene)
 ├── .github/
 │   └── workflows/ci.yml       # GitHub Actions: PR title & commit checks, lint, format, tests, shellcheck, TOML
+├── build/                     # Containerized ISO build pipeline (Podman / Docker)
+│   ├── profiles/              # Declarative build manifests (*.build.toml)
+│   │   ├── README.md          # Build profile catalog and Track 2 customization guide
+│   │   └── universal.build.toml # Canonical MVP base image recipe (gallosos-universal-amd64.iso)
+│   └── scripts/               # Staged build scripts (bootstrap, provision, harden, optimize)
 ├── daemon/                    # gallos-daemon: runtime mode/config/firewall daemon (Python)
 │   ├── src/                   # main.py, config.py, state_machine.py, firewall.py, etc.
 │   └── tests/                 # Pytest unit test suite (test_*.py, one per src module)
@@ -216,12 +221,13 @@ GallosOS/
 │   ├── COMPARATIVE_ANALYSIS.md# In-depth comparison with existing contest distributions
 │   └── PROVENANCE.md          # Third-party code, vendored assets & attribution ledger
 ├── examples/                  # Production-ready gallos.toml configuration profiles
-│   ├── icpc-onsite.toml       # ICPC Regional / World Finals (BOCA/DOMjudge, GCC 14, Java 21)
-│   ├── maratona-sbc.toml      # Maratona SBC / South America Regional (BOCA, ABNT2, GCC 14)
-│   ├── icpc-online-exam.toml  # ICPC Preliminary Online (CodeChef Exam Mode lockdown)
-│   ├── codeforces-training.toml # Camp & practice mode (Codeforces, AtCoder, Clang, Rust)
-│   ├── ioi-cms.toml           # IOI / National Olympiad (CMS Judge, C++23 focus)
-│   └── omegaup-omi.toml       # OMI & Latin American Olympiads (omegaUp platform)
+│   ├── README.md              # Profile catalog, gallos.toml vs machine.toml, deployment & config precedence
+│   ├── codeforces-training.gallos.toml # Camp & practice mode (Codeforces, AtCoder, Clang, Rust)
+│   ├── icpc-online-exam.gallos.toml  # ICPC Preliminary Online (CodeChef Exam Mode lockdown)
+│   ├── icpc-onsite.gallos.toml       # ICPC Regional / World Finals (BOCA/DOMjudge, GCC 14, Java 21)
+│   ├── ioi-cms.gallos.toml           # IOI / National Olympiad (CMS Judge, C++23 focus)
+│   ├── maratona-sbc.gallos.toml      # Maratona SBC / South America Regional (BOCA, ABNT2, GCC 14)
+│   └── omegaup-omi.gallos.toml       # OMI & Latin American Olympiads (omegaUp platform)
 └── schema/                    # Directives validation schemas
     └── directives.schema.json # JSON Schema for gallos.toml (taplo integration)
 ```

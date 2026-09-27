@@ -33,7 +33,6 @@ echo "=== Stage 5b: ISO ==="
 
 if [[ "$PROFILE_NAME" == "universal" ]]; then
     ln -sf "gallosos-universal-amd64.iso" "$OUT_DIR/gallos-os-amd64.iso"
-    ln -sf "gallosos-universal-amd64.iso" "$OUT_DIR/gallosos-icpc-amd64.iso"
 fi
 
 echo "=== Done: $ISO ==="

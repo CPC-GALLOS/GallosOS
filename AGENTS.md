@@ -35,6 +35,11 @@ GallosOS/
 ├── AGENTS.md                  # This file (guidelines for agents & contributors)
 ├── ROADMAP.md                 # Development phases and feature checklist
 ├── README.md                  # Project overview and quickstart
+├── build/                     # Containerized ISO build pipeline (Podman / Docker)
+│   ├── profiles/              # Declarative build manifests (*.build.toml)
+│   │   ├── README.md          # Build profile catalog and Track 2 customization guide
+│   │   └── universal.build.toml # Canonical MVP base image recipe (gallosos-universal-amd64.iso)
+│   └── scripts/               # Staged build scripts (bootstrap, provision, harden, optimize)
 ├── docs/                      # Architectural & design specifications
 │   ├── ARCHITECTURE.md        # Detailed system design, Wayland, OverlayFS, Build & VM testing
 │   ├── CONFIG_SPEC.md         # Canonical TOML directives, GallosOS Config Builder, mode hierarchy & .hdf migration
@@ -46,12 +51,12 @@ GallosOS/
 │   └── PROVENANCE.md          # Third-party code, vendored assets & attribution ledger
 ├── examples/                  # Production-ready gallos.toml configuration profiles
 │   ├── README.md              # Profile catalog, gallos.toml vs machine.toml, deployment & config precedence
-│   ├── icpc-onsite.toml       # ICPC Regional / World Finals (BOCA/DOMjudge, GCC 14, Java 21)
-│   ├── maratona-sbc.toml      # Maratona SBC / South America Regional (BOCA, ABNT2, GCC 14)
-│   ├── icpc-online-exam.toml  # ICPC Preliminary Online (CodeChef Exam Mode lockdown)
-│   ├── codeforces-training.toml # Camp & practice mode (Codeforces, AtCoder, Clang, Rust)
-│   ├── ioi-cms.toml           # IOI / National Olympiad (CMS Judge, C++23 focus)
-│   └── omegaup-omi.toml       # OMI & Latin American Olympiads (omegaUp platform)
+│   ├── codeforces-training.gallos.toml # Camp & practice mode (Codeforces, AtCoder, Clang, Rust)
+│   ├── icpc-online-exam.gallos.toml  # ICPC Preliminary Online (CodeChef Exam Mode lockdown)
+│   ├── icpc-onsite.gallos.toml       # ICPC Regional / World Finals (BOCA/DOMjudge, GCC 14, Java 21)
+│   ├── ioi-cms.gallos.toml           # IOI / National Olympiad (CMS Judge, C++23 focus)
+│   ├── maratona-sbc.gallos.toml      # Maratona SBC / South America Regional (BOCA, ABNT2, GCC 14)
+│   └── omegaup-omi.gallos.toml       # OMI & Latin American Olympiads (omegaUp platform)
 └── schema/                    # Directives validation schemas
     └── directives.schema.json # JSON Schema for gallos.toml (taplo integration)
 ```

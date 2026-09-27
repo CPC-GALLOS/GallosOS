@@ -90,8 +90,10 @@ Priority 3 — Local Config File (written by Venue Controller or manually)
   ↳ Written by the GallosOS Venue Controller on its first connection to a
     contestant machine, or manually injected at flash time for static setups.
 
-Priority 4 — None (Standalone / Air-Gapped)
-  No config_url resolved → boot directly from baked-in /boot/gallos/gallos.toml.
+Priority 4 — Local Directives (Standalone / Air-Gapped)
+  No config_url resolved → load an organizer's gallos.toml, one named
+  *.gallos.toml profile, or the bundled
+  /boot/gallos/config/baseline/baseline.gallos.toml.
 ```
 
 ### 2.2 Remote Fetch & Fallback Sequence
@@ -103,7 +105,7 @@ sequenceDiagram
     participant Boot as GallosOS Boot Process
     participant Net as Network & NTP Stack
     participant Remote as Remote URL (Gist / Raw GitHub / Server)
-    participant Local as Baked-In / Cached Config (/boot/gallos/gallos.toml)
+    participant Local as Local Config (gallos.toml / named profile / baseline.gallos.toml)
     participant Daemon as Gallos Daemon (Mode & Firewall Controller)
 
     Boot->>Net: Initialize network interface & synchronize NTP
@@ -114,12 +116,12 @@ sequenceDiagram
             Remote-->>Boot: Return latest gallos.toml
             Boot->>Daemon: Apply remote directives & update local cache
         else Remote Timeout or Network Down
-            Boot->>Local: Read baked-in fallback gallos.toml
+            Boot->>Local: Read organizer policy, named profile, or ISO baseline
             Boot->>Daemon: Apply cached fallback directives
             Note over Boot,Daemon: Plymouth warning + desktop notification shown
         end
     else No config_url resolved (Standalone / Air-Gapped)
-        Boot->>Local: Read baked-in gallos.toml directly
+        Boot->>Local: Read organizer policy, named profile, or ISO baseline
         Boot->>Daemon: Apply local directives
     end
 ```

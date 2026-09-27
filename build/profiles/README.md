@@ -29,7 +29,7 @@ For the GallosOS Minimum Viable Product (MVP), **only one official `.iso` is com
 All contest-specific behaviors (allowed judge IPs, IDE choices, countdown clocks, USB lockdown policies) are applied dynamically at boot by [`gallos-daemon`](../../daemon/) reading a `gallos.toml` file. **Organizers do not compile custom ISOs for every competition — the single universal ISO runs them all.**
 
 ### 2. The Universal Reference Baseline
-[`universal.build.toml`](./universal.build.toml) (with [`icpc.build.toml`](./icpc.build.toml) maintained as a backward-compatible symlink) is the canonical, maintainer-tested recipe. It validates:
+[`universal.build.toml`](./universal.build.toml) is the canonical, maintainer-tested recipe. It validates:
 - Containerized bootstrapping via `debootstrap` or verified `ubuntu-base` tarballs.
 - Hybrid UEFI (Canonical signed shim + GRUB) and Legacy PC-BIOS booting.
 - Live system OverlayFS layering and `casper` live-boot hooks.
@@ -62,4 +62,4 @@ make -C build iso
 make -C build iso CONFIG=profiles/my-custom.build.toml
 ```
 
-The output image will be generated under `build/output/gallosos-universal-amd64.iso` (with convenience symlink `gallos-os-amd64.iso`).
+The output image is named after the build profile: the default produces `build/output/gallosos-universal-amd64.iso` (also available as `gallos-os-amd64.iso`), while the custom example produces `build/output/gallosos-my-custom-amd64.iso`.

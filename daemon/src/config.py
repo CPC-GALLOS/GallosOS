@@ -172,9 +172,8 @@ def _discover_unique_profile(dirs: list[str], suffix: str) -> str | None:
 def load_local_config(search_dirs: list[str] | None = None) -> tuple[dict[str, Any] | None, str]:
     """Finds and loads the primary local gallos.toml config file.
 
-    Checks canonical gallos.toml locations first. If none is found, checks if
-    exactly one *.gallos.toml profile is present across the search directories and
-    auto-loads it.
+    Prefers an organizer's canonical file, then one named profile, then the
+    baseline/baseline.gallos.toml bundled with the ISO.
     """
     dirs = search_dirs if search_dirs is not None else CONFIG_SEARCH_DIRECTORIES
     # 1. Exact gallos.toml matches in priority order
@@ -199,6 +198,18 @@ def load_local_config(search_dirs: list[str] | None = None) -> tuple[dict[str, A
             return data, discovered
         except Exception as e:
             print(f"[config] Failed to parse profile {discovered}: {e}", file=sys.stderr)
+
+    # 3. The ISO baseline must not shadow a profile added by an organizer.
+    for d in dirs:
+        candidate = os.path.join(d, "baseline", "baseline.gallos.toml")
+        if os.path.isfile(candidate):
+            try:
+                with open(candidate, "rb") as f:
+                    data = tomllib.load(f)
+                print(f"[config] Loaded bundled baseline from {candidate}")
+                return data, candidate
+            except Exception as e:
+                print(f"[config] Failed to parse {candidate}: {e}", file=sys.stderr)
 
     return None, ""
 
@@ -251,7 +262,7 @@ def is_config_expired(config: dict[str, Any]) -> bool:
 
 
 def _load_local_recovery_hash() -> str | None:
-    """Loads recovery.root_password_hash from a local baked-in gallos.toml only.
+    """Loads recovery.root_password_hash from local directives only.
 
     Deliberately never sourced from a remotely-fetched config: gallos.toml can be
     hosted on a shared Gist/server (see fetch_remote_config above), and a root

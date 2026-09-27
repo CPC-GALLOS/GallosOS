@@ -19,7 +19,7 @@ To keep deployment modular and easy to manage, GallosOS separates configuration 
 3. **`examples/*.gallos.toml` (Production-Ready Blueprints):**
    - Pre-configured blueprints for popular competitive programming platforms.
    - **How to use:** Pick the template that matches your contest, customize your timestamps, and deploy!
-   - **Automatic Discovery:** If you drop a single profile (e.g. `codeforces-training.gallos.toml`) onto a Live USB or Ventoy partition, `gallos-daemon` automatically detects and loads it without requiring manual renaming to `gallos.toml`.
+   - **Automatic Discovery:** If you place a single profile (e.g. `codeforces-training.gallos.toml`) on a Live USB or Ventoy partition without an organizer's `gallos.toml`, `gallos-daemon` loads it ahead of the ISO's bundled baseline without requiring manual renaming.
    - **Multi-Profile Selection:** If you keep multiple profiles on the same USB (e.g. Day 1 warmup vs Day 2 finals), select between them via the GRUB boot menu parameter `gallos.config=<profile-name>` (e.g. `gallos.config=codeforces-training`).
 
 ---
@@ -28,7 +28,7 @@ To keep deployment modular and easy to manage, GallosOS separates configuration 
 
 A common point of confusion for new users is why this directory contains only runtime directives (`*.gallos.toml`) and no build manifests (`*.build.toml`):
 
-- **Build-Time Recipes (`build/profiles/*.build.toml`):** Used strictly during ISO compilation by developers running the containerized build pipeline (`gallos-builder`). The repository maintains its canonical base build recipe at [`build/profiles/universal.build.toml`](../build/profiles/universal.build.toml) (with [`icpc.build.toml`](../build/profiles/icpc.build.toml) symlinked for backwards compatibility; see [`build/profiles/README.md`](../build/profiles/README.md) and [`docs/BUILD_SYSTEM.md`](../docs/BUILD_SYSTEM.md)).
+- **Build-Time Recipes (`build/profiles/*.build.toml`):** Used strictly during ISO compilation by developers running the containerized build pipeline (`gallos-builder`). The repository maintains its canonical base build recipe at [`build/profiles/universal.build.toml`](../build/profiles/universal.build.toml); see [`build/profiles/README.md`](../build/profiles/README.md) and [`docs/BUILD_SYSTEM.md`](../docs/BUILD_SYSTEM.md).
 - **Run-Time Directives (`examples/*.gallos.toml`):** Blueprints in this directory are intended for **contest organizers**. Organizers do not compile custom OS images from scratch; they simply flash the official release ISO and supply one of these blueprints at runtime.
 - **The "Single Universal Base ISO" Principle:** The underlying base system (Ubuntu 24.04 LTS minimal, Linux kernel, Wayland kiosk stack, audio, and device management) is identical across all competitions. **A single ISO built with `universal.build.toml` runs every single contest archetype listed below.** All contest-specific constraints — judge IP whitelists, allowed IDEs, countdown clocks, and desktop lockouts — are evaluated dynamically at boot time by `gallos-daemon`.
 

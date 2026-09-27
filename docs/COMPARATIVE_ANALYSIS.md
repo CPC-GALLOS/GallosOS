@@ -292,7 +292,7 @@ Inspection of the official **`maratona-linux/maratona-linux`** super-repository 
 ### How GallosOS Unifies and Elevates Maratona Linux
 
 - **Native Live ISO / OverlayFS:** GallosOS encapsulates the entire Maratona package ecosystem into an immutable, fast-booting Live USB with ephemeral RAM overlays, eliminating the need to install or modify local OS partitions.
-- **Declarative TOML Profile ([`maratona-sbc.toml`](../examples/maratona-sbc.toml)):** Provides a drop-in profile implementing Maratona's toolchains (GCC 14, Java 21, Kotlin 2.1, Python 3.12, PyPy3, VSCodium, CLion, Byobu) and BOCA firewall rules declaratively.
+- **Declarative TOML Profile ([`maratona-sbc.gallos.toml`](../examples/maratona-sbc.gallos.toml)):** Provides a drop-in profile implementing Maratona's toolchains (GCC 14, Java 21, Kotlin 2.1, Python 3.12, PyPy3, VSCodium, CLion, Byobu) and BOCA firewall rules declaratively.
 - **Modern Kernel Filtering (`nftables`):** Replaces `ufw`/`iptables` scripts with dynamic, kernel-level `nftables` sets that update instantly without package reconfigurations.
 - **Process Isolation:** Runs under **Wayland (Labwc + Waybar)**, closing X11 security holes while preserving full terminal and IDE capabilities.
 
@@ -554,7 +554,7 @@ These projects offer well-tested software lists, user permission configs, and pa
 3. **[`ioi-2025/contestant-vm`](https://github.com/ioi-2025/contestant-vm) (IOI Technical Committee Annual Manifests):**
    - Rather than maintaining a centralized static organization, the IOI Technical Committee releases annual repositories (e.g. `ioi-2023/contestant-vm`, `ioi-2025/contestant-vm`), with `ioi-2025` representing the current baseline.
    - While the VM infrastructure itself differs from GallosOS's Live USB architecture, the software manifest represents the **gold standard approved by the IOI Technical Committee**.
-   - Serves as the canonical reference for exact compiler versions, flags, and editor plugins whenever targeting IOI and national olympiad profiles (`examples/ioi-cms.toml`).
+   - Serves as the canonical reference for exact compiler versions, flags, and editor plugins whenever targeting IOI and national olympiad profiles (`examples/ioi-cms.gallos.toml`).
 
 4. **[`icpcsysops/devdocs`](https://github.com/icpcsysops/devdocs) (Production Precedent for Offline Docs):**
    - A fork of upstream [`freeCodeCamp/devdocs`](https://github.com/freeCodeCamp/devdocs) maintained by the same ICPC Systems Operations team behind `icpcsysops/ansible` (§9), actively pushed as recently as **2026-08-20**.

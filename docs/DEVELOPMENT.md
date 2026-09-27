@@ -56,7 +56,7 @@ Each `daemon/tests/test_*.py` file mirrors the `daemon/src/*.py` module it exerc
 2. **Ruff format check** — `ruff format --check .`
 3. **Pytest** — `python3 -m pytest daemon/tests/ -v` (including `test_check_commits.py`)
 4. **ShellCheck** — `shellcheck build/scripts/*.sh` (skipped with a warning if `shellcheck` isn't installed)
-5. **TOML validation** — `taplo check` if `taplo` is installed (schema-aware), else `python3 scripts/validate_toml.py` (syntax-only fallback covering `pyproject.toml`, `.taplo.toml`, `examples/*.toml`, `build/profiles/*.toml`)
+5. **TOML validation** — `taplo check` if `taplo` is installed (schema-aware), else `python3 scripts/validate_toml.py` (syntax-only fallback covering `pyproject.toml`, `.taplo.toml`, `examples/*.gallos.toml`, `build/profiles/*.build.toml`)
 6. **Conventional Commits validation** — `python3 scripts/check_commits.py` (checks unpushed branch commits against upstream or `HEAD`)
 
 ```sh
@@ -134,7 +134,7 @@ This does not run `pytest` — the test suite is intentionally left to `./script
 7. ShellCheck via `ludeeus/action-shellcheck@master`, scanning `build/scripts` and `scripts/check.sh`
 8. TOML syntax validation — an inline Python step using `tomllib`, globbing `**/*.toml` **recursively across the entire repository**
 
-**Note the TOML-check asymmetry:** CI's step 8 checks every `*.toml` file in the repo, while the local fallback (`scripts/validate_toml.py`, used by `./scripts/check.sh` when `taplo` isn't installed) only checks `pyproject.toml`, `.taplo.toml`, `examples/*.toml`, and `build/profiles/*.toml`. A TOML file outside those patterns can pass locally and still be caught by CI. Also, neither CI nor `pytest` checks the JSON *schema* conformance of `examples/*.toml` / `gallos.toml` against `schema/directives.schema.json` — that's still `taplo`-only (local CLI or the VS Code `tamasfe.even-better-toml` extension).
+**Note the TOML-check asymmetry:** CI's step 8 checks every `*.toml` file in the repo, while the local fallback (`scripts/validate_toml.py`, used by `./scripts/check.sh` when `taplo` isn't installed) checks target patterns (`pyproject.toml`, `.taplo.toml`, `examples/*.gallos.toml`, `build/profiles/*.build.toml`). A TOML file outside those patterns can pass locally and still be caught by CI. Also, neither CI nor `pytest` checks the JSON *schema* conformance of `examples/*.gallos.toml` / `gallos.toml` against `schema/directives.schema.json` — that's still `taplo`-only (local CLI or the VS Code `tamasfe.even-better-toml` extension).
 
 The main CI workflow covers code quality (`daemon/`, `build/scripts/*.sh`, TOML syntax, Conventional Commits). The separate `iso-boot.yml` workflow builds and boots the ISO in QEMU for pull requests that change `build/` or `daemon/`, including Secure Boot and a modified-kernel rejection check. Physical hardware validation remains manual (see [`docs/BUILD_SYSTEM.md`](./BUILD_SYSTEM.md)).
 
@@ -199,4 +199,4 @@ Changing a lint rule or complexity threshold means editing `pyproject.toml`, not
 
 - `charliermarsh.ruff` as the default Python formatter, with format-on-save and `source.fixAll.ruff` / `source.organizeImports.ruff` on save.
 - `python.testing.pytestEnabled: true` with `pytestArgs: ["daemon/tests"]`, so the Testing sidebar discovers and runs the suite directly.
-- `tamasfe.even-better-toml` (recommended in `.vscode/extensions.json`) for live TOML schema validation against `schema/directives.schema.json` while editing `gallos.toml` / `examples/*.toml`.
+- `tamasfe.even-better-toml` (recommended in `.vscode/extensions.json`) for live TOML schema validation against `schema/directives.schema.json` while editing `gallos.toml` / `examples/*.gallos.toml`.

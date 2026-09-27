@@ -172,7 +172,7 @@ To keep the Live OS memory footprint minimal (Crucial for `toram` boot):
 ### Stage 5: Squash & Stitch (`mksquashfs` & `xorriso`)
 
 1. **Stage 5a (Squash):** Compresses the entire optimized rootfs into `filesystem.squashfs` (using `zstd` for high-speed decompression in RAM).
-2. **Stage 5b (ISO):** Sets up the GRUB bootloader for UEFI and Legacy BIOS with `ipv6.disable=1` and uses `xorriso` to output the final hybrid bootable image: `gallosos-<profile>-amd64.iso` (profile-derived from the `CONFIG` `*.build.toml` filename, e.g. `gallosos-universal-amd64.iso` from `profiles/universal.build.toml`). Copying `[modules]` `.gsm` bundles from `build.toml` onto the ISO's `/gallos/modules/` directory is not yet wired into `build-iso.sh` — the `.gsm` *mounting mechanism* (this stage's casper-side counterpart) is implemented per ROADMAP.md Phase 1, but populating an ISO with real bundled modules at build time is separate, still-open work.
+2. **Stage 5b (ISO):** Sets up the GRUB bootloader for UEFI and Legacy BIOS with `ipv6.disable=1` and uses `xorriso` to output the final hybrid bootable image: `gallosos-<profile>-amd64.iso` (profile-derived from the `CONFIG` `*.build.toml` filename, e.g. `gallosos-universal-amd64.iso` from `profiles/universal.build.toml`). The ICPC example is bundled as `/gallos/config/baseline/baseline.gallos.toml`; an organizer's canonical `gallos.toml` or unique `*.gallos.toml` takes precedence at boot. The baseline stays in a subdirectory so automatic profile discovery does not count it. Copying `[modules]` `.gsm` bundles from `build.toml` onto the ISO's `/gallos/modules/` directory is not yet wired into `build-iso.sh` — the `.gsm` *mounting mechanism* (this stage's casper-side counterpart) is implemented per ROADMAP.md Phase 1, but populating an ISO with real bundled modules at build time is separate, still-open work.
 
 ---
 
@@ -241,7 +241,7 @@ flowchart TD
 
 ```bash
 # Update runtime configuration without touching OS binaries:
-gallos-inject --config examples/icpc-onsite.toml /dev/sdb1
+gallos-inject --config examples/icpc-onsite.gallos.toml /dev/sdb1
 
 # Replace event wallpaper:
 gallos-inject --wallpaper assets/icpc-gpm-2026.png /dev/sdb1
@@ -253,7 +253,7 @@ gallos-inject --add-module build/modules/programming-vsc-cph.gsm /dev/sdb1
 gallos-inject --custom-layer ./custom-lab-overrides/ /dev/sdb1
 
 # Multi-target batch mode: Auto-detect all mounted GALLOS_BOOT drives and update in parallel:
-gallos-inject --all-drives --config icpc-date3.toml --wallpaper gpm-wallpaper.png
+gallos-inject --all-drives --config icpc-date3.gallos.toml --wallpaper gpm-wallpaper.png
 ```
 
 ---

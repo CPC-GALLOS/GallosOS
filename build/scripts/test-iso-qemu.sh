@@ -33,8 +33,7 @@ done
 
 if [[ -z "$ISO" ]]; then
     for candidate in "$REPO_ROOT/build/output/gallosos-universal-amd64.iso" \
-                     "$REPO_ROOT/build/output/gallos-os-amd64.iso" \
-                     "$REPO_ROOT/build/output/gallosos-icpc-amd64.iso"; do
+                     "$REPO_ROOT/build/output/gallos-os-amd64.iso"; do
         if [[ -f "$candidate" ]]; then
             ISO="$candidate"
             break

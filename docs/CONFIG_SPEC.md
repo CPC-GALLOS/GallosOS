@@ -46,7 +46,7 @@ Before fetching a remote directives file, GallosOS resolves the target URL throu
 | **1** | GRUB boot parameter | `gallos.config=https://...` set at flash time via `gallos-flash`. Highest priority. `daemon/src/config.py` scheme-sniffs the value: an `http(s)://` URL is fetched remotely, anything else is treated as a local file path (see Method B below) — one parameter covers both cases, there is no separate `gallos.config_url=`. |
 | **2** | DHCP Option 235 | Standard DHCP lease response announces the URL. Works with any dnsmasq/ISC DHCP router — including basic lab routers — with a single config line. No GallosOS-specific server required. Option 235 is a deliberately-chosen site-specific option (RFC 3942 range 224–254); Option 252 is avoided because it is informally reserved for WPAD on many real networks. **Not yet implemented** — `gallos-daemon` does not currently read DHCP options; aspirational for now. |
 | **3** | `/etc/gallos/sync-server.conf` | Written by the GallosOS Venue Controller on first contact, or manually injected at flash time. **Not yet implemented** — aspirational for now. |
-| **4** | None | Boot directly from baked-in `/boot/gallos/gallos.toml` (air-gapped / standalone mode). |
+| **4** | Local directives | Load an organizer's `gallos.toml`, then a single `*.gallos.toml` profile, then the ISO's `/boot/gallos/config/baseline/baseline.gallos.toml` (air-gapped / standalone mode). |
 
 ### Method A: Remote Directives URL (GitHub Gist / Web Server / DHCP-Announced URL)
 
@@ -76,9 +76,9 @@ Before fetching a remote directives file, GallosOS resolves the target URL throu
 
 ### Method B: Baked-In / Burn-Time Directives (Air-Gapped / Offline)
 
-- **Default Profile:** Directives are placed directly on the USB drive during creation in `/boot/gallos/config/gallos.toml`, `/boot/gallos/gallos.toml`, or `/gallos/gallos.toml`. The system automatically loads this file at boot.
+- **Default Profile:** Organizers place directives on the USB drive in `/boot/gallos/config/gallos.toml`, `/boot/gallos/gallos.toml`, or `/gallos/gallos.toml`. The ISO bundles a fallback in `/boot/gallos/config/baseline/baseline.gallos.toml`, which is used only when no organizer policy or unique named profile is available.
 - **Support for Multiple Profiles (Boot Parameter & Auto-Discovery):**
-  - **Single Discovered Profile:** If a drive contains a single directives profile (e.g., `/boot/gallos/codeforces-training.gallos.toml`) without a canonical `gallos.toml`, `gallos-daemon` automatically discovers and loads it without requiring manual renaming.
+  - **Single Discovered Profile:** If a drive contains a single directives profile (e.g., `/boot/gallos/codeforces-training.gallos.toml`) without an organizer's canonical `gallos.toml`, `gallos-daemon` automatically discovers and loads it ahead of the ISO baseline without requiring manual renaming.
   - **Explicit Profile Selection:** If an organizer stores multiple profiles on the same USB (e.g., `practice.gallos.toml`, `regional.gallos.toml`), they can instruct the Linux kernel via the GRUB boot menu to load a specific file using a boot parameter: `gallos.config=regional` or `gallos.config=regional.gallos.toml`. The runtime resolver checks candidate search directories (`/boot/gallos/config/`, `/boot/gallos/`, `/gallos/`, `/etc/gallos/`) and tests name variants (`<target>`, `<target>.gallos.toml`, `<target>.toml`). This provides maximum flexibility for multi-day offline labs.
 - **Advantage:** Requires zero internet or external server connectivity. Perfect for air-gapped rooms or offline school invitationals.
 
