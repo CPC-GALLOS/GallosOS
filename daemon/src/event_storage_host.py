@@ -18,6 +18,29 @@ def _mounted_source() -> str | None:
     return result.stdout.strip() if result.returncode == 0 else None
 
 
+def _prepare_workspace(uid: int, gid: int) -> None:
+    """Create and secure contestant/ without following entries on the disk."""
+    mount_fd = os.open(MOUNTPOINT, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        try:
+            os.mkdir("contestant", mode=0o700, dir_fd=mount_fd)
+        except FileExistsError:
+            pass
+
+        workspace_fd = os.open(
+            "contestant",
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            dir_fd=mount_fd,
+        )
+        try:
+            os.fchown(workspace_fd, uid, gid)
+            os.fchmod(workspace_fd, 0o700)
+        finally:
+            os.close(workspace_fd)
+    finally:
+        os.close(mount_fd)
+
+
 def mount_event_data() -> bool:
     """Return False when the optional partition is absent; otherwise mount it."""
     result = _run("blkid", "-o", "device", "-t", "LABEL=event-data")
@@ -45,10 +68,8 @@ def mount_event_data() -> bool:
             raise RuntimeError(f"event-data mount failed: {mounted.stderr.strip()}")
         if os.path.realpath(_mounted_source() or "") != os.path.realpath(device):
             raise RuntimeError("event-data mount is not visible in the host namespace")
-    os.makedirs(WORKSPACE, mode=0o700, exist_ok=True)
     user = pwd.getpwnam("contestant")
-    os.chown(WORKSPACE, user.pw_uid, user.pw_gid)
-    os.chmod(WORKSPACE, 0o700)
+    _prepare_workspace(user.pw_uid, user.pw_gid)
     return True
 
 

@@ -46,6 +46,16 @@ def test_daemon_ipc_reload():
     daemon.reload_config.assert_called_once()
 
 
+def test_daemon_ipc_reload_reports_failure():
+    daemon = GallosDaemon()
+    daemon.reload_config = MagicMock(side_effect=ValueError("invalid gallos.toml"))
+
+    resp = daemon._process_ipc_command("RELOAD")
+
+    assert resp.startswith(b"ERROR Configuration reload failed:")
+    assert b"invalid gallos.toml" in resp
+
+
 def test_daemon_ipc_unknown():
     daemon = GallosDaemon()
     resp = daemon._process_ipc_command("FOOBAR")
@@ -69,3 +79,24 @@ def test_reload_config_requests_local_root_password_application():
     ):
         daemon.reload_config()
         apply_password.assert_called_once_with()
+
+
+def test_reload_config_failure_keeps_active_policy():
+    daemon = GallosDaemon()
+    daemon.config = {"mode": "Contest"}
+    daemon.machine_cfg = {"hostname": "seat-old"}
+    daemon.state_machine = MagicMock()
+    daemon.state_machine.config = daemon.config
+
+    with patch("daemon.src.main.load_active_config", side_effect=ValueError("invalid TOML")):
+        try:
+            daemon.reload_config()
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("reload should reject invalid TOML")
+
+    assert daemon.config == {"mode": "Contest"}
+    assert daemon.machine_cfg == {"hostname": "seat-old"}
+    assert daemon.state_machine.config == daemon.config
+    daemon.state_machine.request_reapply.assert_not_called()

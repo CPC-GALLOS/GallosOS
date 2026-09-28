@@ -26,7 +26,7 @@ daemon/
 ├── src/
 │   ├── __init__.py       # Package marker, __version__
 │   ├── main.py           # Entry point: daemon loop, Unix-socket IPC dispatch (START/STOP/STATUS/RELOAD)
-│   ├── config.py         # Hybrid config ingestion: remote gallos.toml fetch (5s timeout) with local fallback
+│   ├── config.py         # Trusted local TOML loading and policy precedence
 │   ├── state_machine.py  # 3-tier mode state machine (Contest > Event > Default), schedule evaluation, Clean State Wipe
 │   ├── firewall.py       # Dynamic nftables ruleset generation and periodic DNS re-resolution
 │   ├── browser_policy.py # Chromium/Firefox enterprise managed-policy JSON generation

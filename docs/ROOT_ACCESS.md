@@ -7,9 +7,11 @@ GallosOS locks the root password in the built image and removes the `sudo` execu
 root_password_hash = "$6$rounds=656000$..."
 ```
 
-The daemon requests `gallos-root-access.service` at boot and on reload. That service reads the hash only from a local configuration file and applies it with `chpasswd -e`; it has the `/etc` write access needed for password-file locking while the main daemon keeps its narrower filesystem sandbox. A remotely fetched configuration cannot set or replace the hash. Keep it out of public profiles and use a strong unique password: a Contestant with physical access to the boot media may be able to copy the stored hash for offline guessing. Without a hash, root remains locked.
+The daemon requests `gallos-root-access.service` at boot and on reload. That service reads the hash only from a local configuration file and applies it with `chpasswd -e`; it has the `/etc` write access needed for password-file locking while the main daemon keeps its narrower filesystem sandbox. Keep the hash out of public profiles and use a strong unique password: a Contestant with physical access to the boot media may be able to copy the stored hash for offline guessing. Without a hash, root remains locked.
 
-Scheduled Contest, Event, and Default transitions run under the root owned daemon and require no password entry. Manual `gallos-ctl` commands require root access to the local control socket. With a hash configured, an Organizer can open a terminal in the normal kiosk and use `su root`. The configured root password remains available in every mode, including Contest, for physical recovery.
+Scheduled Contest, Event, and Default transitions run under the root owned daemon and require no password entry. Manual `gallos-ctl` commands require root access to the local control socket. The same command is installed as `gallosctl` for administrators who prefer the no-hyphen spelling. With a hash configured, an Organizer can open a terminal in the normal kiosk and use `su root`. The configured root password remains available in every mode, including Contest, for physical recovery.
+
+For a last-minute policy correction during Contest, the Organizer can edit `/etc/gallos/gallos.toml` with a local text editor and run `gallosctl reload` (or `gallos-ctl reload`). This root-only directory takes precedence over policy on the approved boot medium. The daemon applies a valid file and reports success; malformed TOML reports an error and leaves the currently active policy in place. No boot arguments or network-fetched files can replace Organizer policy.
 
 ## Transition failure
 

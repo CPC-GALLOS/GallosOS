@@ -23,7 +23,7 @@ To ensure a rapid, stable release that directly solves the immediate needs of th
 1. **Containerized Build Pipeline:** `cd build && make iso` generates a bootable Ubuntu 24.04 `.iso` via Podman/Docker.
 2. **Wayland Kiosk & Ephemeral Storage:** Labwc + Waybar desktop running entirely in RAM (OverlayFS `tmpfs`).
 3. **Static Anti-Cheat Firewall:** `nftables` restricted to static judge IPs (Zero-Trust network).
-4. **TOML Config Engine:** `gallos-daemon` parsing `gallos.toml` (remote URL or baked-in fallback).
+4. **TOML Config Engine:** `gallos-daemon` loads Organizer policy from local TOML; an authorized Organizer can edit the root-only emergency copy during a contest and reload it with `gallosctl`.
 
 Advanced venue-management features (fleet telemetry, print spooling, proctoring snapshots) are explicitly deferred to post-MVP development (Phase 7).
 
@@ -72,8 +72,8 @@ pip install ruff
 +---------------------------------------------------------------------------------------------------+
 ```
 
-- **Dynamic Online Configuration:** Host a single canonical `gallos.toml` directives file (or legacy `.hdf` migrated via `gallos-convert`) on a **GitHub Gist**, Raw repository, or campus server and update contest times, allowed websites, or bookmarks on the fly *without re-flashing USB drives*.
-- **Baked-In Offline Fallback:** Embed configurations directly onto the USB image at burn-time for 100% offline, air-gapped laboratory environments.
+- **Local TOML Configuration:** Store the Organizer policy on the approved boot medium. During a contest, an authorized Organizer can make a last-minute correction in `/etc/gallos/gallos.toml` and run `gallosctl reload`; invalid TOML leaves the active policy in place and reports an error.
+- **Baked-In Offline Baseline:** The ISO includes a baseline for air-gapped operation when no Organizer policy is supplied.
 - **Optional Local Workspace:** Outside `Contest`, the host-mounted `event-data` partition exposes `/media/event-data/contestant` for files the contestant intentionally saves. Contest entry must unmount it before releasing the fresh session. Manual USB export and organizer-allowed external services are separate options (see [`docs/CONFIG_SPEC.md`](./docs/CONFIG_SPEC.md) § Mode Hierarchy).
 
 ---
@@ -115,8 +115,8 @@ The repository includes comprehensive context documents and architectural specif
    - Windows-based organizers can build, test, and flash without dual-booting via WSL2 + `usbipd-win` USB passthrough — a secondary convenience path; native Linux remains the primary development target for direct `/dev/sdX` block-device access.
 
 3. **Infrastructure-Agnostic Directives Ingestion (5-Tier Deployment Spectrum):**
-   - A configuration auto-discovery priority chain resolves where `gallos.toml` comes from — GRUB boot parameter (`gallos.config=<url_or_profile>`) → DHCP Option 235 (deliberately not the commonly-cited 252, which collides with WPAD on real campus networks) → the Venue Controller's `sync-server.conf` → baked-in local fallback — first match wins, and a 5-second remote-fetch timeout with automatic fallback to the cached local config (with a Plymouth + desktop warning) guarantees every machine still boots into a working state if the network is down.
-   - Five deployment tiers, each a fully production-ready standalone deployment on its own: **Tier 0** fully air-gapped (baked-in config, zero networking required); **Tier 1** an existing lab router with one added DHCP Option 235 line; **Tier 2** URL-driven sync over any reachable HTTP endpoint — a Gist, campus server, or personal VPS (the HuronOS-style model); **Tier 3** an optional dedicated GallosOS Venue Controller adding fleet monitoring, MAC-based machine identity, printing, and audit aggregation; **Tier 4** externally managed institutional IT infrastructure integrated via standard DHCP/NTP/CUPS protocols. GallosOS never assumes any tier beyond 0 is present, nor that a Venue Controller, internet connectivity, or PXE infrastructure exists.
+   - The runtime loads local TOML policy: root-only `/etc/gallos/gallos.toml`, approved boot-medium policy, one unique named profile, then the bundled baseline. Boot arguments, DHCP options, remote URLs, and arbitrary attached disks do not supply policy. An Organizer can edit the root-only override during Contest and reload through `gallosctl`.
+   - Deployment tiers describe future infrastructure options. DHCP-driven config distribution, remote sync, fleet monitoring, and the Venue Controller are architectural designs, not implemented runtime features.
 
 4. **Trustworthy Time Synchronization:**
    - `chrony` (not legacy `ntpd`) drives the mode scheduler, countdown timers, and audit-log timestamps, converging quickly from a drifted RTC in the first seconds of boot and switching to gradual slewing-only correction once a `Contest` window is active, protecting `make`/`gcc`/`gdb` filesystem timestamps from clock discontinuities.

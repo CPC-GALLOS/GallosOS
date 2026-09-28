@@ -14,7 +14,7 @@
 # here.
 #
 # ROADMAP.md Phase 1 "Casper Live Boot Engine" status: this hook now
-# covers GALLOS_BOOT config exposure and Ventoy gallos.toml detection.
+# exposes Organizer configuration from the approved boot medium.
 # Two sub-items are deliberately NOT handled here, by design, not because
 # they're unfinished:
 #   - .gsm SquashFS module mounting: happens one boot stage earlier, as a
@@ -70,69 +70,6 @@ fi
 if [ -d "${rootmnt}/cdrom/gallos" ] && [ ! -e "${rootmnt}/boot/gallos" ]; then
   mkdir -p "${rootmnt}/boot"
   ln -s /cdrom/gallos "${rootmnt}/boot/gallos"
-fi
-
-# Ventoy gallos.toml auto-detection (docs/ARCHITECTURE.md §9.4 "Ventoy
-# Multi-Boot USBs" / §4 item 5). We don't fingerprint Ventoy itself — its
-# data-partition label is organizer-configurable at install time, not
-# fixed — we just look for any other already-available block device
-# carrying /gallos/gallos.toml at its filesystem root, which is exactly
-# what the architecture doc promises: "auto-loads any /gallos/gallos.toml
-# placed alongside the ISO." Single-pass, no retries: unlike
-# casper-premount's find_path() (designed for devices that may not be
-# settled yet), every device is already available by casper-bottom time,
-# so a retry/sleep loop here would only add latency to every boot that
-# isn't using Ventoy. Copies the file into rootmnt rather than symlinking
-# to the scan mountpoint: unlike /cdrom (explicitly move-mounted into
-# rootmnt by 05mountpoints above, so it survives the root switch), a
-# plain mount done directly under rootmnt here does not reliably survive
-# run-init's switch into the final root — verified via QEMU boot test,
-# where a symlink to it resolved during casper-bottom but dangled
-# post-boot. A copied file has no such dependency.
-if [ ! -e "${rootmnt}/gallos/gallos.toml" ]; then
-  gallos_ventoy_mnt="${rootmnt}/gallos-ventoy"
-  mkdir -p "$gallos_ventoy_mnt"
-  for gallos_sysblock in $(echo /sys/block/* | tr ' ' '\n' | grep -v /ram | grep -v /loop | grep -v /fd); do
-    for gallos_subdev in $(subdevices "${gallos_sysblock}"); do
-      gallos_devname=$(sys2dev "${gallos_subdev}")
-      gallos_fstype=$(get_fstype "${gallos_devname}")
-      # Deliberately not gated on casper-helpers' is_supported_fs(): its
-      # whitelist omits exfat, which is Ventoy's default data-partition
-      # format, so that check would silently skip the exact case this
-      # scan exists for. Accept any fstype the kernel itself recognized.
-      [ -n "${gallos_fstype}" ] && [ "${gallos_fstype}" != "unknown" ] || continue
-      # Skip devices already mounted (e.g. GALLOS_BOOT itself, handled
-      # above) rather than second-guessing an existing mount.
-      grep -q "^${gallos_devname} " /proc/mounts && continue
-      try_mount "${gallos_devname}" "${gallos_ventoy_mnt}" ro || continue
-      if [ -f "${gallos_ventoy_mnt}/gallos/gallos.toml" ]; then
-        mkdir -p "${rootmnt}/gallos"
-        cp "${gallos_ventoy_mnt}/gallos/gallos.toml" "${rootmnt}/gallos/gallos.toml"
-        for gallos_prof in "${gallos_ventoy_mnt}/gallos/"*.gallos.toml "${gallos_ventoy_mnt}/gallos/"*.machine.toml; do
-          [ -e "${gallos_prof}" ] && cp "${gallos_prof}" "${rootmnt}/gallos/"
-        done
-        umount "${gallos_ventoy_mnt}" 2>/dev/null || true
-        break 2
-      else
-        gallos_found_prof=""
-        for gallos_prof in "${gallos_ventoy_mnt}/gallos/"*.gallos.toml; do
-          if [ -e "${gallos_prof}" ]; then
-            gallos_found_prof="yes"
-            break
-          fi
-        done
-        if [ -n "${gallos_found_prof}" ]; then
-          mkdir -p "${rootmnt}/gallos"
-          for gallos_prof in "${gallos_ventoy_mnt}/gallos/"*.gallos.toml "${gallos_ventoy_mnt}/gallos/"*.machine.toml; do
-            [ -e "${gallos_prof}" ] && cp "${gallos_prof}" "${rootmnt}/gallos/"
-          done
-          umount "${gallos_ventoy_mnt}" 2>/dev/null || true
-          break 2
-        fi
-      fi
-      umount "${gallos_ventoy_mnt}" 2>/dev/null || true
-    done
-  done
 fi
 
 log_end_msg

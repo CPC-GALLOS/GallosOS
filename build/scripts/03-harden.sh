@@ -280,7 +280,8 @@ echo "Installing and enabling gallos-daemon.service..."
 # Firefox aren't installed on every profile (this walking-skeleton one
 # installs neither), so their directories must be pre-created or the daemon
 # crash-loops on every single boot of a profile lacking a browser.
-mkdir -p "$ROOTFS/etc/chromium/policies/managed" "$ROOTFS/etc/firefox/policies" "$ROOTFS/media/event-data"
+mkdir -p "$ROOTFS/etc/chromium/policies/managed" "$ROOTFS/etc/firefox/policies" "$ROOTFS/media/event-data" "$ROOTFS/etc/gallos"
+chmod 0700 "$ROOTFS/etc/gallos"
 install -m 0644 "$REPO_ROOT/daemon/gallos-daemon.service" "$ROOTFS/etc/systemd/system/gallos-daemon.service"
 install -m 0644 "$REPO_ROOT/daemon/gallos-event-storage.service" "$ROOTFS/etc/systemd/system/gallos-event-storage.service"
 install -m 0644 "$REPO_ROOT/daemon/gallos-root-access.service" "$ROOTFS/etc/systemd/system/gallos-root-access.service"

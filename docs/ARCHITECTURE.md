@@ -53,78 +53,13 @@ GallosOS enforces a **Monorepo** strategy with a strict **"In-Band vs Out-of-Ban
 
 ---
 
-## 2. Dynamic Directives Ingestion Architecture
+## 2. Trusted Local Directives
 
-GallosOS is designed to be **infrastructure-agnostic**: it operates correctly whether the venue has zero network infrastructure, a basic home router, a university-managed DHCP server, or a full dedicated GallosOS Venue Controller. The system never assumes the presence of any particular network service.
+The current daemon loads TOML only from local files. Policy precedence is `/etc/gallos/gallos.toml` (root-only emergency override), canonical `gallos.toml` files on approved local media, one unambiguous named profile, then the bundled ISO baseline. A malformed canonical file is an error; the daemon does not silently fall through to a weaker source.
 
-### 2.1 `config_url` Auto-Discovery Priority Chain
+Kernel boot arguments, DHCP options, network URLs, and arbitrary attached disks are not policy sources. The Casper hook exposes the approved GallosOS boot medium. It does not scan other attached filesystems for Organizer TOML.
 
-Before fetching a remote directives file, GallosOS resolves the target URL through the following priority chain (first match wins):
-
-```text
-Priority 1 — GRUB Boot Parameter (explicit, set at flash time)
-  gallos.config=https://gist.githubusercontent.com/.../raw/gallos.toml
-  ↳ Organizer bakes the URL directly into the USB at flash time via gallos-flash.
-    Highest priority; always takes precedence. The same gallos.config=
-    parameter also accepts a local baked-in profile filename instead of a
-    URL (see docs/CONFIG_SPEC.md) — daemon/src/config.py scheme-sniffs the
-    value to tell the two apart, rather than using a second parameter name.
-
-Priority 2 — DHCP Option 235 (zero-infrastructure path)
-  Standard DHCP response includes Option 235 with the config URL.
-  ↳ Works with any router running dnsmasq or ISC DHCP — including basic
-    university lab routers and consumer-grade APs — with a single config line:
-    dnsmasq:  dhcp-option=235,"https://server/gallos.toml"
-    ISC DHCP: option option-235 code 235 = text;
-              option option-235 "https://server/gallos.toml";
-  ↳ Requires no GallosOS-specific server. The lab's existing DHCP infrastructure
-    announces the URL automatically at DHCP lease time.
-  ↳ Option 235 is an unassigned site-specific option (RFC 3942 range 224–254),
-    chosen deliberately instead of the commonly-used Option 252 — which is
-    informally reserved for WPAD (Windows proxy autodiscovery) on many
-    real-world networks. Reusing 252 risks colliding with genuine WPAD
-    deployments on BYOD-heavy campus networks.
-
-Priority 3 — Local Config File (written by Venue Controller or manually)
-  /etc/gallos/sync-server.conf
-  ↳ Written by the GallosOS Venue Controller on its first connection to a
-    contestant machine, or manually injected at flash time for static setups.
-
-Priority 4 — Local Directives (Standalone / Air-Gapped)
-  No config_url resolved → load an organizer's gallos.toml, one named
-  *.gallos.toml profile, or the bundled
-  /boot/gallos/config/baseline/baseline.gallos.toml.
-```
-
-### 2.2 Remote Fetch & Fallback Sequence
-
-Once a `config_url` is resolved (via any of the above methods), the boot sequence proceeds as follows:
-
-```mermaid
-sequenceDiagram
-    participant Boot as GallosOS Boot Process
-    participant Net as Network & NTP Stack
-    participant Remote as Remote URL (Gist / Raw GitHub / Server)
-    participant Local as Local Config (gallos.toml / named profile / baseline.gallos.toml)
-    participant Daemon as Gallos Daemon (Mode & Firewall Controller)
-
-    Boot->>Net: Initialize network interface & synchronize NTP
-    Boot->>Net: Resolve config_url via GRUB param → DHCP Option 235 → sync-server.conf
-    alt config_url resolved
-        Boot->>Remote: HTTP GET with 5-second timeout
-        alt Remote response 200 OK
-            Remote-->>Boot: Return latest gallos.toml
-            Boot->>Daemon: Apply remote directives & update local cache
-        else Remote Timeout or Network Down
-            Boot->>Local: Read organizer policy, named profile, or ISO baseline
-            Boot->>Daemon: Apply cached fallback directives
-            Note over Boot,Daemon: Plymouth warning + desktop notification shown
-        end
-    else No config_url resolved (Standalone / Air-Gapped)
-        Boot->>Local: Read organizer policy, named profile, or ISO baseline
-        Boot->>Daemon: Apply local directives
-    end
-```
+For a last-minute Contest correction, an authorized Organizer edits `/etc/gallos/gallos.toml` with a normal text editor and runs `gallosctl reload` (or `gallos-ctl reload`). A valid reload replaces active policy; a failed reload reports an error and keeps the current in-memory policy. Remote config distribution remains a future design item and is not part of the current runtime.
 
 ---
 
@@ -269,7 +204,7 @@ Key `chrony` behaviors configured by `gallos-daemon`:
 - **Early Boot Convergence (`makestep 1 3`):** During the first 3 NTP polls (before the desktop session launches), allow clock jumps of up to 1 second to converge quickly from a drifted RTC.
 - **Contest-Active Slewing Only:** Once `gallos-daemon` enters an active `Contest` window, `chrony` switches to gradual slewing mode only (no abrupt jumps), protecting `make`, `gcc`, `gdb`, and filesystem timestamps from clock discontinuities.
 - **Source Auto-Discovery:** `chrony` accepts NTP sources from multiple paths simultaneously and automatically selects the best one:
-  - Venue Controller LAN server (if present, advertised via DHCP Option 42 or `sync-server.conf`).
+  - Venue Controller LAN server (future design; not used for current policy loading).
   - DHCP-provided NTP servers (Option 42, standard in enterprise and university routers).
   - Internet NTP pools (`pool.ntp.org`, regional pools like `ntp.unam.mx` or `ntp.br`).
   - Hardware RTC as last resort (when no network is available).
@@ -464,168 +399,28 @@ Before physical USB mass-flashing, images are verified against multiple hypervis
 ### 4. Ventoy Multi-Boot USBs
 
 - Simply copy `gallos-os-amd64.iso` onto any standard Ventoy USB drive.
-- GallosOS detects the Ventoy partition and automatically mounts any `/gallos/gallos.toml` placed alongside the ISO, enabling instant rule/time updates without re-generating the ISO image.
+- Ventoy can chainload the GallosOS ISO. GallosOS does not import Organizer policy from the Ventoy data partition; policy must come from the approved GallosOS boot medium or the local root-only override.
 - **Optional persistent `event-data` on the same drive:** run `Ventoy2Disk` with `-r SIZE_MB` at install time to reserve unallocated space at the end of the disk, then format that reserved region as ext4 with the label `event-data`. `gallos-daemon` mounts it automatically using the same label-based detection it uses on a `gallos-flash`-provisioned drive — see §4 "Storage & Filesystem Architecture," item 5. This is the BYOD/personal-drive on-ramp to that same mechanism, not a separate feature.
 
 ---
 
-## 10. Deployment Infrastructure Spectrum
+## 10. Deployment Infrastructure Spectrum (Future Design)
 
-GallosOS is designed to be **infrastructure-agnostic**. There is no single required deployment model — the system operates correctly across the full spectrum of network and computational infrastructure that a venue may or may not provide.
+GallosOS is intended to support venues ranging from air-gapped rooms to institution-managed networks. The tiers below describe architectural options; remote policy distribution, Venue Controller services, fleet monitoring, and printing are future design work, not current runtime capabilities.
 
-The key design principle:
+### Tier 0 — Local and Air-Gapped
 
-> **GallosOS never assumes the existence of specific infrastructure. Each tier adds optional capabilities on top of lower tiers. Any tier is a fully functional, production-ready deployment.**
+The current runtime loads Organizer policy from `/etc/gallos/gallos.toml`, approved local boot media, or the bundled baseline. A Contest Organizer with root access can make an emergency local edit and reload it with `gallosctl`. No network service is needed for policy loading.
 
----
+### Tiers 1–4 — Planned Infrastructure Options
 
-### Tier 0 — Fully Offline / Air-Gapped
+Future designs include existing DHCP/network services, an optional Venue Controller, and institution-managed services. These options do not currently distribute `gallos.toml`; in particular, DHCP options, boot arguments, and remote URLs are not accepted policy sources. The Venue Controller remains optional, and GallosOS does not host the Judge Server.
 
-No network infrastructure required — only power outlets. Everything is baked into the USB at flash time.
-
-```text
-[PC-01 / Gallos USB]   [PC-02 / Gallos USB]   [PC-NN / Gallos USB]
-  machine.toml            machine.toml            machine.toml
-  gallos.toml             gallos.toml             gallos.toml
-  (baked-in FAT32)        (baked-in FAT32)        (baked-in FAT32)
-  Offline docs ✓          Offline docs ✓          Offline docs ✓
-  RTC timer ✓             RTC timer ✓             RTC timer ✓
-```
-
-- ✅ Works anywhere with a power outlet. Zero networking required.
-- ✅ Maximum resilience — no server, no internet, no single point of failure.
-- ✅ config_url discovery: **Priority 4 (baked-in only)**.
-- 💡 **Ventoy Friendly:** Drop `gallos-os-amd64.iso` onto any Ventoy USB drive; GallosOS auto-loads `/gallos/gallos.toml` from the Ventoy partition, and can optionally use a `-r`-reserved, ext4-formatted region as persistent `event-data` (§4 "Storage & Filesystem Architecture," item 5).
-- 💡 **VM Appliance Mode:** Same ISO boots in VirtualBox, VMware, or QEMU/KVM for remote contestants or home practice.
-- ⚠️ Config changes require re-flashing or manually updating the FAT32 partition.
-- ⚠️ No cross-machine monitoring or fleet control.
-
----
-
-### Tier 1 — Existing DHCP / Basic LAN (Zero-Infra Config Distribution)
-
-A standard router or switch is already present in the lab. The organizer adds **one line** to the existing DHCP server configuration to announce the `config_url` via **DHCP Option 235**. No GallosOS-specific server is required.
-
-```text
-[Lab Router / Existing DHCP Server]
-  dhcp-option=235,"https://gist.github.com/.../gallos.toml"
-         |
-   Contest LAN (existing switch/AP)
-         |
-+--------+--------+--------+
-|        |        |        |
-v        v        v        v
-[PC-01]  [PC-02]  [PC-03]  [PC-NN]
- Gallos   Gallos   Gallos   Gallos
- USB      USB      USB      USB
-```
-
-- ✅ config_url discovery: **Priority 2 (DHCP Option 235)** — no boot parameter needed, no GallosOS server needed.
-- ✅ One config line on the router → all machines automatically receive the URL at lease time.
-- ✅ Organizer updates the Gist or HTTP file → all machines pick it up on next boot.
-- ✅ Works with any dnsmasq / ISC DHCP router: `dhcp-option=235,"https://url"`.
-- ✅ Machine identity still baked into each USB's `machine.toml` at flash time.
-- ⚠️ No fleet monitoring or centralized audit.
-
----
-
-### Tier 2 — URL-Driven Sync (Internet or Intranet HTTP) *(HuronOS-style)*
-
-Each USB boots independently and fetches a config file from any reachable HTTP URL — a GitHub Gist, raw GitHub file, university web server, or personal VPS. This is exactly how HuronOS operates. GRUB boot parameter or DHCP Option 235 points each machine at the URL.
-
-```text
-     Internet / LAN (any reachable HTTP server)
-               |
-   GitHub Gist / campus server / any URL
-               |
-     +---------+---------+---------+
-     |         |         |         |
-     v         v         v         v
- [PC-01]   [PC-02]   [PC-03]   [PC-NN]
-  Gallos    Gallos    Gallos    Gallos
-  USB       USB       USB       USB
-```
-
-- ✅ config_url discovery: **Priority 1 (GRUB param)** or **Priority 2 (DHCP Option 235)**.
-- ✅ Zero local GallosOS infrastructure needed.
-- ✅ Organizer edits the Gist → all machines pick up changes on next sync.
-- ✅ Works over internet or any reachable LAN HTTP server.
-- ⚠️ No local monitoring or fleet control dashboard.
-- ⚠️ Machine identity must be baked into each USB's FAT32 partition at flash time.
-
----
-
-### Tier 3 — GallosOS Venue Controller *(Dedicated Local Server)*
-
-> [!IMPORTANT]
-> **The Venue Controller is an Advanced, Optional Component.**
-> The default `gallos-os-amd64.iso` distributed to the public is a fully standalone operating system that works perfectly out of the box (Tiers 0, 1, and 2). It does **not** include or require a Venue Controller. If you want centralized fleet monitoring, MAC address auto-mapping, or network print spooling, you must explicitly configure and deploy the controller infrastructure yourself.
-
-A dedicated machine (or a specially burned **GallosOS Server USB**) boots into **server mode** on the contest LAN. It provides centralized control, monitoring, DHCP, NTP, and printing without requiring internet connectivity. The Venue Controller also writes `/etc/gallos/sync-server.conf` on each contestant machine at first contact, enabling Priority 3 config_url resolution.
-
-The **judge server** (DOMjudge, BOCA, PC^2, CMS) is always a **separate, dedicated machine** managed by the contest organizers. GallosOS does not host it.
-
-```text
-  [External Judge Server]     [GallosOS Venue Controller (Server Mode)]
-  DOMjudge / BOCA / PC^2     - Serves gallos.toml directives to contestant PCs
-  (separate machine,         - Admin monitoring dashboard (team heartbeat, status)
-   not GallosOS)             - MAC → Team/PC identity mapping
-                             - SquashFS SHA256 integrity verification
-                             - DHCP + NTP server for the contest LAN
-                             - CUPS print server (per-room network printers)
-          |                                      |
-          +------------------+-------------------+
-                             |
-                        Contest LAN
-           +----------------+----------------+
-           v                v                v
-     [PC-01 Alpha]    [PC-02 Beta]     [PC-NN ...]
-      Gallos USB       Gallos USB       Gallos USB
-      (contestant)     (contestant)     (contestant)
-```
-
-- ✅ config_url discovery: **Priority 2 (DHCP Option 235, served by Controller)** and **Priority 3 (/etc/gallos/sync-server.conf)**.
-- ✅ **Full Fleet & Proctoring Monitoring:** Live Grafana dashboard displays online workstation heartbeats, team identity mappings, RAM consumption, and OS SHA256 integrity status.
-- ✅ **Persistent Audit & Log Aggregation (Overcoming Ephemeral RAM):** Because contestant workstations run entirely on ephemeral RAM (logs vanish on reboot), the Venue Controller acts as the central persistent telemetry sink. It ingests firewall drop alerts, EarlyOOM kill logs, print audit trails, and proctoring snapshots, exportable as `gallos-audit-YYYYMMDD.tar.gz`.
-- ✅ **Scalable Multi-Server Architecture:** One central Controller or multiple distributed auditing nodes (e.g. one per lab floor in large multi-room venues).
-- ✅ **Centralized Print Spooler:** Manages network print queues and formats print headers automatically via CUPS.
-- ✅ **Dynamic Directives & Clarification Dispatch:** Broadcasts signed `gallos.toml` updates and `gallos-broadcast` messages across the arena LAN.
-- ✅ **Optional Ansible Fleet Orchestration Bridge:** For large-scale championship arenas (100+ nodes), the Venue Controller can drive Ansible playbooks over SSH to perform high-concurrency ad-hoc diagnostics, live test data injection, or fast disaster recovery (borrowing proven patterns from [`icpcsysops/ansible`](./COMPARATIVE_ANALYSIS.md#9-specialized-analysis-icpc-world-finals--nac-sysops-fleet-orchestration-icpcsysopsansible)) without compromising the client OS's underlying immutable OverlayFS guarantees.
-- ✅ **Works 100% Air-Gapped:** Zero external cloud dependencies; self-hosted DHCP, DNS, and NTP.
-- ❌ Does **not** host the competitive programming judge — that runs on a separate dedicated server.
-
----
-
-### Tier 4 — Externally Managed Institutional Infrastructure
-
-The venue already has its own DHCP, DNS, NTP, and print servers managed by an IT department. GallosOS integrates with these services via standard protocols without requiring any modifications to the existing infrastructure:
-
-- **DHCP:** The IT DHCP server adds `dhcp-option=235,"https://..."` to announce the config URL.
-- **NTP:** GallosOS uses the campus NTP pool for clock synchronization.
-- **Printing:** `gallos-print` targets an existing IPP/CUPS endpoint on the institutional print server.
-- **DNS:** GallosOS operates on the existing local DNS with its own `nftables` whitelist applied on top.
-
-GallosOS integrates **without disrupting** the existing network setup. The IT department retains full control of their infrastructure.
-
----
-
-### Infrastructure Spectrum Comparison
-
-| Feature | Tier 0 Air-Gapped | Tier 1 DHCP Basic | Tier 2 URL-Driven | Tier 3 Venue Controller | Tier 4 Institutional IT |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| Network required | ❌ No | ✅ LAN only | ✅ LAN or Internet | ✅ LAN only | ✅ LAN |
-| GallosOS server needed | ❌ No | ❌ No | ❌ No | ✅ Yes | ❌ No |
-| config_url auto-discovery | ❌ None | ✅ DHCP Option 235 | ✅ GRUB param | ✅ DHCP + conf file | ✅ DHCP Option 235 |
-| On-the-fly config updates | ❌ No | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
-| Fleet monitoring dashboard | ❌ No | ❌ No | ❌ No | ✅ Yes | ❌ No |
-| MAC-based machine identity | ❌ No | ❌ No | ❌ No | ✅ Yes | ❌ No |
-| USB integrity verification | ❌ No | ❌ No | ❌ No | ✅ Yes | ❌ No |
-| Network printing (CUPS) | ❌ No | ❌ No | ❌ No | ✅ Yes | ✅ Existing |
-| Persistent audit export | ❌ No | ❌ No | ❌ No | ✅ Yes | ❌ No |
-| Judge server hosted here | ❌ No | ❌ No | ❌ No | ❌ No | ❌ No |
-| Works fully air-gapped | ✅ Yes | ✅ Yes (LAN only) | ❌ No | ✅ Yes (LAN only) | ❌ No |
-
----
+| Planned option | Intended role | Current status |
+| :--- | :--- | :--- |
+| Existing venue network | Connectivity for judge services and approved network policy | Network infrastructure is venue-dependent; it does not supply config |
+| Venue Controller | Optional organizer monitoring and event services | Design only; not implemented |
+| Institution-managed services | Integration with local IT systems | Design only; not implemented |
 
 ## 11. Machine Identity, Team Assignment & USB Security
 
@@ -649,13 +444,7 @@ Boot sequence
     -> If present: use embedded machine identity (decentralized / simple mode)
     |
     v
-[2] Fetch remote directives (if config_url is set):
-    Central server receives MAC address in request header
-    -> Server returns machine-specific block appended to global config
-    -> [machines] table maps MAC -> team/PC identity (centralized mode)
-    |
-    v
-[3] Hostname assignment via DHCP:
+[2] Hostname assignment via DHCP:
     DHCP server assigns hostname "gallos-pc-07" by MAC reservation
     -> OS applies hostname at boot
 ```

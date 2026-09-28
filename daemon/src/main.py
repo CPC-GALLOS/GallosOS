@@ -50,10 +50,12 @@ class GallosDaemon:
 
     def reload_config(self) -> None:
         """Reloads active configuration on the fly."""
-        self.config = load_active_config()
-        self.machine_cfg = load_machine_config()
-        apply_machine_identity(self.config, self.machine_cfg)
+        new_config = load_active_config()
+        new_machine_cfg = load_machine_config()
+        apply_machine_identity(new_config, new_machine_cfg)
         apply_local_root_password()
+        self.config = new_config
+        self.machine_cfg = new_machine_cfg
         if self.state_machine:
             self.state_machine.config = self.config
             self.state_machine.request_reapply()
@@ -103,7 +105,11 @@ class GallosDaemon:
         return (json.dumps(status) + "\n").encode("utf-8")
 
     def _cmd_reload(self, _parts: list[str]) -> bytes:
-        self.reload_config()
+        try:
+            self.reload_config()
+        except Exception as exc:
+            error = " ".join(str(exc).split()) or exc.__class__.__name__
+            return f"ERROR Configuration reload failed: {error}\n".encode()
         return b"OK Configuration reloaded\n"
 
     def _process_ipc_command(self, raw_data: str) -> bytes:

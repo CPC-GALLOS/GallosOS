@@ -19,7 +19,7 @@ This document translates the complete architectural and security specifications 
   - [x] Mount SquashFS modules (`.gsm`) into union layers using in-tree **OverlayFS** (build-time patch to casper's own `setup_overlay()`, `vendor/inherited/maratona-casper/casper-gsm-overlay.sh` — casper-bottom hooks run after the overlay is already assembled, so this can't be a hook). QEMU-verified: `mount` shows `lowerdir=/test.gsm:/filesystem.squashfs`, correctly composes with `toram`.
   - [x] Automatically mount the 2-partition Live USB layout (`GALLOS_BOOT`, optional `event-data`) by filesystem label. GALLOS_BOOT exposure via `55gallos-live`'s `/boot/gallos` symlink (QEMU-verified: real `gallos.toml` content readable post-boot). `event-data` label-mount is owned by `gallos-daemon` (`daemon/src/storage.py`), not casper, since mounting it is mode-aware (never during Contest) and that precedence already lives in `ModeStateMachine` — QEMU-verified the mount itself succeeds, but see the note below: it's currently only visible inside the daemon's own sandboxed mount namespace, not to the desktop session, which is a separate follow-up.
   - [x] Support the `toram` boot parameter (copy entire OS to RAM) — stock upstream Ubuntu `casper` behavior, not GallosOS-authored; QEMU-verified (`copy_live_to()`'s tmpfs RAM copy triggers correctly with `toram` on the cmdline).
-  - [x] Support `gallos.config=<path_or_url>` and Ventoy `/gallos/gallos.toml` detection. Cmdline parsing was already implemented in `daemon/src/config.py`; `55gallos-live` adds the Ventoy-partition scan (content-based, not label-fingerprinted) and copies the found file into place. QEMU-verified: a synthetic Ventoy-like fixture's `gallos.toml` is readable post-boot.
+  - [x] Expose Organizer configuration from the approved GALLOS_BOOT medium at `/boot/gallos/`; runtime policy is loaded from trusted local TOML sources. Arbitrary-device config scanning and boot-argument policy selection are not supported.
 - [x] **SquashFS Packaging Scripts:** Write `build-squashfs.sh` to package system layers with `mksquashfs -comp zstd`.
 - [x] **Hybrid ISO Stitched Image:** Write `build-iso.sh` using `xorriso` / `grub-mkrescue` to generate hybrid bootable `.iso` images.
 - [x] **Wayland Kiosk Desktop Shell:** Assemble the lightweight desktop environment:
@@ -55,9 +55,10 @@ This document translates the complete architectural and security specifications 
   - Develop a persistent `systemd.service` (Python) capable of maintaining state and open sockets for real-time broadcasts.
   - Implement strict TOML parsing and schema validation against `schema/directives.schema.json` via `taplo`.
   - `gallosd` systemd unit alias (`Alias=gallosd.service` in `daemon/gallos-daemon.service`), so `systemctl status/restart gallosd` also works for sysadmins who assume a generic `<name>d` daemon name.
-- [x] **Hybrid Config Ingestion & Fallback:**
-  - Implement boot sequence logic: attempt to fetch a remote `gallos.config=<url>` with a 5-second timeout; if unreachable, gracefully fall back to local `/boot/gallos/gallos.toml` cache with Plymouth/desktop warnings.
-  - Support multi-profile selection via kernel boot arguments.
+  - Install `gallosctl` as a symlink to the existing `gallos-ctl` command for administrators who expect the no-hyphen executable spelling.
+- [x] **Trusted Local Config Ingestion:**
+  - Load Organizer TOML from approved local sources and the bundled baseline. A root-only `/etc/gallos/gallos.toml` override supports last-minute Contest corrections through `gallosctl reload`.
+  - Reject kernel boot arguments, network URLs, DHCP options, and arbitrary attached disks as policy sources.
 - [x] **3-Tier Precedence State Machine:**
   - Implement dynamic scheduling engine: $\text{Contest} \succ \text{Event} \succ \text{Default}$.
   - Transition wallpapers, network firewall rules, and application visibility automatically when contest time-windows start or expire.

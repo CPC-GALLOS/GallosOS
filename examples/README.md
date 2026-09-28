@@ -19,8 +19,8 @@ To keep deployment modular and easy to manage, GallosOS separates configuration 
 3. **`examples/*.gallos.toml` (Production-Ready Blueprints):**
    - Pre-configured blueprints for popular competitive programming platforms.
    - **How to use:** Pick the template that matches your contest, customize your timestamps, and deploy!
-   - **Automatic Discovery:** If you place a single profile (e.g. `codeforces-training.gallos.toml`) on a Live USB or Ventoy partition without an organizer's `gallos.toml`, `gallos-daemon` loads it ahead of the ISO's bundled baseline without requiring manual renaming.
-   - **Multi-Profile Selection:** If you keep multiple profiles on the same USB (e.g. Day 1 warmup vs Day 2 finals), select between them via the GRUB boot menu parameter `gallos.config=<profile-name>` (e.g. `gallos.config=codeforces-training`).
+   - **Automatic Discovery:** If one profile is placed in an approved local config directory without `gallos.toml`, `gallos-daemon` loads it ahead of the ISO baseline. For predictable deployment, organizers should copy the chosen profile as `gallos.toml` to the approved boot-medium config directory.
+   - **Multiple Profiles:** Kernel boot arguments do not select policy. Copy the profile needed for the event to the approved boot medium as `gallos.toml` before boot.
 
 ---
 
@@ -93,9 +93,9 @@ Each configuration profile in this directory demonstrates a distinct **real-worl
 
 ## 🚀 Deployment & Configuration Precedence
 
-GallosOS uses an intelligent **two-tier configuration model** (Baked-In Base + Dynamic Remote Override) that eliminates manual file editing:
+GallosOS currently reads policy from trusted local TOML sources.
 
-### 1. Baked-In Offline Base (`gallos-flash`) — *The Offline Baseline & Fallback*
+The root-only `/etc/gallos/gallos.toml` emergency override takes precedence over a canonical `gallos.toml` on the approved boot medium, one unambiguous named profile, and the ISO baseline. Kernel arguments, DHCP options, remote URLs, and arbitrary attached disks do not supply policy.
 
 When preparing physical drives, **`gallos-flash`** burns the ISO to multiple USBs concurrently and bakes in the selected configuration profile, team metadata (`machine.toml`), and branding.
 
@@ -111,17 +111,8 @@ gallos-flash --image gallos-os-amd64.iso \
              --prefix "PC-"
 ```
 
-### 2. Dynamic Remote Override (`gallos.config`) — *Live On-The-Fly Updates*
-
-- Simply point the bootloader to a remote URL (e.g. via GRUB boot parameter `gallos.config=https://...`, DHCP option 235, or `/etc/gallos/sync-server.conf`):
-
-  ```text
-  gallos.config=https://gist.githubusercontent.com/.../raw/gallos.toml
-  ```
-
-- **Precedence Rule:** At boot, GallosOS checks the remote URL. If available, the **remote directives take precedence and dynamically override the baked-in profile**.
-- **Automatic Fallback:** If the network goes down or the URL times out (5-second safety limit), GallosOS automatically falls back to the **baked-in baseline** created during flashing or discovered on local storage.
+Before an event, copy the selected profile to the approved boot medium as `gallos.toml`. If an authorized Organizer needs a last-minute correction during Contest, edit `/etc/gallos/gallos.toml` and run `gallosctl reload` (or `gallos-ctl reload`). The existing controller reports parse errors and retains the active policy when reload fails.
 
 ### 3. Visual Authoring (`GallosOS Config Builder`)
 
-Organizers can load any blueprint into the **GallosOS Config Builder** (Angular Web App) to adjust time windows, firewall rules, and branding visually, then export the resulting `gallos.toml` to a GitHub Gist or feed it directly into `gallos-flash`.
+The planned GallosOS Config Builder can load a blueprint to adjust time windows and policy visually, then export a local `gallos.toml` for review and deployment.

@@ -1,14 +1,7 @@
-"""Config ingestion and validation module for GallosOS Daemon.
-
-Handles hybrid config ingestion (remote URL with 5-second timeout,
-fallback to local /boot/gallos/gallos.toml or /gallos/gallos.toml on Ventoy).
-"""
+"""Trusted local TOML ingestion and validation for the GallosOS daemon."""
 
 import os
 import sys
-import urllib.error
-import urllib.parse
-import urllib.request
 from datetime import datetime, timezone
 from typing import Any
 
@@ -45,99 +38,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
 }
 
 
-def get_cmdline_config_param() -> str | None:
-    """Extracts gallos.config parameter from /proc/cmdline if present."""
-    if not os.path.exists("/proc/cmdline"):
-        return None
-    try:
-        with open("/proc/cmdline", encoding="utf-8") as f:
-            cmdline = f.read()
-        for token in cmdline.split():
-            if token.startswith("gallos.config="):
-                return token.split("=", 1)[1]
-    except Exception as e:
-        print(f"[config] Error reading /proc/cmdline: {e}", file=sys.stderr)
-    return None
-
-
-def fetch_remote_config(url: str, timeout_sec: int = 5) -> str | None:
-    """Fetches remote gallos.toml content over HTTP/HTTPS with timeout."""
-    parsed = urllib.parse.urlparse(url)
-    if parsed.scheme not in ("http", "https"):
-        print(
-            f"[config] Refusing non-HTTP(S) config scheme '{parsed.scheme}': {url}",
-            file=sys.stderr,
-        )
-        return None
-
-    print(f"[config] Fetching remote config from: {url} (timeout={timeout_sec}s)")
-    req = urllib.request.Request(url, headers={"User-Agent": "GallosOS-Daemon/0.2.0"})  # noqa: S310
-    try:
-        with urllib.request.urlopen(req, timeout=timeout_sec) as resp:  # noqa: S310
-            if resp.status == 200:
-                return resp.read().decode("utf-8")
-    except Exception as e:
-        print(f"[config] Remote config fetch failed: {e}", file=sys.stderr)
-    return None
-
-
 CONFIG_SEARCH_DIRECTORIES = [
+    "/etc/gallos",
     "/boot/gallos/config",
     "/boot/gallos",
     "/gallos",
-    "/etc/gallos",
     "/usr/share/gallos",
 ]
-
-
-def resolve_config_path(target: str, search_dirs: list[str] | None = None) -> str | None:
-    """Resolves a target filename or profile name against candidate directories.
-
-    Accepts absolute paths, relative filenames, or profile names without extension
-    (e.g., 'codeforces-training' -> 'codeforces-training.gallos.toml').
-    """
-    if os.path.isfile(target):
-        return target
-
-    dirs = search_dirs if search_dirs is not None else CONFIG_SEARCH_DIRECTORIES
-    variants = [target]
-    if not target.endswith(".toml"):
-        variants.extend([f"{target}.gallos.toml", f"{target}.toml"])
-    elif not target.endswith(".gallos.toml"):
-        base = target.removesuffix(".toml")
-        variants.append(f"{base}.gallos.toml")
-
-    for d in dirs:
-        for variant in variants:
-            candidate = os.path.join(d, variant)
-            if os.path.isfile(candidate):
-                return candidate
-    return None
-
-
-def _load_cmdline_config(
-    cmdline_target: str, search_dirs: list[str] | None = None
-) -> tuple[dict[str, Any] | None, str]:
-    """Loads configuration specified via kernel cmdline parameter."""
-    parsed = urllib.parse.urlparse(cmdline_target)
-    if parsed.scheme in ("http", "https"):
-        raw_toml = fetch_remote_config(cmdline_target, timeout_sec=5)
-        if raw_toml:
-            try:
-                return tomllib.loads(raw_toml), f"remote ({cmdline_target})"
-            except Exception as e:
-                print(f"[config] Failed to parse remote TOML: {e}", file=sys.stderr)
-        return None, ""
-
-    resolved_path = resolve_config_path(cmdline_target, search_dirs=search_dirs)
-    if resolved_path:
-        try:
-            with open(resolved_path, "rb") as f:
-                return tomllib.load(f), f"cmdline file ({resolved_path})"
-        except Exception as e:
-            print(f"[config] Error reading {resolved_path}: {e}", file=sys.stderr)
-
-    return None, ""
 
 
 def _discover_unique_profile(dirs: list[str], suffix: str) -> str | None:
@@ -163,7 +70,7 @@ def _discover_unique_profile(dirs: list[str], suffix: str) -> str | None:
     if len(discovered) > 1:
         print(
             f"[config] Multiple profiles with {suffix} found ({len(discovered)}); "
-            "specify via 'gallos.config=<profile>' or provide canonical file.",
+            "provide one profile or an Organizer canonical gallos.toml.",
             file=sys.stderr,
         )
     return None
@@ -186,7 +93,7 @@ def load_local_config(search_dirs: list[str] | None = None) -> tuple[dict[str, A
                 print(f"[config] Loaded local configuration from {candidate}")
                 return data, candidate
             except Exception as e:
-                print(f"[config] Failed to parse {candidate}: {e}", file=sys.stderr)
+                raise ValueError(f"Failed to parse canonical configuration {candidate}: {e}") from e
 
     # 2. Single *.gallos.toml auto-discovery fallback
     discovered = _discover_unique_profile(dirs, ".gallos.toml")
@@ -276,16 +183,8 @@ def _load_local_recovery_hash() -> str | None:
 
 
 def load_active_config() -> dict[str, Any]:
-    """Main entry point to obtain the active, validated configuration dictionary."""
-    config_data: dict[str, Any] | None = None
-    source_name = "built-in default"
-
-    cmdline_target = get_cmdline_config_param()
-    if cmdline_target:
-        config_data, source_name = _load_cmdline_config(cmdline_target)
-
-    if not config_data:
-        config_data, source_name = load_local_config()
+    """Load trusted local directives; kernel arguments cannot replace Organizer policy."""
+    config_data, source_name = load_local_config()
 
     if not config_data:
         print("[config] No external config found. Using default profile.")

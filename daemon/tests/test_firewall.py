@@ -45,3 +45,30 @@ def test_firewall_apply_contest_mode():
         assert "GALLOS_DENIED: " in rules
         assert "udp sport 68 udp dport 67 accept" in rules
         assert "udp sport 67 udp dport 68 accept" in rules
+
+
+def test_contest_dns_is_limited_to_the_configured_resolver():
+    mgr = FirewallManager()
+    config = {
+        "global": {"local_dns_ip": "192.168.1.1"},
+    }
+    with patch("subprocess.run", return_value=MagicMock(returncode=0)) as mock_run:
+        mgr.apply_mode_firewall("Contest", config)
+
+    rules = mock_run.call_args.kwargs["input"]
+    assert "udp dport 53 ip daddr 192.168.1.1 accept" in rules
+    assert "tcp dport 53 ip daddr 192.168.1.1 accept" in rules
+    assert "udp dport 53 accept" not in rules
+    assert "tcp dport 53 accept" not in rules
+
+
+def test_contest_output_rechecks_existing_flows_against_allowlists():
+    mgr = FirewallManager()
+    with patch("subprocess.run", return_value=MagicMock(returncode=0)) as mock_run:
+        mgr.apply_mode_firewall("Contest", {})
+
+    rules = mock_run.call_args.kwargs["input"]
+    output_chain = rules.split("chain output {", maxsplit=1)[1].split("chain input {", maxsplit=1)[
+        0
+    ]
+    assert "ct state established,related accept" not in output_chain

@@ -336,6 +336,7 @@ mkdir -p "$ROOTFS/usr/libexec/gallos_daemon"
 cp -r "$REPO_ROOT/daemon/src/"* "$ROOTFS/usr/libexec/gallos_daemon/"
 chmod -R 0755 "$ROOTFS/usr/libexec/gallos_daemon"
 install -m 0755 "$REPO_ROOT/daemon/gallos-ctl" "$ROOTFS/usr/bin/gallos-ctl"
+ln -sfn gallos-ctl "$ROOTFS/usr/bin/gallosctl"
 
 chroot "$ROOTFS" update-initramfs -c -k all
 

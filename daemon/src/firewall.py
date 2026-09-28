@@ -96,9 +96,13 @@ class FirewallManager:
             self._allowed_websites = contest_cfg.get("allowed_websites", [])
             global_cfg = config.get("global", {})
             self._venue_controller_ip = str(
-                global_cfg.get("venue_controller_ip", DEFAULT_VENUE_CONTROLLER_IP)
+                ipaddress.IPv4Address(
+                    global_cfg.get("venue_controller_ip", DEFAULT_VENUE_CONTROLLER_IP)
+                )
             )
-            self._local_dns_ip = str(global_cfg.get("local_dns_ip", DEFAULT_LOCAL_DNS_IP))
+            self._local_dns_ip = str(
+                ipaddress.IPv4Address(global_cfg.get("local_dns_ip", DEFAULT_LOCAL_DNS_IP))
+            )
 
             # Resolve initial judge IPs
             new_ips = set()
@@ -155,19 +159,16 @@ table ip gallos_filter {{
         # 1. Allow Loopback
         oif "lo" accept
 
-        # 2. Allow Established / Related connections
-        ct state established,related accept
-
-        # 3. Block Telemetry DNS & High-Risk Ports
+        # 2. Block Telemetry DNS & High-Risk Ports
         ip daddr @telemetry_dns_blacklist drop
         tcp dport {{ 22, 853 }} drop
 
         # 4. Allow DHCP Client Requests
         udp sport 68 udp dport 67 accept
 
-        # 5. Allow Local DNS to Gateway
-        udp dport 53 accept
-        tcp dport 53 accept
+        # 5. Allow DNS only to the configured local resolver
+        udp dport 53 ip daddr {self._local_dns_ip} accept
+        tcp dport 53 ip daddr {self._local_dns_ip} accept
 
         # 6. NTP to Venue Controller
         udp dport 123 ip daddr @allowed_venue_controller_ip accept
@@ -188,7 +189,9 @@ table ip gallos_filter {{
     chain input {{
         type filter hook input priority 0; policy drop;
         iif "lo" accept
-        ct state established,related accept
+        ct state established,related ip saddr @allowed_judge_ips accept
+        ct state established,related ip saddr @allowed_venue_controller_ip accept
+        ct state established,related ip saddr {self._local_dns_ip} accept
         udp sport 67 udp dport 68 accept
     }}
 }}

@@ -37,56 +37,17 @@ GallosOS is designed to seamlessly adapt to **any competitive programming scenar
 
 GallosOS is designed to be **infrastructure-agnostic**: it operates across the full spectrum of network infrastructure that a venue may provide — from completely offline rooms to university-managed networks to full Venue Controller setups (see [§10 of `ARCHITECTURE.md`](./ARCHITECTURE.md#10-deployment-infrastructure-spectrum)).
 
-### `config_url` Auto-Discovery Priority Chain
+### Trusted Local Policy Sources
 
-Before fetching a remote directives file, GallosOS resolves the target URL through the following chain (first match wins):
+The running daemon loads policy only from local TOML files. In priority order, it checks `/etc/gallos/gallos.toml` (root-only emergency override), the approved boot medium at `/boot/gallos/config/gallos.toml` and `/boot/gallos/gallos.toml`, a single unambiguous `*.gallos.toml` profile on those local directories, and finally the ISO's bundled baseline. If the canonical `gallos.toml` exists but is malformed, loading fails instead of falling through to a weaker policy.
 
-| Priority | Source | Description |
-| :---: | :--- | :--- |
-| **1** | GRUB boot parameter | `gallos.config=https://...` set at flash time via `gallos-flash`. Highest priority. `daemon/src/config.py` scheme-sniffs the value: an `http(s)://` URL is fetched remotely, anything else is treated as a local file path (see Method B below) — one parameter covers both cases, there is no separate `gallos.config_url=`. |
-| **2** | DHCP Option 235 | Standard DHCP lease response announces the URL. Works with any dnsmasq/ISC DHCP router — including basic lab routers — with a single config line. No GallosOS-specific server required. Option 235 is a deliberately-chosen site-specific option (RFC 3942 range 224–254); Option 252 is avoided because it is informally reserved for WPAD on many real networks. **Not yet implemented** — `gallos-daemon` does not currently read DHCP options; aspirational for now. |
-| **3** | `/etc/gallos/sync-server.conf` | Written by the GallosOS Venue Controller on first contact, or manually injected at flash time. **Not yet implemented** — aspirational for now. |
-| **4** | Local directives | Load an organizer's `gallos.toml`, then a single `*.gallos.toml` profile, then the ISO's `/boot/gallos/config/baseline/baseline.gallos.toml` (air-gapped / standalone mode). |
+Kernel boot arguments, DHCP options, network URLs, and arbitrary attached disks are not policy sources. The Casper hook exposes the approved GallosOS boot medium; it does not search other attached filesystems for TOML.
 
-### Method A: Remote Directives URL (GitHub Gist / Web Server / DHCP-Announced URL)
+### Last-Minute Contest Correction
 
-- Organizers host a single `gallos.toml` on a **GitHub Gist**, **GitHub Raw repository**, **university HTTP server**, or **any reachable URL**.
-- The URL is delivered to contestant machines via **Priority 1 (GRUB param)** or **Priority 2 (DHCP Option 235)**:
-  - **DHCP Option 235 (recommended for basic lab setups):** Add one line to the venue's existing router (dnsmasq or ISC DHCP) — no GallosOS-specific server required:
+An authorized Organizer with local root access can edit `/etc/gallos/gallos.toml` using a normal text editor, then run `gallosctl reload` (or `gallos-ctl reload`). This is the same controller command already used for status and mode operations; it is not a separate configuration utility. A successful reload replaces the active policy. If parsing or validation fails, the command reports an error and the in-memory policy remains active. See [`ROOT_ACCESS.md`](./ROOT_ACCESS.md) for the recovery workflow.
 
-    ```text
-    # dnsmasq (OpenWrt, Pi-hole, most lab routers):
-    dhcp-option=235,"https://gist.githubusercontent.com/.../raw/gallos.toml"
-
-    # ISC DHCP (dhcpd.conf) — declare a custom option, then set it:
-    option option-235 code 235 = text;
-    option option-235 "https://gist.githubusercontent.com/.../raw/gallos.toml";
-    ```
-
-    > [!NOTE]
-    > Option 235 (RFC 3942 site-specific range 224–254) is used instead of the
-    > commonly-cited Option 252, which is informally reserved for WPAD
-    > (Windows proxy autodiscovery) on many real-world networks. Reusing 252
-    > risks colliding with genuine WPAD deployments, especially on the
-    > BYOD-Windows-laptop campus networks GallosOS explicitly targets.
-
-  - **GRUB boot parameter:** Set `gallos.config=https://...` in the USB's GRUB config at flash time via `gallos-flash --config`.
-- **Advantage:** Organizers can update contest times, add whitelisted domains, or change wallpapers **on the fly without re-flashing or collecting USB drives**.
-- **Architectural Caveat (Boot Splash):** While the desktop wallpaper and UI update instantly once the network connects, the Plymouth boot splash (`boot_splash_logo_url`) *cannot* be updated remotely because the system has no network connectivity during the first few seconds of boot. White-labeling the boot splash strictly requires Method B (Baked-In).
-
-### Method B: Baked-In / Burn-Time Directives (Air-Gapped / Offline)
-
-- **Default Profile:** Organizers place directives on the USB drive in `/boot/gallos/config/gallos.toml`, `/boot/gallos/gallos.toml`, or `/gallos/gallos.toml`. The ISO bundles a fallback in `/boot/gallos/config/baseline/baseline.gallos.toml`, which is used only when no organizer policy or unique named profile is available.
-- **Support for Multiple Profiles (Boot Parameter & Auto-Discovery):**
-  - **Single Discovered Profile:** If a drive contains a single directives profile (e.g., `/boot/gallos/codeforces-training.gallos.toml`) without an organizer's canonical `gallos.toml`, `gallos-daemon` automatically discovers and loads it ahead of the ISO baseline without requiring manual renaming.
-  - **Explicit Profile Selection:** If an organizer stores multiple profiles on the same USB (e.g., `practice.gallos.toml`, `regional.gallos.toml`), they can instruct the Linux kernel via the GRUB boot menu to load a specific file using a boot parameter: `gallos.config=regional` or `gallos.config=regional.gallos.toml`. The runtime resolver checks candidate search directories (`/boot/gallos/config/`, `/boot/gallos/`, `/gallos/`, `/etc/gallos/`) and tests name variants (`<target>`, `<target>.gallos.toml`, `<target>.toml`). This provides maximum flexibility for multi-day offline labs.
-- **Advantage:** Requires zero internet or external server connectivity. Perfect for air-gapped rooms or offline school invitationals.
-
-### Method C: Resilient Hybrid Fallback
-
-- On boot, GallosOS attempts to fetch the remote URL (with a configurable 5-second timeout).
-- If the remote server or network is unreachable, it automatically falls back to the **local baked-in configuration cache**, guaranteeing the machine boots into a working state under any circumstances.
-- **User Notification (UX):** When a fallback occurs, the system informs the user via a Plymouth boot warning and a persistent desktop notification (e.g., *"⚠️ Offline Mode: Remote configuration unreachable. Using local baked-in profile."*) upon entering the Wayland session.
+Organizers can prepare the boot-medium `gallos.toml` before the event. Profiles remain TOML files and can be copied into the approved boot-medium config directory; boot arguments cannot select a profile.
 
 ### 2.4 Architectural Separation: `build.toml` vs. `gallos.toml` vs. `machine.toml`
 
@@ -461,7 +422,7 @@ end   = "2026-08-29T16:00:00Z"
 
 ### 7.2 `[recovery]` — Local Root Access
 
-See `docs/ROOT_ACCESS.md` for the operational behavior. `root_password_hash` is a `crypt(3)` hash (never a plaintext password), applied via `chpasswd -e` by the local `gallos-root-access.service` when the daemon boots or receives `gallos-ctl reload`. It is available in every mode, including Contest. The service reads this field only from local `gallos.toml`, even when the remaining active configuration came from a remote URL. A remote value is ignored; Organizers must keep the hash out of remotely hosted configuration files.
+See `docs/ROOT_ACCESS.md` for the operational behavior. `root_password_hash` is a `crypt(3)` hash (never a plaintext password), applied via `chpasswd -e` by the local `gallos-root-access.service` when the daemon boots or receives `gallos-ctl reload`. It is available in every mode, including Contest. Keep this hash out of shared example profiles and protect the local configuration that contains it.
 
 ---
 
