@@ -139,6 +139,9 @@ When assisting in this repository, follow these core tenets:
     - **Breaking Changes:** Designated with a `!` directly before the colon (e.g., `feat(daemon)!: drop legacy IPC command`) or an uppercase `BREAKING CHANGE:` footer.
     - **Rejection Policy:** Vague, non-conforming messages (e.g. `wip`, `update`, `misc fixes`, `changes`) are strictly prohibited and will be rejected automatically by pre-commit hooks (`compilerla/conventional-pre-commit`) and CI pipelines (`.github/workflows/ci.yml`).
 
+12. **Atomic Commits:**
+    Each commit MUST represent one independently reviewable logical change and leave the repository coherent. Keep the implementation, tests, and documentation for that change together; split unrelated fixes, refactors, and housekeeping into separate commits. A commit SHOULD be independently revertible without breaking adjacent changes.
+
 ---
 
 ## 💻 Cross-Platform & Virtualization Support
