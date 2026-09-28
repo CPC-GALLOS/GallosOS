@@ -95,15 +95,30 @@ if [[ $SECURE_BOOT -eq 1 ]]; then
         -drive "if=pflash,format=raw,unit=0,readonly=on,file=$CODE"
         -drive "if=pflash,format=raw,unit=1,file=$OVMF_DIR/vars.fd")
 elif [[ $UEFI -eq 1 ]]; then
-    CODE=/usr/share/edk2/ovmf/OVMF_CODE.fd
-    if [[ ! -s "$CODE" ]]; then
-        CODE=/usr/share/OVMF/OVMF_CODE_4M.fd
-        if [[ ! -s "$CODE" ]]; then
-            echo "OVMF firmware not found" >&2
-            exit 1
+    CODE=""
+    VARS=""
+    for pair in \
+        /usr/share/edk2/ovmf/OVMF_CODE.fd:/usr/share/edk2/ovmf/OVMF_VARS.fd \
+        /usr/share/OVMF/OVMF_CODE_4M.fd:/usr/share/OVMF/OVMF_VARS_4M.fd \
+        /usr/share/OVMF/OVMF_CODE.fd:/usr/share/OVMF/OVMF_VARS.fd; do
+        candidate_code="${pair%%:*}"
+        candidate_vars="${pair#*:}"
+        if [[ -s "$candidate_code" && -s "$candidate_vars" ]]; then
+            CODE="$candidate_code"
+            VARS="$candidate_vars"
+            break
         fi
+    done
+    if [[ ! -s "$CODE" || ! -s "$VARS" ]]; then
+        echo "OVMF CODE/VARS firmware pair not found" >&2
+        exit 1
     fi
-    QEMU_ARGS+=(-bios "$CODE")
+    OVMF_DIR="$(mktemp -d)"
+    trap 'rm -rf "$OVMF_DIR"' EXIT
+    cp "$VARS" "$OVMF_DIR/vars.fd"
+    QEMU_ARGS+=(-machine q35
+        -drive "if=pflash,format=raw,unit=0,readonly=on,file=$CODE"
+        -drive "if=pflash,format=raw,unit=1,file=$OVMF_DIR/vars.fd")
 fi
 
 echo "Booting $ISO (UEFI=$UEFI, Secure Boot=$SECURE_BOOT, toram=$TORAM)"
