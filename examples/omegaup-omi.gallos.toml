@@ -22,6 +22,7 @@ enable_event_mode = true
 [branding]
 name = "Olimpiada Mexicana de Informática (OMI) 2026"
 organizer = "Comité Mexicano de Informática (COMI)"
+hostname = "OMI"
 logo_url = "/usr/share/gallos/branding/omi-logo.png"
 boot_splash_logo_url = "/usr/share/gallos/branding/omi-splash.png"
 show_powered_by_gallos = true

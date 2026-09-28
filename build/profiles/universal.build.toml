@@ -41,6 +41,8 @@ preinstall_apt = [
     "xwayland",
     "fonts-dejavu-core",
     "fonts-liberation",
+    "fonts-noto-color-emoji",
+    "fonts-font-awesome",
     "adwaita-icon-theme",
     "dbus-x11",
 ]

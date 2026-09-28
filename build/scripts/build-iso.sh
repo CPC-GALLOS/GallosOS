@@ -45,12 +45,12 @@ set timeout=5
 
 menuentry "GallosOS Live" {
     search --no-floppy --set=root --label $VOLID
-    linux /casper/vmlinuz boot=casper console=ttyS0,115200n8 ipv6.disable=1
+    linux /casper/vmlinuz boot=casper hostname=gallos console=ttyS0,115200n8 ipv6.disable=1
     initrd /casper/initrd
 }
 menuentry "GallosOS Live (toram)" {
     search --no-floppy --set=root --label $VOLID
-    linux /casper/vmlinuz boot=casper console=ttyS0,115200n8 ipv6.disable=1 toram
+    linux /casper/vmlinuz boot=casper hostname=gallos console=ttyS0,115200n8 ipv6.disable=1 toram
     initrd /casper/initrd
 }
 EOF

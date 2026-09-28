@@ -54,14 +54,28 @@ def _resolve_hostname(machine: dict[str, Any]) -> str:
     return "gallos-workstation"
 
 
+def _resolve_default_hostname(config: dict[str, Any]) -> str:
+    """Resolves event-level white-label hostname from branding, falling back to 'gallos'."""
+    branding = config.get("branding", {})
+    if isinstance(branding, dict):
+        if custom_host := branding.get("hostname"):
+            custom_host_str = str(custom_host).strip()
+            if custom_host_str and len(custom_host_str) <= 63:
+                return custom_host_str
+    return "gallos"
+
+
 def _set_system_hostname(hostname: str) -> None:
-    """Sets the system hostname via /proc/sys/kernel/hostname or hostname CLI."""
-    try:
-        with open("/proc/sys/kernel/hostname", "w", encoding="utf-8") as f:
-            f.write(hostname)
-    except Exception as e:
-        print(f"[identity] Could not set hostname directly: {e}", file=sys.stderr)
-        subprocess.run(["hostname", hostname], check=False)
+    """Set the transient hostname through systemd outside the daemon sandbox."""
+    result = subprocess.run(
+        ["hostnamectl", "--transient", "set-hostname", hostname],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode:
+        message = result.stderr.strip() or f"hostnamectl exited {result.returncode}"
+        print(f"[identity] Could not set transient hostname: {message}", file=sys.stderr)
 
 
 def _write_identity_env(filepath: str, hostname: str, team: str, seat: str, room: str) -> None:
@@ -105,5 +119,7 @@ def apply_machine_identity(config: dict[str, Any], machine_cfg: dict[str, Any]) 
         _set_system_hostname(hostname)
         _write_identity_env(identity_file, hostname, team, seat, room)
     else:
-        print("[identity] No specific MAC mapping matched. Using default hostname.")
-        _write_identity_env(identity_file, "gallos-live", "Contestant", "Default", "Main")
+        fallback_host = _resolve_default_hostname(config)
+        print(f"[identity] No MAC mapping matched. Applying event hostname: '{fallback_host}'")
+        _set_system_hostname(fallback_host)
+        _write_identity_env(identity_file, fallback_host, "Contestant", "Default", "Main")

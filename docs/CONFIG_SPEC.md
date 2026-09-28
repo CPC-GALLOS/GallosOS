@@ -285,6 +285,7 @@ enable_contest_mode = true
 [branding]
 name = "ICPC Gran Premio de México 2026"
 organizer = "Universidad Nacional Autónoma de México"
+hostname = "ICPC"
 logo_url = "https://directives.icpcmexico.org/assets/logo.png"
 boot_splash_logo_url = "https://directives.icpcmexico.org/assets/plymouth-logo.png"
 show_powered_by_gallos = true

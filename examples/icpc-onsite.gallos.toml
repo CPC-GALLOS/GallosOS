@@ -25,6 +25,7 @@ enable_event_mode = true
 [branding]
 name = "ICPC Mexico & Central America Regional Championship 2026"
 organizer = "ITESO & ICPC Mexico"
+hostname = "ICPC"
 logo_url = "/usr/share/gallos/branding/icpc-logo.png"
 boot_splash_logo_url = "/usr/share/gallos/branding/icpc-splash.png"
 show_powered_by_gallos = true

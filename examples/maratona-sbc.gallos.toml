@@ -26,6 +26,7 @@ enable_event_mode = true
 [branding]
 name = "Maratona SBC de Programação 2026"
 organizer = "Sociedade Brasileira de Computação (SBC)"
+hostname = "SBC"
 logo_url = "/usr/share/gallos/branding/sbc-logo.png"
 boot_splash_logo_url = "/usr/share/gallos/branding/sbc-splash.png"
 show_powered_by_gallos = true

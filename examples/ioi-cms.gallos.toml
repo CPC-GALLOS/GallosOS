@@ -26,6 +26,7 @@ enable_event_mode = true
 [branding]
 name = "International Olympiad in Informatics 2026"
 organizer = "IOI International Committee"
+hostname = "IOI"
 show_powered_by_gallos = true
 
 # ------------------------------------------------------------------------------

@@ -339,6 +339,12 @@
           "type": "string",
           "description": "URL or local path to the organizer's logo for the Plymouth boot splash screen."
         },
+        "hostname": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,63}$",
+          "description": "System hostname applied to the workstation for white-labeling (e.g. 'ICPC', 'UAA', 'GALLOS'). Displayed in the terminal prompt as contestant@<hostname>.",
+          "examples": ["ICPC", "UAA", "GALLOS", "TCMX", "OMI"]
+        },
         "show_powered_by_gallos": {
           "type": "boolean",
           "default": true,

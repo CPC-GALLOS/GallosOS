@@ -32,7 +32,7 @@ chroot "$ROOTFS" /bin/bash -euxc "
         fonts-font-awesome \
         ${extra_pkgs[*]@Q}
 
-    echo 'gallos-live' > /etc/hostname
+    echo 'gallos' > /etc/hostname
     { echo overlay; echo squashfs; echo isofs; echo vfat; echo exfat; } >> /etc/initramfs-tools/modules
 
     # Create contestant user with video/input/render permissions

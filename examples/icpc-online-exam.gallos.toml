@@ -25,6 +25,7 @@ enable_event_mode = false
 [branding]
 name = "ICPC India Preliminary Online Contest 2025/2026"
 organizer = "IIITDM & ICPC India"
+hostname = "ICPC"
 logo_url = "/usr/share/gallos/branding/india-icpc-logo.png"
 boot_splash_logo_url = "/usr/share/gallos/branding/india-icpc-splash.png"
 show_powered_by_gallos = true

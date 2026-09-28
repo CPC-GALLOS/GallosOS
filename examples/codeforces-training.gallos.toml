@@ -24,6 +24,7 @@ enable_event_mode = true
 [branding]
 name = "Competitive Programming Summer Camp 2026"
 organizer = "Gallos Club & Facultad de Ciencias"
+hostname = "GALLOS"
 show_powered_by_gallos = true
 
 # ------------------------------------------------------------------------------
