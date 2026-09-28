@@ -60,7 +60,8 @@ tarball)
     fi
 
     echo "Verifying $(basename "$tarball") against $(basename "$sums_file")..."
-    expected="$(awk -v file="$tarball_name" '$2 == file { print $1; exit }' "$sums_file")"
+    # SHA256SUMS uses "*filename" for files hashed in binary mode.
+    expected="$(awk -v file="$tarball_name" '$2 == file || $2 == "*" file { print $1; exit }' "$sums_file")"
     actual="$(sha256sum "$tarball" | awk '{print $1}')"
     if [[ -z "$expected" || "$expected" != "$actual" ]]; then
         echo "01-bootstrap.sh: SHA256 mismatch for $tarball" >&2
