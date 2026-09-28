@@ -39,13 +39,15 @@ GallosOS is designed to be **infrastructure-agnostic**: it operates across the f
 
 ### Trusted Local Policy Sources
 
-The running daemon loads policy only from local TOML files. In priority order, it checks `/etc/gallos/gallos.toml` (root-only emergency override), the approved boot medium at `/boot/gallos/config/gallos.toml` and `/boot/gallos/gallos.toml`, a single unambiguous `*.gallos.toml` profile on those local directories, and finally the ISO's bundled baseline. If the canonical `gallos.toml` exists but is malformed, loading fails instead of falling through to a weaker policy.
+The running daemon loads policy only from local TOML files. In priority order, it checks `/etc/gallos/gallos.toml` (root-only emergency override), the approved boot medium at `/boot/gallos/config/gallos.toml` and `/boot/gallos/gallos.toml`, a single unambiguous `*.gallos.toml` profile on those local directories, and finally the ISO's bundled baseline. If the selected canonical file or named profile is malformed, loading fails instead of falling through to a different policy.
 
 Kernel boot arguments, DHCP options, network URLs, and arbitrary attached disks are not policy sources. The Casper hook exposes the approved GallosOS boot medium; it does not search other attached filesystems for TOML.
 
 ### Last-Minute Contest Correction
 
 An authorized Organizer with local root access can edit `/etc/gallos/gallos.toml` using a normal text editor, then run `gallosctl reload` (or `gallos-ctl reload`). This is the same controller command already used for status and mode operations; it is not a separate configuration utility. A successful reload replaces the active policy. If parsing or validation fails, the command reports an error and the in-memory policy remains active. See [`ROOT_ACCESS.md`](./ROOT_ACCESS.md) for the recovery workflow.
+
+The Live image includes `schema/directives.schema.json` and Python `jsonschema`; the daemon checks the selected local directives against that schema before applying a reload. The Organizer can correct the file and retry `gallosctl reload` without rebooting.
 
 Organizers can prepare the boot-medium `gallos.toml` before the event. Profiles remain TOML files and can be copied into the approved boot-medium config directory; boot arguments cannot select a profile.
 
@@ -76,7 +78,7 @@ To prevent configuration pollution and keep deployment modular, GallosOS enforce
 3. **Strict Schema Validation:** Integrates natively with `taplo` and JSON Schema (`directives.schema.json`), providing real-time linting and auto-completion directly in the organizer's IDE.
 4. **Native Datetime Literals (RFC 3339 / ISO 8601):** Timestamps like `2026-08-29T11:00:00Z` are first-class primitives in TOML, eliminating string parsing errors and timezone ambiguities.
 5. **Zero Indentation Vulnerabilities:** Unlike YAML, TOML uses explicit headers (`[contest]`, `[[contest.schedule]]`) and is immune to broken indentation, tab vs. space mixups, or accidental whitespace corruption during copy-pasting.
-6. **Native Standard Library Support:** Modern languages like Python 3.11+ include native support for parsing TOML (`tomllib`), allowing `gallos-daemon` to securely ingest configuration natively without requiring a compiler or heavy third-party dependencies.
+6. **Native TOML Parsing:** Python 3.11+ includes `tomllib`; `gallos-daemon` uses it for parsing and the packaged `jsonschema` library for runtime validation, without requiring a compiler on the Live system.
 
 ---
 
@@ -146,7 +148,7 @@ gallos-convert icpc-gpm-2026-3rd-date.hdf gallos.toml --diff
 GallosOS ships a formal **JSON Schema** for the TOML directives file at [`schema/directives.schema.json`](../schema/directives.schema.json).
 
 - ✅ **IDE Autocompletion:** Configure `taplo` in VS Code / VSCodium to validate and autocomplete `gallos.toml` while editing.
-- ✅ **CI Validation:** GitHub Actions workflow validates every committed `*.toml` against the schema before building an ISO.
+- ✅ **CI Validation:** GitHub Actions checks TOML syntax; the daemon tests exercise schema rejection, and the ISO boot workflow builds the packaged runtime validator.
 - ✅ **Local Linting:** `taplo check --schema schema/directives.schema.json configs/sample-icpc.toml`
 
 **VS Code / VSCodium setup (`settings.json`):**

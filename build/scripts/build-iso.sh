@@ -103,6 +103,11 @@ grub-mkimage -O i386-pc-eltorito -C xz -o "$STAGING/boot/grub/bios.img" \
 cp "$WORK_DIR/md5sum.txt" "$STAGING/md5sum.txt"
 
 echo "Assembling signed BIOS/UEFI hybrid ISO -> $OUT_ISO..."
+# A prior migration may leave the canonical output path as a symlink to an
+# older image. Remove only the link; never follow it or overwrite its target.
+if [[ -L "$OUT_ISO" ]]; then
+    rm -- "$OUT_ISO"
+fi
 xorriso -as mkisofs -R -J -iso-level 3 -volid "$VOLID" \
     -b boot/grub/bios.img -no-emul-boot -boot-load-size 4 -boot-info-table \
     --grub2-mbr "$BIOS_MBR" -partition_offset 16 \

@@ -100,3 +100,27 @@ def test_reload_config_failure_keeps_active_policy():
     assert daemon.machine_cfg == {"hostname": "seat-old"}
     assert daemon.state_machine.config == daemon.config
     daemon.state_machine.request_reapply.assert_not_called()
+
+
+def test_reload_schema_error_keeps_contest_policy(tmp_path):
+    daemon = GallosDaemon()
+    daemon.config = {"contest": {"allowed_websites": ["judge.local"]}}
+    daemon.state_machine = MagicMock()
+    daemon.state_machine.config = daemon.config
+    (tmp_path / "gallos.toml").write_text(
+        '[global]\ntimezone = "UTC"\nenable_contest_mode = "yes"\n', encoding="utf-8"
+    )
+
+    with (
+        patch("daemon.src.config.CONFIG_SEARCH_DIRECTORIES", [str(tmp_path)]),
+        patch("daemon.src.main.apply_machine_identity") as identity,
+        patch("daemon.src.main.apply_local_root_password") as root_password,
+    ):
+        response = daemon._process_ipc_command("RELOAD")
+
+    assert response.startswith(b"ERROR Configuration reload failed:")
+    assert daemon.config["contest"]["allowed_websites"] == ["judge.local"]
+    assert daemon.state_machine.config is daemon.config
+    daemon.state_machine.request_reapply.assert_not_called()
+    identity.assert_not_called()
+    root_password.assert_not_called()

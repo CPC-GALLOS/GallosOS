@@ -44,13 +44,13 @@ def test_load_active_config_uses_root_local_recovery_hash():
     with (
         patch(
             "daemon.src.config.load_local_config",
-            return_value=({"mode": "Contest"}, "/etc/gallos/gallos.toml"),
+            return_value=({"global": {"timezone": "UTC"}}, "/etc/gallos/gallos.toml"),
         ),
         patch("daemon.src.config._load_local_recovery_hash", return_value="$6$local$hash"),
     ):
         result = load_active_config()
 
-    assert result["mode"] == "Contest"
+    assert result["global"]["timezone"] == "UTC"
     assert result["recovery"]["root_password_hash"] == "$6$local$hash"
 
 
@@ -91,7 +91,7 @@ def test_load_active_config_no_local_recovery_hash_defaults_to_none():
 
 
 def test_load_active_config_does_not_read_kernel_command_line():
-    local_policy = {"mode": "Contest", "recovery": {"root_password_hash": None}}
+    local_policy = {"global": {"timezone": "UTC", "enable_contest_mode": True}}
     with (
         patch("builtins.open", side_effect=AssertionError("kernel command line read")),
         patch(
@@ -102,7 +102,7 @@ def test_load_active_config_does_not_read_kernel_command_line():
     ):
         result = load_active_config()
 
-    assert result["mode"] == "Contest"
+    assert result["global"]["enable_contest_mode"] is True
 
 
 def test_local_emergency_config_precedes_boot_media_policy():
@@ -144,6 +144,31 @@ def test_invalid_canonical_config_does_not_fall_back_to_weaker_policy(tmp_path):
             load_local_config()
 
 
+def test_load_active_config_rejects_schema_invalid_local_policy(tmp_path):
+    config_dir = tmp_path / "gallos"
+    config_dir.mkdir()
+    (config_dir / "gallos.toml").write_text(
+        '[global]\ntimezone = "UTC"\nenable_contest_mode = "yes"\n', encoding="utf-8"
+    )
+
+    with patch("daemon.src.config.CONFIG_SEARCH_DIRECTORIES", [str(config_dir)]):
+        with pytest.raises(ValueError, match="enable_contest_mode"):
+            load_active_config()
+
+
+def test_load_active_config_accepts_valid_local_policy(tmp_path):
+    config_dir = tmp_path / "gallos"
+    config_dir.mkdir()
+    (config_dir / "gallos.toml").write_text(
+        '[global]\ntimezone = "UTC"\nenable_contest_mode = true\n', encoding="utf-8"
+    )
+
+    with patch("daemon.src.config.CONFIG_SEARCH_DIRECTORIES", [str(config_dir)]):
+        config = load_active_config()
+
+    assert config["global"]["enable_contest_mode"] is True
+
+
 def test_load_local_config_auto_discovers_unique_profile(tmp_path):
     config_dir = tmp_path / "boot" / "gallos"
     config_dir.mkdir(parents=True)
@@ -154,6 +179,18 @@ def test_load_local_config_auto_discovers_unique_profile(tmp_path):
     assert data is not None
     assert data["mode"] == "Contest"
     assert source == str(target_file)
+
+
+def test_invalid_named_profile_does_not_fall_back_to_baseline(tmp_path):
+    config_dir = tmp_path / "gallos"
+    config_dir.mkdir()
+    (config_dir / "event.gallos.toml").write_text("[global\n", encoding="utf-8")
+    baseline = config_dir / "baseline" / "baseline.gallos.toml"
+    baseline.parent.mkdir()
+    baseline.write_text('[global]\ntimezone = "UTC"\n', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="profile"):
+        load_local_config(search_dirs=[str(config_dir)])
 
 
 def test_load_local_config_prefers_unique_profile_over_bundled_baseline(tmp_path):

@@ -53,7 +53,7 @@ This document translates the complete architectural and security specifications 
 
 - [x] **`gallos-daemon` Core Engine:**
   - Develop a persistent `systemd.service` (Python) capable of maintaining state and open sockets for real-time broadcasts.
-  - Implement strict TOML parsing and schema validation against `schema/directives.schema.json` via `taplo`.
+  - Implement strict TOML parsing and runtime schema validation against `schema/directives.schema.json` via Python `jsonschema`; `taplo` supports organizer editing and local linting.
   - `gallosd` systemd unit alias (`Alias=gallosd.service` in `daemon/gallos-daemon.service`), so `systemctl status/restart gallosd` also works for sysadmins who assume a generic `<name>d` daemon name.
   - Install `gallosctl` as a symlink to the existing `gallos-ctl` command for administrators who expect the no-hyphen executable spelling.
 - [x] **Trusted Local Config Ingestion:**

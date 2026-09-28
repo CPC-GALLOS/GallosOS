@@ -2,11 +2,21 @@ name: GallosOS ISO Boot Verification
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "build/**"
+      - "daemon/**"
+      - "schema/**"
+      - "pyproject.toml"
+      - ".github/workflows/iso-boot.yml"
   pull_request:
     branches: [main]
     paths:
       - "build/**"
       - "daemon/**"
+      - "schema/**"
+      - "pyproject.toml"
       - ".github/workflows/iso-boot.yml"
 
 permissions:

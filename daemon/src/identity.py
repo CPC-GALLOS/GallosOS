@@ -66,16 +66,16 @@ def _resolve_default_hostname(config: dict[str, Any]) -> str:
 
 
 def _set_system_hostname(hostname: str) -> None:
-    """Set the transient hostname through systemd outside the daemon sandbox."""
+    """Set pretty, static, and transient hostnames through systemd."""
     result = subprocess.run(
-        ["hostnamectl", "--transient", "set-hostname", hostname],
+        ["hostnamectl", "set-hostname", hostname],
         check=False,
         capture_output=True,
         text=True,
     )
     if result.returncode:
         message = result.stderr.strip() or f"hostnamectl exited {result.returncode}"
-        print(f"[identity] Could not set transient hostname: {message}", file=sys.stderr)
+        raise RuntimeError(f"Could not set system hostname: {message}")
 
 
 def _write_identity_env(filepath: str, hostname: str, team: str, seat: str, room: str) -> None:

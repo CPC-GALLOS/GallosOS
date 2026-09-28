@@ -30,7 +30,8 @@ def watch(
 ) -> tuple[bool, bool]:
     assert process.stdout is not None
     assert process.stdin is not None
-    deadline = time.monotonic() + 180
+    # Software emulation on hosts without /dev/kvm can take several minutes.
+    deadline = time.monotonic() + 420
     recent = bytearray()
     selected = False
     enforcement_seen = False

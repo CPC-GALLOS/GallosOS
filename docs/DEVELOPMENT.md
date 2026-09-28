@@ -11,11 +11,12 @@ This document covers the local development workflow for the Python code in this 
 | Python `>= 3.10` | Yes | Matches `requires-python` in `pyproject.toml`. |
 | [`ruff`](https://docs.astral.sh/ruff/) | Yes | Linting (style, complexity, security via `bandit`-equivalent rules) and formatting. |
 | [`pytest`](https://docs.pytest.org/) | Yes | Runs the `daemon/tests/` unit test suite. |
+| [`jsonschema`](https://python-jsonschema.readthedocs.io/) | Yes | Validates organizer directives during daemon boot and reload against the schema shipped in the Live image. |
 | [`shellcheck`](https://www.shellcheck.net/) | Optional locally | Lints `build/scripts/*.sh`. `scripts/check.sh` skips this step with a warning if `shellcheck` isn't on `PATH`, but it is required in CI and via the pre-commit hook. |
-| [`taplo`](https://taplo.tamasfe.dev/) | Optional locally | Validates TOML files against `schema/directives.schema.json`. If absent, `scripts/check.sh` falls back to `scripts/validate_toml.py`, which only checks TOML *syntax*, not schema conformance. |
+| [`taplo`](https://taplo.tamasfe.dev/) | Optional locally | Validates TOML files against `schema/directives.schema.json`. If absent, `scripts/check.sh` falls back to `scripts/validate_toml.py`, which also checks organizer directives against the schema when `jsonschema` is installed. |
 | [`pre-commit`](https://pre-commit.com/) | Recommended | Automates local checks on every `git commit` (code formatting, linting, hygiene) and commit message validation via `commit-msg`. |
 
-Install the Python tools with `pip install ruff pytest` (matching what `.github/workflows/ci.yml` installs in CI).
+Install the Python tools with `pip install ruff pytest jsonschema` (matching what `.github/workflows/ci.yml` installs in CI).
 
 ---
 
@@ -56,7 +57,7 @@ Each `daemon/tests/test_*.py` file mirrors the `daemon/src/*.py` module it exerc
 2. **Ruff format check** — `ruff format --check .`
 3. **Pytest** — `python3 -m pytest daemon/tests/ -v` (including `test_check_commits.py`)
 4. **ShellCheck** — `shellcheck build/scripts/*.sh` (skipped with a warning if `shellcheck` isn't installed)
-5. **TOML validation** — `taplo check` if `taplo` is installed (schema-aware), else `python3 scripts/validate_toml.py` (syntax-only fallback covering `pyproject.toml`, `.taplo.toml`, `examples/*.gallos.toml`, `build/profiles/*.build.toml`)
+5. **TOML validation** — `taplo check` if `taplo` is installed, else `python3 scripts/validate_toml.py` (syntax plus directives schema validation with `jsonschema`)
 6. **Conventional Commits validation** — `python3 scripts/check_commits.py` (checks unpushed branch commits against upstream or `HEAD`)
 
 ```sh
@@ -87,7 +88,7 @@ python3 -m pytest daemon/tests/test_check_commits.py -v
 shellcheck build/scripts/*.sh
 shellcheck -x build/scripts/*.sh   # also follow `# shellcheck source=` into lib-mirrors.sh / lib-chroot.sh
 
-# TOML syntax only (fallback validator)
+# TOML syntax and organizer directives schema (fallback validator)
 python3 scripts/validate_toml.py
 
 # Conventional Commits validation
@@ -134,9 +135,9 @@ This does not run `pytest` — the test suite is intentionally left to `./script
 7. ShellCheck via `ludeeus/action-shellcheck@master`, scanning `build/scripts` and `scripts/check.sh`
 8. TOML syntax validation — an inline Python step using `tomllib`, globbing `**/*.toml` **recursively across the entire repository**
 
-**Note the TOML-check asymmetry:** CI's step 8 checks every `*.toml` file in the repo, while the local fallback (`scripts/validate_toml.py`, used by `./scripts/check.sh` when `taplo` isn't installed) checks target patterns (`pyproject.toml`, `.taplo.toml`, `examples/*.gallos.toml`, `build/profiles/*.build.toml`). A TOML file outside those patterns can pass locally and still be caught by CI. Also, neither CI nor `pytest` checks the JSON *schema* conformance of `examples/*.gallos.toml` / `gallos.toml` against `schema/directives.schema.json` — that's still `taplo`-only (local CLI or the VS Code `tamasfe.even-better-toml` extension).
+**Note the TOML-check asymmetry:** CI's TOML syntax step checks every `*.toml` file in the repo, while the local fallback (`scripts/validate_toml.py`, used by `./scripts/check.sh` when `taplo` isn't installed) checks target patterns (`pyproject.toml`, `.taplo.toml`, `examples/*.gallos.toml`, `build/profiles/*.build.toml`). A TOML file outside those patterns can pass locally and still be caught by CI. The daemon validates the selected organizer directives at boot and reload against the packaged schema; an invalid edit leaves the active in-memory policy unchanged when reload is requested.
 
-The main CI workflow covers code quality (`daemon/`, `build/scripts/*.sh`, TOML syntax, Conventional Commits). The separate `iso-boot.yml` workflow builds and boots the ISO in QEMU for pull requests that change `build/` or `daemon/`, including Secure Boot and a modified-kernel rejection check. Physical hardware validation remains manual (see [`docs/BUILD_SYSTEM.md`](./BUILD_SYSTEM.md)).
+The main CI workflow covers code quality (`daemon/`, `build/scripts/*.sh`, TOML syntax, Conventional Commits). The separate `iso-boot.yml` workflow builds and boots the ISO in QEMU for pull requests and pushes to `main` that change `build/`, `daemon/`, `schema/`, or `pyproject.toml`, including Secure Boot and a modified-kernel rejection check. Physical hardware validation remains manual (see [`docs/BUILD_SYSTEM.md`](./BUILD_SYSTEM.md)).
 
 Before deploying a changed ISO, run the QEMU Secure Boot smoke and rejection commands in `docs/BUILD_SYSTEM.md`. They require QEMU and OVMF on the host. The smoke test checks that the guest reports Secure Boot enforcement and reaches the multi-user target; the negative test changes one kernel byte and checks GRUB rejects it.
 

@@ -49,20 +49,38 @@ def test_resolve_default_hostname_rejects_oversized():
     assert _resolve_default_hostname({"branding": {"hostname": oversized}}) == "gallos"
 
 
-def test_set_system_hostname_uses_transient_hostname_service():
+def test_set_system_hostname_updates_effective_hostname():
+    from subprocess import CompletedProcess
     from unittest.mock import patch
 
     from daemon.src.identity import _set_system_hostname
 
-    with patch("daemon.src.identity.subprocess.run") as run:
+    with patch(
+        "daemon.src.identity.subprocess.run",
+        return_value=CompletedProcess(args=[], returncode=0, stderr=""),
+    ) as run:
         _set_system_hostname("ICPC")
 
     run.assert_called_once_with(
-        ["hostnamectl", "--transient", "set-hostname", "ICPC"],
+        ["hostnamectl", "set-hostname", "ICPC"],
         check=False,
         capture_output=True,
         text=True,
     )
+
+
+def test_set_system_hostname_reports_failure():
+    from unittest.mock import Mock, patch
+
+    import pytest
+
+    from daemon.src.identity import _set_system_hostname
+
+    with patch(
+        "daemon.src.identity.subprocess.run", return_value=Mock(returncode=1, stderr="denied")
+    ):
+        with pytest.raises(RuntimeError, match="denied"):
+            _set_system_hostname("ICPC")
 
 
 def test_apply_machine_identity_applies_branding_hostname():

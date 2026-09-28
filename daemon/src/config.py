@@ -1,11 +1,14 @@
 """Trusted local TOML ingestion and validation for the GallosOS daemon."""
 
+import json
 import os
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import tomllib
+from jsonschema import Draft7Validator
 
 UTC_TZ_OFFSET = "+00:00"
 
@@ -45,6 +48,23 @@ CONFIG_SEARCH_DIRECTORIES = [
     "/gallos",
     "/usr/share/gallos",
 ]
+
+_PACKAGED_SCHEMA = Path(__file__).resolve().parent / "directives.schema.json"
+SCHEMA_PATH = (
+    _PACKAGED_SCHEMA
+    if _PACKAGED_SCHEMA.is_file()
+    else Path(__file__).resolve().parents[2] / "schema" / "directives.schema.json"
+)
+
+
+def validate_directives(config: dict[str, Any]) -> None:
+    """Reject invalid organizer policy before any active state is changed."""
+    with SCHEMA_PATH.open(encoding="utf-8") as schema_file:
+        schema = json.load(schema_file)
+    error = next(Draft7Validator(schema).iter_errors(config), None)
+    if error is not None:
+        location = ".".join(str(part) for part in error.absolute_path) or "root"
+        raise ValueError(f"Invalid directives at {location}: {error.message}")
 
 
 def _discover_unique_profile(dirs: list[str], suffix: str) -> str | None:
@@ -104,7 +124,7 @@ def load_local_config(search_dirs: list[str] | None = None) -> tuple[dict[str, A
             print(f"[config] No canonical gallos.toml found; auto-loaded profile: {discovered}")
             return data, discovered
         except Exception as e:
-            print(f"[config] Failed to parse profile {discovered}: {e}", file=sys.stderr)
+            raise ValueError(f"Failed to parse profile {discovered}: {e}") from e
 
     # 3. The ISO baseline must not shadow a profile added by an organizer.
     for d in dirs:
@@ -116,7 +136,7 @@ def load_local_config(search_dirs: list[str] | None = None) -> tuple[dict[str, A
                 print(f"[config] Loaded bundled baseline from {candidate}")
                 return data, candidate
             except Exception as e:
-                print(f"[config] Failed to parse {candidate}: {e}", file=sys.stderr)
+                raise ValueError(f"Failed to parse bundled baseline {candidate}: {e}") from e
 
     return None, ""
 
@@ -186,7 +206,9 @@ def load_active_config() -> dict[str, Any]:
     """Load trusted local directives; kernel arguments cannot replace Organizer policy."""
     config_data, source_name = load_local_config()
 
-    if not config_data:
+    if config_data is not None:
+        validate_directives(config_data)
+    else:
         print("[config] No external config found. Using default profile.")
         config_data = DEFAULT_CONFIG.copy()
         source_name = "default internal"

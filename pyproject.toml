@@ -4,7 +4,7 @@ version = "0.2.0"
 description = "GallosOS Live System Dynamic Security & Mode Daemon"
 authors = [{ name = "GallosOS Contributors" }]
 requires-python = ">=3.10"
-dependencies = []
+dependencies = ["jsonschema>=4.10"]
 
 [project.optional-dependencies]
 dev = [
