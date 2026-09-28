@@ -1,15 +1,39 @@
 #!/usr/bin/env python3
-"""Organizer CLI Control utility for GallosOS Daemon."""
+"""Organizer and Contestant CLI Control utility for GallosOS Daemon."""
 
+import json
 import os
 import socket
 import sys
 
 SOCKET_PATH = "/run/gallos/daemon.sock"
+STATE_FILE = "/run/gallos/state.json"
+TRANSITION_FILE = "/run/gallos/transition.json"
+
+
+def _read_offline_status() -> dict | None:
+    for path in (STATE_FILE, TRANSITION_FILE):
+        if os.path.exists(path):
+            try:
+                with open(path, encoding="utf-8") as f:
+                    return json.load(f)
+            except (OSError, json.JSONDecodeError):
+                continue
+    return None
 
 
 def send_command(cmd: str) -> None:
+    cmd_upper = cmd.split()[0].upper()
+    if cmd_upper in ("START", "STOP", "RELOAD") and os.geteuid() != 0:
+        print("Error: Root privileges required for contest control.", file=sys.stderr)
+        sys.exit(1)
+
     if not os.path.exists(SOCKET_PATH):
+        if cmd_upper == "STATUS":
+            offline = _read_offline_status()
+            if offline:
+                print(json.dumps(offline, indent=2))
+                return
         print(
             f"Error: GallosOS Daemon is not running (socket {SOCKET_PATH} not found).",
             file=sys.stderr,
@@ -25,13 +49,79 @@ def send_command(cmd: str) -> None:
             if resp.startswith("ERROR"):
                 sys.exit(1)
     except Exception as e:
+        if cmd_upper == "STATUS":
+            offline = _read_offline_status()
+            if offline:
+                print(json.dumps(offline, indent=2))
+                return
         print(f"Error communicating with GallosOS Daemon: {e}", file=sys.stderr)
         sys.exit(1)
 
 
+def run_check(as_json: bool = False) -> None:
+    """Runs workstation diagnostics without requiring root."""
+    daemon_status = _read_offline_status() or {}
+    daemon_running = os.path.exists(SOCKET_PATH) or bool(daemon_status)
+    mode = daemon_status.get("mode", "Unknown")
+    transition_status = daemon_status.get("transition_status", "unknown")
+
+    wayland_display = os.environ.get("WAYLAND_DISPLAY", "")
+    desktop = os.environ.get("XDG_CURRENT_DESKTOP", "")
+    uid = os.geteuid()
+
+    layout = "us"
+    if os.path.exists("/tmp/gallos_layout"):  # noqa: S108
+        try:
+            with open("/tmp/gallos_layout", encoding="utf-8") as f:  # noqa: S108
+                layout = f.read().strip() or "us"
+        except OSError:
+            pass
+
+    loopback_ok = os.path.exists("/sys/class/net/lo")
+
+    if as_json:
+        results = {
+            "daemon": {
+                "running": daemon_running,
+                "mode": mode,
+                "transition_status": transition_status,
+            },
+            "wayland": {
+                "active": bool(wayland_display),
+                "display": wayland_display or "none",
+                "desktop": desktop or "unknown",
+            },
+            "session": {
+                "uid": uid,
+                "user": os.environ.get("USER", str(uid)),
+                "is_root": uid == 0,
+            },
+            "keyboard": {"active_layout": layout},
+            "network": {"loopback_ok": loopback_ok},
+        }
+        print(json.dumps(results, indent=2))
+        return
+
+    d_mark = "✓" if daemon_running else "✗"
+    w_mark = "✓" if wayland_display else "!"
+    l_mark = "✓" if loopback_ok else "✗"
+    print("GallosOS Workstation Diagnostics:")
+    print(
+        f"  [{d_mark}] Daemon: {'Running' if daemon_running else 'Stopped'} "
+        f"(Mode: {mode}, Status: {transition_status})"
+    )
+    print(f"  [{w_mark}] Desktop: {desktop or 'none'} (Display: {wayland_display or 'none'})")
+    print(f"  [✓] User Session: UID {uid} ({'root' if uid == 0 else 'unprivileged contestant'})")
+    print(f"  [✓] Keyboard Layout: {layout}")
+    print(f"  [{l_mark}] Loopback Interface: {'OK' if loopback_ok else 'Missing'}")
+
+
 def main() -> None:
     if len(sys.argv) < 2:
-        print("Usage: gallos-ctl [contest start [mins] | contest stop | status | reload]")
+        print(
+            "Usage: gallos-ctl [contest start [mins] | contest stop | status | "
+            "check [--json] | reload]"
+        )
         sys.exit(1)
 
     cmd_type = sys.argv[1].lower()
@@ -52,6 +142,9 @@ def main() -> None:
 
     elif cmd_type == "status":
         send_command("STATUS")
+    elif cmd_type == "check":
+        as_json = "--json" in sys.argv[2:]
+        run_check(as_json=as_json)
     elif cmd_type == "reload":
         send_command("RELOAD")
     else:

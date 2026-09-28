@@ -10,6 +10,7 @@ import os
 import select
 import signal
 import socket
+import struct
 import sys
 import time
 from typing import Any
@@ -62,7 +63,10 @@ class GallosDaemon:
 
     def setup_socket(self) -> None:
         """Initializes the control Unix domain socket for gallos-ctl."""
-        os.makedirs(os.path.dirname(SOCKET_PATH), exist_ok=True)
+        sock_dir = os.path.dirname(SOCKET_PATH)
+        os.makedirs(sock_dir, exist_ok=True)
+        with contextlib.suppress(OSError):
+            os.chmod(sock_dir, 0o755)  # noqa: S103
         if os.path.exists(SOCKET_PATH):
             with contextlib.suppress(OSError):
                 os.remove(SOCKET_PATH)
@@ -71,8 +75,8 @@ class GallosDaemon:
         self.server_sock.bind(SOCKET_PATH)
         self.server_sock.listen(5)
         self.server_sock.setblocking(False)
-        # Root and wheel access
-        os.chmod(SOCKET_PATH, 0o660)
+        # Allow any local user to connect for status queries; mutating commands check UID
+        os.chmod(SOCKET_PATH, 0o666)  # noqa: S103
         print(f"[daemon] IPC control socket listening at {SOCKET_PATH}")
 
     def _cmd_start(self, parts: list[str]) -> bytes:
@@ -112,11 +116,16 @@ class GallosDaemon:
             return f"ERROR Configuration reload failed: {error}\n".encode()
         return b"OK Configuration reloaded\n"
 
-    def _process_ipc_command(self, raw_data: str) -> bytes:
+    def _process_ipc_command(self, raw_data: str, client_uid: int = 0) -> bytes:
         """Parses and dispatches IPC CLI commands, returning the response bytes."""
         parts = raw_data.split()
         if not parts:
             return b"ERROR Empty command\n"
+
+        cmd = parts[0].upper()
+        # Mutating operations strictly require root privileges (UID 0)
+        if cmd in ("START", "STOP", "RELOAD") and client_uid != 0:
+            return b"ERROR Permission denied: root required\n"
 
         handlers = {
             "START": self._cmd_start,
@@ -124,7 +133,6 @@ class GallosDaemon:
             "STATUS": self._cmd_status,
             "RELOAD": self._cmd_reload,
         }
-        cmd = parts[0].upper()
         handler = handlers.get(cmd)
         if handler:
             return handler(parts)
@@ -137,11 +145,21 @@ class GallosDaemon:
         try:
             conn, _ = self.server_sock.accept()
             with conn:
+                client_uid = 0
+                if hasattr(socket, "SO_PEERCRED"):
+                    try:
+                        cred = conn.getsockopt(
+                            socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i")
+                        )
+                        _, client_uid, _ = struct.unpack("3i", cred)
+                    except OSError:
+                        client_uid = 0
+
                 data = conn.recv(1024).decode("utf-8").strip()
                 if not data:
                     return
-                print(f"[daemon] IPC Command received: '{data}'")
-                response = self._process_ipc_command(data)
+                print(f"[daemon] IPC Command received from uid {client_uid}: '{data}'")
+                response = self._process_ipc_command(data, client_uid=client_uid)
                 conn.sendall(response)
         except Exception as e:
             print(f"[daemon] IPC handle error: {e}", file=sys.stderr)

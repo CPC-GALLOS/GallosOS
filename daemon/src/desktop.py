@@ -70,5 +70,6 @@ def export_waybar_state(
     try:
         with open(state_file, "w", encoding="utf-8") as f:
             json.dump(payload, f)
+        os.chmod(state_file, 0o644)
     except Exception as e:
         print(f"[desktop] Error writing state.json: {e}", file=sys.stderr)
