@@ -47,6 +47,7 @@ base_os = "ubuntu-24.04-minimal"
 kernel = "linux-generic-hwe-24.04"
 target_arch = "amd64"
 bootstrap_method = "debootstrap"  # or "tarball" — see § 2.2
+ubuntu_base_version = "24.04.5"   # required when bootstrap_method = "tarball"
 apt_mirror = "auto"               # or an explicit mirror URL — see § 2.2
 
 [optimization]
@@ -99,7 +100,7 @@ allow_usb_storage = false
 `bootstrap_method` picks how Stage 1 builds the base rootfs:
 
 - **`"debootstrap"` (default):** runs `debootstrap` live inside the container against `apt_mirror`. This is the default specifically because mirror flexibility genuinely exists at this layer — Canonical's apt archive is broadly mirrored (see `launchpad.net/ubuntu/+cdmirrors` for the official list) and the same mirror choice also serves Stage 2's package installs, since `debootstrap` configures the target's `sources.list` to match.
-- **`"tarball"`:** imports Canonical's official `ubuntu-base-<version>-base-amd64.tar.gz` snapshot (published at `cdimage.ubuntu.com/ubuntu-base/releases/`) from `.cache/base-images/`, verified against its `SHA256SUMS`/`SHA256SUMS.gpg`. This tarball is itself Canonical's own `debootstrap` output, republished as a pinned artifact — useful for fully offline builds or maximum build-to-build reproducibility (a fixed snapshot rather than whatever the mirror serves today). Its tradeoff: unlike the apt archive, this tarball is **effectively single-source** — checked during this pipeline's development, a real community mirror that does carry Ubuntu's `ubuntu-releases` (full ISO) tree returned 404 for the `ubuntu-base` tree, so no broad mirror network exists for it. No official BitTorrent distribution exists for it either (`cdimage.ubuntu.com/ubuntu-base/` has no `.torrent` files — only the full Desktop/Server ISOs at `releases.ubuntu.com` get those).
+- **`"tarball"`:** requires `build.ubuntu_base_version` (for example, `24.04.5`) and uses the matching Canonical `ubuntu-base-<version>-base-amd64.tar.gz` snapshot. It reads `.cache/base-images/` first and downloads the exact version from Canonical's release archive if it is not cached, then verifies it against the corresponding entry in `SHA256SUMS`. The selected version must remain available from Canonical or in the local cache; update the profile when selecting a newer point release. This path supports offline builds with a pre-populated cache and avoids silently changing the base snapshot.
 
 `apt_mirror` controls which apt mirror `debootstrap` (and Stage 2's `apt-get`) use:
 
@@ -140,7 +141,7 @@ When a developer runs `make iso CONFIG=profiles/universal.build.toml`, the conta
 
 ### Stage 1: Base Bootstrap (`debootstrap` or `ubuntu-base` tarball)
 
-Controlled by `build.toml`'s `bootstrap_method` (§ 2.2). By default the container runs `debootstrap` against `apt_mirror` (`"auto"` picks the first reachable mirror from an ordered fallback list — `build/scripts/lib-mirrors.sh`). Setting `bootstrap_method = "tarball"` instead imports Canonical's official `ubuntu-base-<version>-base-amd64.tar.gz` rootfs snapshot from `.cache/base-images/`, verified against its `SHA256SUMS`/`SHA256SUMS.gpg` before extraction — useful for offline builds or maximum reproducibility, at the cost of that artifact being effectively single-source (§ 2.2 has the details). Either path establishes the basic directory structure and populates `/dev`, `/proc`, and `/sys` for chrooting.
+Controlled by `build.toml`'s `bootstrap_method` (§ 2.2). By default the container runs `debootstrap` against `apt_mirror` (`"auto"` picks the first reachable mirror from an ordered fallback list — `build/scripts/lib-mirrors.sh`). Setting `bootstrap_method = "tarball"` instead imports the exact `ubuntu_base_version` snapshot from `.cache/base-images/` or Canonical's archive and verifies its SHA256 checksum before extraction. Either path establishes the basic directory structure and populates `/dev`, `/proc`, and `/sys` for chrooting.
 
 ### Stage 2: Provisioning (`chroot`)
 

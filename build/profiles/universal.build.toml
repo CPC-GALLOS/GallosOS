@@ -7,11 +7,11 @@
 base_os = "ubuntu-24.04-minimal"
 kernel = "linux-generic-hwe-24.04"
 target_arch = "amd64"
-# How Stage 1 builds the base rootfs — "debootstrap" (default) pulls live
-# from apt_mirror; "tarball" imports the pinned, checksum-verified
-# ubuntu-base snapshot from .cache/base-images/ instead (offline-friendly,
-# maximally reproducible, but single-source — see docs/BUILD_SYSTEM.md §3).
+# How Stage 1 builds the base rootfs — "debootstrap" pulls live from
+# apt_mirror; "tarball" imports this pinned Ubuntu Base snapshot from the
+# local cache or Canonical's release archive, verifying its SHA256SUMS.
 bootstrap_method = "tarball"
+ubuntu_base_version = "24.04.5"
 # Apt mirror for debootstrap (Stage 1) and package installs (Stage 2).
 # "auto" tries an ordered fallback list (build/scripts/lib-mirrors.sh);
 # set an explicit URL (e.g. "http://us.archive.ubuntu.com/ubuntu/") to pin

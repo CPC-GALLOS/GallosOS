@@ -6,11 +6,9 @@
 # list, or an explicit URL). This is the default because it's where real
 # mirror flexibility exists — see lib-mirrors.sh's header for why.
 #
-# Alternate: build.toml [build].bootstrap_method = "tarball" imports
-# Canonical's pinned ubuntu-base tarball from .cache/base-images/ instead —
-# useful for fully offline builds or maximum reproducibility (a fixed,
-# checksum-verified snapshot rather than whatever the mirror currently
-# serves), at the cost of the single-source limitation above.
+# Alternate: build.toml [build].bootstrap_method = "tarball" imports the
+# explicitly versioned Canonical Ubuntu Base snapshot from .cache/base-images/
+# or its official release archive, with its checksum verified before use.
 set -euo pipefail
 
 CONFIG="$1"
@@ -37,29 +35,38 @@ mkdir -p "$ROOTFS"
 case "$method" in
 tarball)
     mkdir -p "$CACHE_DIR"
-    tarball="$(find "$CACHE_DIR" -maxdepth 1 -name 'ubuntu-base-24.04*-base-amd64.tar.gz' 2>/dev/null | sort -V | tail -1 || true)"
-    if [[ -z "$tarball" ]]; then
-        echo "01-bootstrap.sh: No cached base image found. Downloading official Ubuntu 24.04 base tarball..."
-        curl -fsSL -o "$CACHE_DIR/ubuntu-base-24.04.1-base-amd64.tar.gz" \
-            "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.1-base-amd64.tar.gz"
-        curl -fsSL -o "$CACHE_DIR/ubuntu-base-24.04.1-SHA256SUMS" \
-            "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/SHA256SUMS"
-        tarball="$CACHE_DIR/ubuntu-base-24.04.1-base-amd64.tar.gz"
+    base_version="$(python3 "$SCRIPT_DIR/tomlget.py" "$CONFIG" build.ubuntu_base_version)"
+    if [[ -z "$base_version" ]]; then
+        echo "01-bootstrap.sh: tarball bootstrap requires build.ubuntu_base_version (for example, 24.04.5)" >&2
+        exit 1
+    fi
+    if [[ ! "$base_version" =~ ^24\.04\.[0-9]+$ ]]; then
+        echo "01-bootstrap.sh: unsupported Ubuntu Base version '$base_version' (expected 24.04.x)" >&2
+        exit 1
     fi
 
-    sums_file="$(find "$CACHE_DIR" -maxdepth 1 -name 'ubuntu-base-24.04*-SHA256SUMS' | sort -V | tail -1)"
-    if [[ -n "$sums_file" ]]; then
-        echo "Verifying $(basename "$tarball") against $(basename "$sums_file")..."
-        expected="$(grep "$(basename "$tarball")" "$sums_file" | awk '{print $1}')"
-        actual="$(sha256sum "$tarball" | awk '{print $1}')"
-        if [[ -z "$expected" || "$expected" != "$actual" ]]; then
-            echo "01-bootstrap.sh: SHA256 mismatch for $tarball" >&2
-            echo "  expected: $expected" >&2
-            echo "  actual:   $actual" >&2
-            exit 1
-        fi
-    else
-        echo "01-bootstrap.sh: WARNING no SHA256SUMS found next to $tarball, skipping verification" >&2
+    tarball_name="ubuntu-base-${base_version}-base-amd64.tar.gz"
+    sums_name="ubuntu-base-${base_version}-SHA256SUMS"
+    tarball="$CACHE_DIR/$tarball_name"
+    sums_file="$CACHE_DIR/$sums_name"
+    if [[ ! -s "$tarball" ]]; then
+        echo "01-bootstrap.sh: Downloading official Ubuntu Base ${base_version}..."
+        curl -fsSL -o "$tarball" \
+            "https://cdimage.ubuntu.com/cdimage/ubuntu-base/releases/24.04/release/$tarball_name"
+    fi
+    if [[ ! -s "$sums_file" ]]; then
+        curl -fsSL -o "$sums_file" \
+            "https://cdimage.ubuntu.com/cdimage/ubuntu-base/releases/24.04/release/SHA256SUMS"
+    fi
+
+    echo "Verifying $(basename "$tarball") against $(basename "$sums_file")..."
+    expected="$(awk -v file="$tarball_name" '$2 == file { print $1; exit }' "$sums_file")"
+    actual="$(sha256sum "$tarball" | awk '{print $1}')"
+    if [[ -z "$expected" || "$expected" != "$actual" ]]; then
+        echo "01-bootstrap.sh: SHA256 mismatch for $tarball" >&2
+        echo "  expected: ${expected:-missing checksum entry}" >&2
+        echo "  actual:   $actual" >&2
+        exit 1
     fi
 
     echo "Extracting $(basename "$tarball") into $ROOTFS..."
