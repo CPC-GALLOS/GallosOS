@@ -48,7 +48,7 @@ graph TD
 GallosOS enforces a **Monorepo** strategy with a strict **"In-Band vs Out-of-Band"** tooling philosophy. This prevents the project from suffering the "lack of support" fate of HuronOS or the complexity of Maratona Linux.
 
 - **Monorepo Structure:** All components (OS build scripts, Wayland configs, and external CLI tools) live in a single Git repository. This lowers the barrier to entry, ensuring that one `git clone` provides the entire ecosystem.
-- **In-Band Tooling (Hackable OS Core):** Any code that runs **inside** the live USB environment (`gallos-daemon`, init scripts) is written strictly in **Python**. The core OS must be hackable on the fly. If an edge-case bug occurs during a regional contest, an organizer with root access can open the script, patch it, and save the event without needing a compiler.
+- **In-Band Tooling (Hackable OS Core):** Any code that runs **inside** the live USB environment (`gallosd`, init scripts) is written strictly in **Python**. The core OS must be hackable on the fly. If an edge-case bug occurs during a regional contest, an organizer with root access can open the script, patch it, and save the event without needing a compiler.
 - **Out-of-Band Tooling (Compiled Organizer CLIs):** Tools run by the organizer on their host machine (e.g., `gallos-convert`, `gallos-flash`) are built as **Statically Compiled Binaries (Rust)**. Organizers suffer from "dependency hell" when asked to install Python just to convert a config file. Rust delivers a single, portable executable that "just works" out of the box.
 
 ---
@@ -59,7 +59,7 @@ The current daemon loads TOML only from local files. Policy precedence is `/etc/
 
 Kernel boot arguments, DHCP options, network URLs, and arbitrary attached disks are not policy sources. The Casper hook exposes the approved GallosOS boot medium. It does not scan other attached filesystems for Organizer TOML.
 
-For a last-minute Contest correction, an authorized Organizer edits `/etc/gallos/gallos.toml` with a normal text editor and runs `gallosctl reload` (or `gallos-ctl reload`). A valid reload replaces active policy; a failed reload reports an error and keeps the current in-memory policy. Remote config distribution remains a future design item and is not part of the current runtime.
+For a last-minute Contest correction, an authorized Organizer edits `/etc/gallos/gallos.toml` with a normal text editor and runs `gallosctl reload`. A valid reload replaces active policy; a failed reload reports an error and keeps the current in-memory policy. Remote config distribution remains a future design item and is not part of the current runtime.
 
 ---
 
@@ -108,13 +108,13 @@ GallosOS utilizes an **immutable root filesystem** with **OverlayFS** backed ent
 
 4. **`allow_usb_storage` vs. `event-data` — two different mechanisms, both called "USB":**
    - **`allow_usb_storage`** (`docs/ANTI_CHEAT_AND_SECURITY.md` §5) governs *external* USB mass-storage devices a contestant plugs in during a session — a separate flash drive, not the drive GallosOS booted from.
-   - **`event-data`** (item 5 below) is a partition *on the boot drive itself*, mounted automatically by `gallos-daemon` when present, independent of `allow_usb_storage`.
+   - **`event-data`** (item 5 below) is a partition *on the boot drive itself*, mounted automatically by `gallosd` when present, independent of `allow_usb_storage`.
 
 5. **Optional Persistent Storage (`event-data` partition):**
    A contestant's own dedicated USB may carry a persistent `event-data` partition for `Event`/`Default`-mode workspace continuity across sessions (club practice, training camps) — an explicit, low-frequency-write exception to item 3's ephemeral design, not a contradiction of it. Two provisioning paths converge on the same runtime mechanism:
    - **Dedicated `gallos-flash` dd-flash (organizer-provisioned fleets):** `gallos-flash` partitions the drive as `GALLOS_BOOT` (FAT32) + `event-data` (ext4, sized to consume all remaining drive capacity). This is the primary path for official events and is required regardless of Ventoy support below.
    - **Ventoy multi-boot USB (BYOD / personal drives):** `Ventoy2Disk`'s own `-r SIZE_MB` flag ("preserve some space at the bottom of the disk") leaves the reserved region unallocated at install time; the user formats it ext4 afterward. This is a real, documented Ventoy feature rather than a workaround — Ventoy's own docs state "you can create Part3 and Part4 with the reserved space and use them as you want" — though whether a partition in that reserved space survives a later Ventoy version update is not documented upstream and should not be assumed without verification. This targets the BYOD audience specifically — organizers mass-flashing 50-200 single-purpose tournament USBs have no reason to add Ventoy's multi-boot chainload overhead, and a student's personal multi-ISO Ventoy stick shouldn't be dd-wiped by `gallos-flash` for a club session.
-   - **Detection, either path:** `gallos-daemon` delegates the host-visible mount to `gallos-event-storage.service`. Its root helper resolves the unique `event-data` filesystem label, checks for ext4, and mounts it at `/media/event-data`; the contestant-owned workspace is `/media/event-data/contestant`. A missing partition is optional. A duplicate label or busy unmount is an error. This avoids the daemon's private mount namespace hiding storage from the desktop.
+   - **Detection, either path:** `gallosd` delegates the host-visible mount to `gallos-event-storage.service`. Its root helper resolves the unique `event-data` filesystem label, checks for ext4, and mounts it at `/media/event-data`; the contestant-owned workspace is `/media/event-data/contestant`. A missing partition is optional. A duplicate label or busy unmount is an error. This avoids the daemon's private mount namespace hiding storage from the desktop.
    - **Contest mode never mounts it, at all.** This isn't a policy toggle — `event-data` is simply not mounted during a `Contest` window, full stop, matching the existing Clean State Wipe guarantee (`docs/CONFIG_SPEC.md` §6) and keeping the zero-USB-write-churn property intact even on drives that do carry the partition.
    - **Note on huronOS's inherited 3-partition layout:** huronOS's own design (`docs/COMPARATIVE_ANALYSIS.md` §1) includes a separate `contest-data` partition for "isolated persistent Overlay storage during Contest mode." GallosOS deliberately does **not** carry this forward — it directly contradicts the Clean State Wipe / zero-write-during-Contest guarantee above, which is a firmer requirement here than in huronOS's own design. GallosOS uses a 2-partition layout (`GALLOS_BOOT`, `event-data`) instead of huronOS's 3.
 
@@ -184,7 +184,7 @@ GallosOS separates administrative contest constraints (governed by `gallos.toml`
    - Clear visual indicator in Waybar showing the active layout (e.g., `latam`, `us`, `es`), with `Super + Space` (or `Alt + Shift`) hotkey cycling for international contestants.
 
 4. **Dynamic Contest Countdown (Optional):**
-   - Waybar executes a local script that parses `gallos-daemon` state to display a live count-down timer (e.g., `Time Left: 02:45:10`), flashing amber when under 15 minutes remaining.
+   - Waybar executes a local script that parses `gallosd` state to display a live count-down timer (e.g., `Time Left: 02:45:10`), flashing amber when under 15 minutes remaining.
 
 5. **Anti-Accident Power Button Lock:**
    - In `Contest` mode, graphical shutdown and reboot options are strictly disabled from the Waybar to prevent contestants from accidentally powering off the machine during the competition (physical hard reboots remain possible if the machine freezes).
@@ -199,10 +199,10 @@ Accurate, trustworthy system time is a **critical dependency** for GallosOS: it 
 
 GallosOS uses **`chrony`** (not legacy `ntpd`) as the system NTP daemon, consistent with Ubuntu 24.04 LTS defaults and validated by Maratona Linux (`maratona-kairos`) in production Latin American ICPC regionals.
 
-Key `chrony` behaviors configured by `gallos-daemon`:
+Key `chrony` behaviors configured by `gallosd`:
 
 - **Early Boot Convergence (`makestep 1 3`):** During the first 3 NTP polls (before the desktop session launches), allow clock jumps of up to 1 second to converge quickly from a drifted RTC.
-- **Contest-Active Slewing Only:** Once `gallos-daemon` enters an active `Contest` window, `chrony` switches to gradual slewing mode only (no abrupt jumps), protecting `make`, `gcc`, `gdb`, and filesystem timestamps from clock discontinuities.
+- **Contest-Active Slewing Only:** Once `gallosd` enters an active `Contest` window, `chrony` switches to gradual slewing mode only (no abrupt jumps), protecting `make`, `gcc`, `gdb`, and filesystem timestamps from clock discontinuities.
 - **Source Auto-Discovery:** `chrony` accepts NTP sources from multiple paths simultaneously and automatically selects the best one:
   - Venue Controller LAN server (future design; not used for current policy loading).
   - DHCP-provided NTP servers (Option 42, standard in enterprise and university routers).
@@ -223,7 +223,7 @@ start = "2026-11-14T10:00:00-06:00"
 end   = "2026-11-14T15:00:00-06:00"
 ```
 
-- `gallos-daemon` compares the current `chrony`-synchronized system time against the schedule.
+- `gallosd` compares the current `chrony`-synchronized system time against the schedule.
 - The `Contest` mode activates automatically at `start` and deactivates at `end`, transitioning back to `Event` or `Default`.
 - Multiple `[[contest.schedule]]` blocks can define successive contest days (e.g. Day 1 and Day 2 of a regional).
 
@@ -231,7 +231,7 @@ end   = "2026-11-14T15:00:00-06:00"
 
 A critical vulnerability in multi-mode systems is cache retention. If a student uses `Event` mode to browse ChatGPT, save algorithms to their desktop, or inject templates, simply changing the firewall when `Contest` mode hits is insufficient—their browser cache and saved files would still exist!
 
-To guarantee absolute integrity, whenever `gallos-daemon` transitions the system **into** `Contest` mode, it executes a **Clean State Wipe**:
+To guarantee absolute integrity, whenever `gallosd` transitions the system **into** `Contest` mode, it executes a **Clean State Wipe**:
 
 1. **Kills the Wayland Session:** Instantly logs out the `contestant` user, closing all open windows, IDEs, and browsers.
 2. **Purges the Home Directory:** Executes `rm -rf /home/contestant/* /home/contestant/.*` to completely destroy browser caches, bash history, downloaded files, and saved templates.
@@ -257,14 +257,14 @@ duration_minutes = 300   # 5 hours from manual trigger or boot
 
 - The contest window does **not** depend on the absolute wall-clock time at all.
 - The timer starts from one of the following triggers:
-  1. **Organizer manual trigger:** The organizer runs `gallos-ctl contest start` from the administrator session or Venue Controller.
+  1. **Organizer manual trigger:** The organizer runs `gallosctl contest start` from the administrator session or Venue Controller.
   2. **First boot:** If `auto_start_on_boot = true`, the timer begins counting from the moment the desktop session is ready.
 - The countdown runs on a monotonic kernel clock (`CLOCK_MONOTONIC`), which is immune to NTP adjustments, wall-clock jumps, and RTC corruption.
 - This mode is the **primary mechanism for Tier 0 air-gapped deployments**, where the only infrastructure available is electricity and the GallosOS USB itself.
 
 #### Combining Both Modes
 
-When both `[[contest.schedule]]` and `duration_minutes` are specified, the absolute schedule takes precedence if `chrony` reports a synchronized clock (`chronyc tracking` → `Leap status: Normal`). If the clock is unsynchronized, `gallos-daemon` falls back to `duration_minutes` automatically and logs a warning.
+When both `[[contest.schedule]]` and `duration_minutes` are specified, the absolute schedule takes precedence if `chrony` reports a synchronized clock (`chronyc tracking` → `Leap status: Normal`). If the clock is unsynchronized, `gallosd` falls back to `duration_minutes` automatically and logs a warning.
 
 ### 6.3 UTC/Localtime BIOS Skew Handling
 
@@ -400,7 +400,7 @@ Before physical USB mass-flashing, images are verified against multiple hypervis
 
 - Simply copy `gallos-os-amd64.iso` onto any standard Ventoy USB drive.
 - Ventoy can chainload the GallosOS ISO. GallosOS does not import Organizer policy from the Ventoy data partition; policy must come from the approved GallosOS boot medium or the local root-only override.
-- **Optional persistent `event-data` on the same drive:** run `Ventoy2Disk` with `-r SIZE_MB` at install time to reserve unallocated space at the end of the disk, then format that reserved region as ext4 with the label `event-data`. `gallos-daemon` mounts it automatically using the same label-based detection it uses on a `gallos-flash`-provisioned drive — see §4 "Storage & Filesystem Architecture," item 5. This is the BYOD/personal-drive on-ramp to that same mechanism, not a separate feature.
+- **Optional persistent `event-data` on the same drive:** run `Ventoy2Disk` with `-r SIZE_MB` at install time to reserve unallocated space at the end of the disk, then format that reserved region as ext4 with the label `event-data`. `gallosd` mounts it automatically using the same label-based detection it uses on a `gallos-flash`-provisioned drive — see §4 "Storage & Filesystem Architecture," item 5. This is the BYOD/personal-drive on-ramp to that same mechanism, not a separate feature.
 
 ---
 
@@ -605,7 +605,7 @@ syntax_highlighting = true
 2. **`hosted` Mode (Controller Hosts CUPS with Local USB Printer):**
    - The GallosOS Venue Controller machine has a physical printer plugged directly via USB.
    - The Controller starts its own CUPS spooler with `gallos-cups-filter`. **By default, contestant workstations target the Controller's own known IP directly (static, no discovery step)** rather than broadcasting via Avahi/mDNS. [Precedent: the real ICPC World Finals firewall (`icpcsysops/ansible` `do_iptables.yml`) explicitly `REJECT`s port 5353 — onsite printers there are statically configured, with no mDNS broadcast on contestant machines at all.] GallosOS's own `nftables` ruleset (`docs/ANTI_CHEAT_AND_SECURITY.md` §3.1) follows the same default: mDNS is dropped unconditionally unless `enable_mdns_discovery = true` narrowly reopens it, scoped to the Controller's IP only.
-   - Zero manual IP setup is still required from the *organizer's* side: the Controller's IP is already known to `gallos-daemon` from the venue network layout, it just isn't broadcast/discovered dynamically by default.
+   - Zero manual IP setup is still required from the *organizer's* side: the Controller's IP is already known to `gallosd` from the venue network layout, it just isn't broadcast/discovered dynamically by default.
 
 3. **`none` Mode (Disabled Printing):**
    - Printing is completely disabled for online exams, virtual camps, or paperless venues.
@@ -648,13 +648,13 @@ GallosOS ships **`earlyoom`** (available directly via `apt install earlyoom` on 
 
 ```text
 # /etc/systemd/system.conf.d/99-oom-immunity.conf
-# Applied at boot by gallos-daemon
+# Applied at boot by gallosd
 
 systemd          oom_score_adj = -1000
 dbus-daemon      oom_score_adj = -1000
 labwc            oom_score_adj = -900   # Wayland compositor
 waybar           oom_score_adj = -900
-gallos-daemon    oom_score_adj = -900
+gallosd    oom_score_adj = -900
 vscodium         oom_score_adj = -500
 idea.sh          oom_score_adj = -500   # JetBrains
 ```
@@ -669,7 +669,7 @@ Rather than relying on brittle log-scraping scripts, GallosOS leverages EarlyOOM
 ```ini
 # /etc/default/earlyoom
 # Instructs earlyoom to broadcast kill events over system D-Bus
-EARLYOOM_ARGS="-m 10 -s 5 -r 60 -n --avoid '^(labwc|waybar|mako|gallos-daemon|Xwayland)$' --prefer '^(chrome|chromium|firefox|vscodium|idea)$'"
+EARLYOOM_ARGS="-m 10 -s 5 -r 60 -n --avoid '^(labwc|waybar|mako|gallosd|Xwayland)$' --prefer '^(chrome|chromium|firefox|vscodium|idea)$'"
 ```
 
 ```ini
@@ -711,19 +711,19 @@ contestant  hard  stack    unlimited
 
 During live contests, the contest jury frequently issues urgent clarifications or corrections to problem statements. Declaring announcements inside the static `gallos.toml` configuration is impractical as it requires pushing a new system-wide configuration file for simple message updates.
 
-Instead, GallosOS specifies an **optional, disableable** real-time network broadcast and polling protocol managed by `gallos-daemon`. To prevent unauthorized users on the network from spoofing fake clarifications, all incoming broadcasts must be cryptographically signed by the contest organizers.
+Instead, GallosOS specifies an **optional, disableable** real-time network broadcast and polling protocol managed by `gallosd`. To prevent unauthorized users on the network from spoofing fake clarifications, all incoming broadcasts must be cryptographically signed by the contest organizers.
 
 > [!NOTE]
 > **Optional & Context-Aware Usage:**
 >
-> - **Official Tournaments (Judge-Handled):** In contests like ICPC Regionals or IOI where clarifications are handled exclusively through the judge's web portal (DOMjudge, BOCA, CMS), `gallos-broadcast` can be completely disabled (`enabled = false`). When disabled, `gallos-daemon` leaves no broadcast listening sockets open.
+> - **Official Tournaments (Judge-Handled):** In contests like ICPC Regionals or IOI where clarifications are handled exclusively through the judge's web portal (DOMjudge, BOCA, CMS), `gallos-broadcast` can be completely disabled (`enabled = false`). When disabled, `gallosd` leaves no broadcast listening sockets open.
 > - **Classrooms, Camps & Local Contests:** In university classes, training camps, or venues without interactive judge messaging, the **Venue Controller** can use `gallos-broadcast` to push real-time announcements, schedule reminders (*"5 minutes to scoreboard freeze"*), or operational notices (*"Printed solutions ready in Lab A"*).
 > - **Standalone / Air-Gapped (Topology C):** With no central controller present, the subsystem remains inert.
 
 ```mermaid
 sequenceDiagram
     participant Organizer as Administrator / gallos-broadcast
-    participant Daemon as gallos-daemon (Workstation)
+    participant Daemon as gallosd (Workstation)
     participant Panel as Desktop Notifier (Mako)
     participant UI as Full-Screen Modal Window
 

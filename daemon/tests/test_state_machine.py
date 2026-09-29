@@ -1,4 +1,4 @@
-"""Unit tests for gallos-daemon 3-tier mode state machine."""
+"""Unit tests for gallosd 3-tier mode state machine."""
 
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
@@ -49,6 +49,7 @@ def test_first_transition_to_default_mounts_event_data(tmp_path):
         patch("daemon.src.state_machine.mount_event_data") as mock_mount,
         patch("daemon.src.state_machine.set_usb_storage_allowed"),
         patch("daemon.src.state_machine.apply_browser_policy"),
+        patch("daemon.src.state_machine.apply_web_egress"),
         patch("daemon.src.state_machine.update_wallpaper"),
         patch("daemon.src.state_machine.export_waybar_state"),
         patch("daemon.src.state_machine.stop_kiosk"),

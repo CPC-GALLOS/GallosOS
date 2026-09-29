@@ -1,4 +1,4 @@
-"""Unit tests for gallos-daemon workstation identity module."""
+"""Unit tests for gallosd workstation identity module."""
 
 from daemon.src.identity import _find_matched_machine, _resolve_hostname
 

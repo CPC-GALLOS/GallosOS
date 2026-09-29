@@ -6,12 +6,15 @@ and enforces default-DROP Zero-Trust network containment during Contest mode.
 """
 
 import ipaddress
+import pwd
 import socket
 import subprocess
 import sys
 import threading
 import time
 from typing import Any
+
+from .web_egress import effective_websites
 
 DEFAULT_TELEMETRY_DNS_BLOCKLIST: list[str] = [
     # Cloudflare Public DNS
@@ -66,6 +69,7 @@ class FirewallManager:
         self._lock = threading.Lock()
         self._resolver_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
+        self._restricted_web = False
 
     def start(self) -> None:
         """Starts the background periodic DNS resolution thread."""
@@ -90,10 +94,13 @@ class FirewallManager:
                 self._venue_controller_ip,
                 self._local_dns_ip,
                 self._resolved_judge_ips,
+                self._restricted_web,
             )
             self._current_mode = mode
             contest_cfg = config.get("contest", {})
             self._allowed_websites = contest_cfg.get("allowed_websites", [])
+            mode_sites = effective_websites(mode, config)
+            self._restricted_web = mode != "Contest" and bool(mode_sites) and mode_sites != ["*"]
             global_cfg = config.get("global", {})
             self._venue_controller_ip = str(
                 ipaddress.IPv4Address(
@@ -104,10 +111,11 @@ class FirewallManager:
                 ipaddress.IPv4Address(global_cfg.get("local_dns_ip", DEFAULT_LOCAL_DNS_IP))
             )
 
-            # Resolve initial judge IPs
+            # Judge IP resolution is relevant only to Contest's IP firewall.
             new_ips = set()
-            for site in self._allowed_websites:
-                new_ips.update(resolve_domain_to_ipv4(site))
+            if mode == "Contest":
+                for site in self._allowed_websites:
+                    new_ips.update(resolve_domain_to_ipv4(site))
 
             # If no websites resolved or empty, keep fallback placeholder
             if not new_ips:
@@ -123,6 +131,7 @@ class FirewallManager:
                     self._venue_controller_ip,
                     self._local_dns_ip,
                     self._resolved_judge_ips,
+                    self._restricted_web,
                 ) = previous
                 raise
 
@@ -136,7 +145,7 @@ class FirewallManager:
             nft_rules = f"""#!/usr/sbin/nft -f
 flush ruleset
 
-table ip gallos_filter {{
+table inet gallos_filter {{
     set allowed_judge_ips {{
         type ipv4_addr
         flags interval
@@ -164,7 +173,7 @@ table ip gallos_filter {{
         tcp dport {{ 22, 853 }} drop
 
         # 4. Allow DHCP Client Requests
-        udp sport 68 udp dport 67 accept
+        meta nfproto ipv4 udp sport 68 udp dport 67 accept
 
         # 5. Allow DNS only to the configured local resolver
         udp dport 53 ip daddr {self._local_dns_ip} accept
@@ -192,7 +201,38 @@ table ip gallos_filter {{
         ct state established,related ip saddr @allowed_judge_ips accept
         ct state established,related ip saddr @allowed_venue_controller_ip accept
         ct state established,related ip saddr {self._local_dns_ip} accept
-        udp sport 67 udp dport 68 accept
+        meta nfproto ipv4 udp sport 67 udp dport 68 accept
+    }}
+}}
+"""
+        elif self._restricted_web:
+            proxy_uid = pwd.getpwnam("proxy").pw_uid
+            # systemd-resolved is often the upstream resolver behind a
+            # loopback stub; limit both it and the proxy to DNS traffic.
+            try:
+                resolver_uid = pwd.getpwnam("systemd-resolve").pw_uid
+            except KeyError:
+                resolver_uid = 0
+            dns_uids = ", ".join(str(uid) for uid in sorted({0, proxy_uid, resolver_uid}))
+            nft_rules = f"""#!/usr/sbin/nft -f
+flush ruleset
+
+table inet gallos_filter {{
+    chain output {{
+        type filter hook output priority 0; policy drop;
+        oif "lo" accept
+        meta nfproto ipv4 udp sport 68 udp dport 67 accept
+        meta skuid {{ {dns_uids} }} udp dport 53 accept
+        meta skuid {{ {dns_uids} }} tcp dport 53 accept
+        meta skuid {proxy_uid} tcp dport {{ 80, 443 }} accept
+        udp dport 123 ip daddr {self._venue_controller_ip} accept
+        reject
+    }}
+    chain input {{
+        type filter hook input priority 0; policy drop;
+        iif "lo" accept
+        ct state established,related accept
+        meta nfproto ipv4 udp sport 67 udp dport 68 accept
     }}
 }}
 """
@@ -228,10 +268,13 @@ table ip gallos_filter {{
         )
         if proc.returncode != 0:
             raise RuntimeError(f"nft failed: {proc.stderr.strip()}")
-        print(
-            f"[firewall] Applied {self._current_mode} firewall ruleset successfully "
-            f"(Whitelisted: {self._resolved_judge_ips})"
-        )
+        if self._current_mode == "Contest":
+            detail = f"judge IPs: {self._resolved_judge_ips}"
+        elif self._restricted_web:
+            detail = "local proxy only"
+        else:
+            detail = "open outbound"
+        print(f"[firewall] Applied {self._current_mode} firewall ruleset ({detail})")
 
     def _dns_resolver_loop(self) -> None:
         """Background loop re-resolving judge domains every 45s."""

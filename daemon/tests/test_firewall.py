@@ -1,4 +1,4 @@
-"""Unit tests for gallos-daemon dynamic firewall module."""
+"""Unit tests for gallosd dynamic firewall module."""
 
 from unittest.mock import MagicMock, patch
 
@@ -43,8 +43,8 @@ def test_firewall_apply_contest_mode():
         assert "192.168.50.10" in rules
         assert "192.168.50.1" in rules
         assert "GALLOS_DENIED: " in rules
-        assert "udp sport 68 udp dport 67 accept" in rules
-        assert "udp sport 67 udp dport 68 accept" in rules
+        assert "meta nfproto ipv4 udp sport 68 udp dport 67 accept" in rules
+        assert "meta nfproto ipv4 udp sport 67 udp dport 68 accept" in rules
 
 
 def test_contest_dns_is_limited_to_the_configured_resolver():
@@ -72,3 +72,58 @@ def test_contest_output_rechecks_existing_flows_against_allowlists():
         0
     ]
     assert "ct state established,related accept" not in output_chain
+
+
+def test_training_default_limits_egress_to_proxy_identity():
+    mgr = FirewallManager()
+    config = {"default": {"allowed_websites": ["codeforces.com"]}}
+    with (
+        patch("subprocess.run", return_value=MagicMock(returncode=0)) as mock_run,
+        patch("pwd.getpwnam", return_value=MagicMock(pw_uid=13)),
+    ):
+        mgr.apply_mode_firewall("Default", config)
+    rules = mock_run.call_args.kwargs["input"]
+    assert "table inet gallos_filter" in rules
+    assert "policy drop" in rules
+    assert "meta nfproto ipv4 udp sport 68 udp dport 67 accept" in rules
+    assert "meta skuid" in rules
+    assert "tcp dport { 80, 443 }" in rules
+    assert (
+        "ct state established,related accept"
+        not in rules.split("chain output {", 1)[1].split("chain input {", 1)[0]
+    )
+
+
+def test_contest_filters_ipv6_as_well_as_ipv4():
+    mgr = FirewallManager()
+    with patch("subprocess.run", return_value=MagicMock(returncode=0)) as mock_run:
+        mgr.apply_mode_firewall("Contest", {})
+
+    rules = mock_run.call_args.kwargs["input"]
+    assert "table inet gallos_filter" in rules
+    assert "policy drop" in rules
+
+
+def test_training_event_uses_event_allowlist():
+    mgr = FirewallManager()
+    config = {
+        "default": {"allowed_websites": ["*"]},
+        "event": {"allowed_websites": ["atcoder.jp"]},
+    }
+    with (
+        patch("subprocess.run", return_value=MagicMock(returncode=0)) as mock_run,
+        patch("pwd.getpwnam", return_value=MagicMock(pw_uid=13)),
+    ):
+        mgr.apply_mode_firewall("Event", config)
+    assert "policy drop" in mock_run.call_args.kwargs["input"]
+
+
+def test_training_event_without_override_inherits_default_allowlist():
+    mgr = FirewallManager()
+    config = {"default": {"allowed_websites": ["codeforces.com"]}, "event": {}}
+    with (
+        patch("subprocess.run", return_value=MagicMock(returncode=0)) as mock_run,
+        patch("pwd.getpwnam", return_value=MagicMock(pw_uid=13)),
+    ):
+        mgr.apply_mode_firewall("Event", config)
+    assert "policy drop" in mock_run.call_args.kwargs["input"]

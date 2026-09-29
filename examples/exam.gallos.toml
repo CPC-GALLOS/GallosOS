@@ -1,0 +1,40 @@
+#:schema https://raw.githubusercontent.com/CPC-GALLOS/GallosOS/main/schema/directives.schema.json
+# University exam policy example for Moodle's public demo site.
+# POLICY TESTING ONLY: do not use this shared demo host for a live exam.
+# A real deployment needs a tested institution-specific LMS, SSO, and service allowlist.
+# SEB for Linux integration is an experimental, unverified compatibility candidate.
+
+[global]
+timezone = "UTC"
+available_keyboard_layouts = ["us", "latam", "es"]
+default_keyboard_layout = "us"
+enable_contest_mode = true
+enable_event_mode = false
+
+[branding]
+name = "GallosOS Exam Policy Test"
+hostname = "gallosos-exam-test"
+show_powered_by_gallos = true
+
+[contest]
+allowed_websites = ["school.moodledemo.net"]
+allow_usb_storage = false
+wallpaper = "default"
+duration_minutes = 120
+auto_start_on_boot = false
+
+[[contest.bookmarks]]
+name = "Moodle Public Demo (Testing Only)"
+url = "https://school.moodledemo.net/"
+
+[contest.printing]
+mode = "none"
+
+[default]
+allowed_websites = ["school.moodledemo.net"]
+allow_usb_storage = false
+wallpaper = "default"
+
+[[default.bookmarks]]
+name = "Moodle Public Demo (Testing Only)"
+url = "https://school.moodledemo.net/"

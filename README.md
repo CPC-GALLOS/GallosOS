@@ -18,12 +18,29 @@ It synthesizes the foundational architectural strengths of **huronOS** (multi-mo
 
 ## 🚀 Minimum Viable Product (MVP) Scope
 
+The release target serves **developers** with a repeatable local programming
+workspace, **contestants** with the same tools for practice and competition,
+and **Organizers** with one ISO whose policy can be selected at boot. Its
+no-configuration baseline is GallosOS-branded, opens public-judge practice,
+and supports informal contests. Strict official contests need an Organizer
+profile naming their judge and time window.
+
+The selected release toolchains are GCC (C/C++), Clang (C/C++), OpenJDK
+(Java), Python/PyPy, Rust, and Kotlin, alongside Geany, terminal editors,
+Firefox, and VSCodium. The build writes exact installed package versions to
+`/usr/share/gallos/toolchains.tsv`. This is a curated core, not language
+parity with every Codeforces, HackerRank, LeetCode, or omegaUp runtime.
+
+The anti-AI website and search-results policy, including review of web relays
+such as translated-page and browser-proxy services, is a separate release
+requirement. The current open practice baseline does not enforce that policy.
+
 To ensure a rapid, stable release that directly solves the immediate needs of the competitive programming community, the GallosOS MVP is strictly scoped to the following foundational pillars:
 
 1. **Containerized Build Pipeline:** `cd build && make iso` generates a bootable Ubuntu 24.04 `.iso` via Podman/Docker.
 2. **Wayland Kiosk & Ephemeral Storage:** Labwc + Waybar desktop running entirely in RAM (OverlayFS `tmpfs`).
 3. **Static Anti-Cheat Firewall:** `nftables` restricted to static judge IPs (Zero-Trust network).
-4. **TOML Config Engine:** `gallos-daemon` loads Organizer policy from local TOML; an authorized Organizer can edit the root-only emergency copy during a contest and reload it with `gallosctl`.
+4. **TOML Config Engine:** `gallosd` loads Organizer policy from local TOML; an authorized Organizer can edit the root-only emergency copy during a contest and reload it with `gallosctl`.
 
 Advanced venue-management features (fleet telemetry, print spooling, proctoring snapshots) are explicitly deferred to post-MVP development (Phase 7).
 
@@ -63,8 +80,8 @@ pip install ruff
 
 ```text
 +---------------------------------------------------------------------------------------------------+
-|  1. Weekly Club Practice & Classes : Immutable USB + semi-free, curated internet access            |
-|                                      (AI-result/AI-assistant sites blocked, bookmarks whitelisted) |
+|  1. Weekly Club Practice & Classes : Immutable USB + open internet; anti-AI policy pending          |
+|                                      CPC-GALLOS identity is an opt-in runtime profile               |
 |  2. Multi-Day Training Camps       : Automated transitions (Event -> Contest -> Upsolving)        |
 |                                      Whitelisted internet suspended during Contest windows         |
 |  3. Official Tournaments (ICPC/IOI): Strict Anti-Cheat lockdown, judge-only network, fresh isolation|
@@ -73,7 +90,7 @@ pip install ruff
 ```
 
 - **Local TOML Configuration:** Store the Organizer policy on the approved boot medium. During a contest, an authorized Organizer can make a last-minute correction in `/etc/gallos/gallos.toml` and run `gallosctl reload`; invalid TOML leaves the active policy in place and reports an error.
-- **Baked-In Offline Baseline:** The ISO includes a baseline for air-gapped operation when no Organizer policy is supplied.
+- **Baked-In Practice Baseline:** The ISO includes a neutral, open practice profile when no Organizer policy is supplied. Installed tools remain usable without internet.
 - **Optional Local Workspace:** Outside `Contest`, the host-mounted `event-data` partition exposes `/media/event-data/contestant` for files the contestant intentionally saves. Contest entry must unmount it before releasing the fresh session. Manual USB export and organizer-allowed external services are separate options (see [`docs/CONFIG_SPEC.md`](./docs/CONFIG_SPEC.md) § Mode Hierarchy).
 
 ---
@@ -87,7 +104,7 @@ The repository includes comprehensive context documents and architectural specif
 - **[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md):** Layered filesystem (OverlayFS + SquashFS), Wayland kiosk desktop (Labwc + Waybar), containerized build engine (Podman/Docker), Windows WSL2 + `usbipd-win` workflows, and VM deployment matrices (`.ova`, `.qcow2`).
 - **[`docs/CONFIG_SPEC.md`](./docs/CONFIG_SPEC.md):** Canonical `gallos.toml` directives specification, GallosOS Config Builder web/GUI configurator, 3-tier mode hierarchy ($\text{Contest} \succ \text{Event} \succ \text{Default}$), and `gallos-convert` migration tool.
 - **[`docs/BUILD_SYSTEM.md`](./docs/BUILD_SYSTEM.md):** The Containerized Build Pipeline (`gallos-builder`), `build.toml` configuration format, and custom ISO generation workflows.
-- **[`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md):** How to lint, format, and test `gallos-daemon` (`daemon/`) locally with `./scripts/check.sh`, install the pre-commit hooks, and what the GitHub Actions CI gate checks.
+- **[`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md):** How to lint, format, and test `gallosd` (`daemon/`) locally with `./scripts/check.sh`, install the pre-commit hooks, and what the GitHub Actions CI gate checks.
 - **[`docs/WAYLAND_DESKTOP.md`](./docs/WAYLAND_DESKTOP.md):** Wayland kiosk desktop specification (Labwc + Waybar + Foot + Mako), keybindings, ergonomic UI modules, and tamper-resistant dotfile architecture.
 - **[`docs/BOOT_BRANDING.md`](./docs/BOOT_BRANDING.md):** Design (not yet implemented, targets Phase 4) for a custom Plymouth boot splash and GRUB boot menu theme, plus an inventory of remaining stock-Ubuntu branding to remove.
 - **[`docs/ROOT_ACCESS.md`](./docs/ROOT_ACCESS.md):** Local root recovery (`su` during a normal session, or a password-protected tty1 prompt after transition failure). It requires a locally declared password hash.
@@ -120,14 +137,14 @@ The repository includes comprehensive context documents and architectural specif
 
 4. **Trustworthy Time Synchronization:**
    - `chrony` (not legacy `ntpd`) drives the mode scheduler, countdown timers, and audit-log timestamps, converging quickly from a drifted RTC in the first seconds of boot and switching to gradual slewing-only correction once a `Contest` window is active, protecting `make`/`gcc`/`gdb` filesystem timestamps from clock discontinuities.
-   - Two complementary scheduling modes cover the full trust spectrum: **absolute ISO 8601 windows** for NTP-synced venues (Tiers 1–4), and a **monotonic-clock relative duration** (`duration_minutes`, immune to wall-clock jumps and RTC corruption) as the primary mechanism for Tier 0 air-gapped deployments where no clock can be trusted at all — `gallos-daemon` falls back to the relative mode automatically if `chrony` reports an unsynchronized clock.
+   - Two complementary scheduling modes cover the full trust spectrum: **absolute ISO 8601 windows** for NTP-synced venues (Tiers 1–4), and a **monotonic-clock relative duration** (`duration_minutes`, immune to wall-clock jumps and RTC corruption) as the primary mechanism for Tier 0 air-gapped deployments where no clock can be trusted at all — `gallosd` falls back to the relative mode automatically if `chrony` reports an unsynchronized clock.
    - A Waybar traffic-light indicator (🟢 NTP-synced / 🟡 local RTC only / 🔴 clock untrusted) tells organizers at a glance which scheduling mode is safe to rely on.
 
 5. **End-to-End Contestant & Organizer Tooling Suite:**
    - **GallosOS Config Builder:** Web & GUI app to visually construct and validate `gallos.toml` directives without manual text editing.
    - **`gallos-convert`:** One-command CLI migration from legacy HuronOS `.hdf` files to canonical TOML.
    - **`gallos-flash`:** Parallel multi-USB mass flashing tool with native WSL2 + `usbipd-win` support.
-   - **`gallos-daemon` & `systembus-notify`:** Real-time mode switching, EarlyOOM memory guard, and visual desktop notifications.
+   - **`gallosd` & `systembus-notify`:** Real-time mode switching, EarlyOOM memory guard, and visual desktop notifications.
    - **`gallos-print`:** CUPS printing pipeline that stamps every printed page (source code, browser `Ctrl+P`, or screen captures) with a tamper-proof team/PC/timestamp/hash header, enforces per-job page quotas, and supports three modes — an existing venue printer, a Controller-hosted USB printer, or fully disabled — essential for in-person ICPC-style team debugging on paper.
    - **`gallos-broadcast`:** An optional, disableable, Ed25519-signed real-time clarification channel from the Venue Controller to contestant desktops (full-screen modal for urgent messages, subtle banner for informational ones) — left completely inert when the judge portal (DOMjudge/BOCA/CMS) already handles clarifications, as in most official ICPC/IOI tournaments.
 
@@ -139,7 +156,7 @@ The repository includes comprehensive context documents and architectural specif
 7. **Zero-Leak Anti-Cheat Shield:**
    - Kernel-level packet filter (`nftables`) with a default-DROP policy and IPv6 disabled network-wide, whitelisting only designated judge IPs and local DNS/NTP; DNS-over-HTTPS/TLS and hardcoded IDE telemetry resolvers are dropped outright.
    - Enterprise browser policies add per-path URL allow/block-listing (e.g. for `omegaup.com`) so even a whitelisted domain can't be used to browse outside the active contest arena — `nftables` alone can't see encrypted HTTPS paths.
-   - Telemetry-stripped **VSCodium** and **JetBrains Community Editions** (IntelliJ IDEA CE, PyCharm CE) with all AI assistant plugins strictly removed on every boot. (Support for sponsored JetBrains Pro offline license injection is treated as an optional future extension for sponsored championship finals).
+   - The build targets VSCodium with telemetry and automatic updates disabled in the contestant defaults. JetBrains IDE packaging and AI-plugin removal remain future work.
    - USB anti-substitution: organizer-issued drives only, optional SquashFS SHA256 attestation reported to the central server at boot, and DHCP/judge-side MAC whitelisting, so a contestant's own modified GallosOS USB can't reach the judge network even if physically plugged in.
 
 8. **Fair & Deterministic Execution Environment:**
@@ -203,7 +220,7 @@ GallosOS/
 │   │   ├── README.md          # Build profile catalog and Track 2 customization guide
 │   │   └── universal.build.toml # Canonical MVP base image recipe (gallosos-universal-amd64.iso)
 │   └── scripts/               # Staged build scripts (bootstrap, provision, harden, optimize)
-├── daemon/                    # gallos-daemon: runtime mode/config/firewall daemon (Python)
+├── daemon/                    # gallosd: runtime mode/config/firewall daemon (Python)
 │   ├── src/                   # main.py, config.py, state_machine.py, firewall.py, etc.
 │   └── tests/                 # Pytest unit test suite (test_*.py, one per src module)
 ├── scripts/                   # Repo-local dev tooling (not part of the ISO build pipeline)
@@ -214,16 +231,19 @@ GallosOS/
 │   ├── ARCHITECTURE.md        # System design, Wayland, OverlayFS, Build & VM testing
 │   ├── CONFIG_SPEC.md         # Canonical TOML directives, GallosOS Config Builder & mode hierarchy
 │   ├── BUILD_SYSTEM.md        # Containerized Build Pipeline & build.toml specification
-│   ├── DEVELOPMENT.md         # Linting, testing & CI workflow for gallos-daemon (daemon/)
+│   ├── DEVELOPMENT.md         # Linting, testing & CI workflow for gallosd (daemon/)
 │   ├── WAYLAND_DESKTOP.md     # Wayland kiosk desktop spec, Labwc/Waybar dotfiles & UX
 │   ├── HARDWARE_COMPATIBILITY.md # Firmware support (UEFI SecureBoot & Legacy BIOS), RAM specs
 │   ├── ANTI_CHEAT_AND_SECURITY.md# Firewall, Anti-Cheat protection, telemetry & USB lockdown
 │   ├── COMPARATIVE_ANALYSIS.md# In-depth comparison with existing contest distributions
 │   └── PROVENANCE.md          # Third-party code, vendored assets & attribution ledger
-├── examples/                  # Production-ready gallos.toml configuration profiles
+├── examples/                  # Organizer gallos.toml profiles and policy examples
 │   ├── README.md              # Profile catalog, gallos.toml vs machine.toml, deployment & config precedence
-│   ├── codeforces-training.gallos.toml # Camp & practice mode (Codeforces, AtCoder, Clang, Rust)
+│   ├── neutral.gallos.toml       # GallosOS-branded ISO fallback
+│   ├── club.gallos.toml          # CPC-GALLOS club practice with open internet
+│   ├── training.gallos.toml      # Reviewed multi-judge training allowlist
 │   ├── icpc-online-exam.gallos.toml  # ICPC Preliminary Online (CodeChef Exam Mode lockdown)
+│   ├── exam.gallos.toml              # Moodle policy test; not for live exams
 │   ├── icpc-onsite.gallos.toml       # ICPC Regional / World Finals (BOCA/DOMjudge, GCC 14, Java 21)
 │   ├── ioi-cms.gallos.toml           # IOI / National Olympiad (CMS Judge, C++23 focus)
 │   ├── maratona-sbc.gallos.toml      # Maratona SBC / South America Regional (BOCA, ABNT2, GCC 14)

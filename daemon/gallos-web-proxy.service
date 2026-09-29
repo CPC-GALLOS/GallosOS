@@ -1,0 +1,19 @@
+[Unit]
+Description=GallosOS restricted web proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=proxy
+Group=proxy
+ExecStart=/usr/sbin/squid -N -f /run/gallos/squid.conf
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/run/gallos
+
+[Install]
+WantedBy=multi-user.target

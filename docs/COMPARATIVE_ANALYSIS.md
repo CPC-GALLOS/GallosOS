@@ -25,7 +25,7 @@ This document provides a comparative analysis between **GallosOS** (evaluated as
 | **Kernel & Modern Silicon** | Custom Linux 6.0 (AUFS) — crashes on modern Intel (Arrow Lake) / NVIDIA (Ada); requires fbdev + CPU software rendering fallback | Ubuntu 22.04 LTS (Kernel 5.15 / 6.5 HWE) | **Ubuntu 24.04 LTS (Kernel 6.8+ / 6.11 HWE) + Native DRM/KMS + MOK NVIDIA Module** |
 | **Fleet Management** | Remote `.hdf` polling (`hsync`) | None (local workstation) | **Remote TOML Ingestion (HTTP/LAN) + Optional Prometheus** |
 | **IDE & Tooling Suite** | VS Code, CLion, IntelliJ (`.hsm`) | VS Code, CLion, IDEA (PPA) | **VSCodium + JetBrains CE (`.gsm`) + CPH/Companion** |
-| **Offline IDE Extensions** | Bundled only `vsc-cpptools`; adding Python/Java/CPH required manual VSIX layer injection & permission hacks | Pre-bundled `.vsix` packages via PPA | **Native `.gsm` Offline Bundles (CPH, Python Jedi, Red Hat Java JDT LS)** |
+| **Offline IDE Extensions** | Bundled 5 offline extensions (`vsc-cpptools`, `vsc-clangd`, `vsc-vscodevim`, `vsc-intellij-idea-keybindings`, `vsc-cpp-compile-run`); adding Python/Java/CPH required manual VSIX layer injection & permission hacks | Pre-bundled `.vsix` packages via PPA | **Native `.gsm` Offline Bundles (CPH, Python Jedi, Red Hat Java JDT LS)** |
 | **Mass USB Flashing & Updates** | Single `install.sh` (extlinux) + manual layer hacks | Manual `dd` / Etcher | **Parallel Flasher (`gallos-flash`) + In-Place Delta Updater (`gallos-inject`)** |
 | **Translation & Offline Docs** | Crow Translate (online-only) | `dictd` + FreeDict / doc packages | **Dual-Mode (`dictd` FreeDict Offline + API Whitelist) + DevDocs** |
 | **WSL2 / Windows Flashing** | None (Linux-only scripts) | None | **Native WSL2 + `usbipd-win` + Flasher** |
@@ -40,7 +40,7 @@ This matrix compares the official environments deployed across major ICPC region
 
 | Feature / Metric | **ICPC World Finals / PacNW (`pac2025...img.gz`)** | **ICPC Asia Yokohama (`icpc-trial...iso`)** | **ICPC Europe (SWERC / NWERC)** | **ICPC Latin America (Maratona Linux)** | **GallosOS (Target Design)** |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Image Format** | Raw Disk Image (`.img.gz`, 7.9 GB) | Automated Subiquity ISO (8.4 GB) | Workstation Setup / Trial `.ova` | Debian PPA Repository | **Modular Live USB + VMs (`.ova`/`.qcow2`) + PXE** |
+| **Image Format** | Raw Disk Image (`.img.gz`, 7.9 GiB / 8.48 GB) | Automated Subiquity ISO (8.31 GiB / 8.92 GB) | Workstation Setup / Trial `.ova` | Debian PPA Repository | **Modular Live USB + VMs (`.ova`/`.qcow2`) + PXE** |
 | **Deploy Model** | 10–15 min per USB (`dd`) | 15–20 min disk wipe & install | Varies by host venue | Manual package install | **Live RAM boot without host disk installation** |
 | **Judging System** | Kattis / DOMjudge | DOMjudge (Asia Pacific) | DOMjudge Live Scoreboard | BOCA / DOMjudge | **Universal (BOCA, DOMjudge, OmegaUp, Codeforces, etc.)** |
 | **Resource Limits** | Unrestricted / OS defaults | Cgroups v2 (`MemoryMax=4G`, `CPUQuota=600%`) | DOMjudge *isolate* sandbox on server | Unrestricted on workstation | **EarlyOOM (`-n`) + `systembus-notify` + `limits.conf`** |
@@ -62,7 +62,7 @@ This matrix compares the environments engineered for national and international 
 | **Primary Judge** | CMS (Contest Management System) | CMS / Kattis | Lemonlime / Arbiter / CCF Judge | **CMS + Kattis + DOMjudge + BOCA** |
 | **Anti-Cheating & Audit** | `logkeys` keylogger + `take_screenshot.py` | `ffmpeg` x11grab (4 fps) + `restic` S3 backup + GNOME extension (`egoiusername`) | Disconnected physical LAN | **Process isolation (Wayland) + Audit hooks** |
 | **Network Lock** | `misc/iptables.save` (Default DROP) | `ufw` dynamic daemon (`/opt/egoi/egoi_conf.py`) | Air-gapped venue switches | **Kernel `nftables` Drop + Local Proxy** |
-| **Desktop Protocol** | X11 / GNOME (`gdm3` contest lock) | X11 / GNOME Shell 3.38.6 + `gdm3` | X11 / GNOME Flashback 3.36 | **Wayland (Labwc + Waybar)** |
+| **Desktop Protocol** | X11 / GNOME (`gdm3` contest lock) | X11 / GNOME Shell 3.38.6 + `gdm3` | X11 / GNOME Shell 3.36.3 + `gdm3` | **Wayland (Labwc + Waybar)** |
 | **Offline Docs** | `cppreference` HTML in `/usr/share/doc` | `cppreference` in `/opt/documentation/cpp` | DevHelp + localized docs | **Offline DevDocs daemon (`127.0.0.1:9292`)** |
 | **Languages** | C++20 (version pinned in editor config; Python 3 and Java present but unversioned upstream) | C++20 (GCC 10.2 / Clang 11.0), Python 3.9, PyPy3 7.3 | C++14/17/20, C, Python, Free Pascal | **Full ICPC/IOI Matrix (C++, Java, Python, Kotlin, Rust)** |
 | **IDEs & Editors** | VS Code, Eclipse, Geany, Neovim (also Atom, Sublime Text, emacs, kate, kdevelop) | VS Code 1.80, Code::Blocks 20.03, Geany 1.37, Kate, Emacs 27, Vim 8.2 | VS Code 1.57, Code::Blocks, Geany, Vim, Sublime | **VSCodium, JetBrains CE, Geany, Neovim, CPH** |
@@ -104,16 +104,24 @@ The compounding weight of these upstream architectural limitations—combined wi
 Inspection of the official `huronOS-alpha-0.4-amd64.iso` binary image reveals the following architectural blueprint:
 
 1. **Modular SquashFS System Layers (`.hsl`)**:
-   - `01-base.hsl`: Debian minimal base system.
-   - `02-firmware.hsl`: Wireless and hardware firmware blobs.
-   - `03-budgie.hsl`: Solus Budgie Desktop Environment over X11.
-   - `04-shared-libs.hsl`: Shared GUI and compilation runtime libraries.
-   - `05-custom.hsl`: Custom configuration overrides.
-   - (Layer sizes are not published in HuronOS's own documentation and are omitted here rather than estimated.)
+   - `01-core.hsl` (367 MB / 367,132,672 B): Debian 11 minimal base system.
+   - `02-firmware.hsl` (238 MB / 238,936,064 B): Wireless and hardware firmware blobs.
+   - `03-budgie.hsl` (358 MB / 358,371,328 B): Solus Budgie Desktop Environment over X11.
+   - `04-shared-libs.hsl` (201 MB / 201,256,960 B): Shared GUI and compilation runtime libraries.
+   - `05-custom.hsl` (4 KB / 4,096 B): Custom configuration overrides stub (the injection point for organizer customizations).
 2. **Modular Software Packages (`.hsm`)**:
-   - 38 independent SquashFS modules across four categories per HuronOS's own software-modules directive documentation: `internet/` (chromium, firefox, crow, among others), `langs/` (gcc, g++, javac, dotnet, mono, pypy3, python3, ruby, among others), `programming/` (IntelliJ, Rider, PyCharm, VS Code + offline extensions, Eclipse, Code::Blocks, Geany, gvim/vim, Atom, emacs, gedit, joe, kdevelop, Sublime, Kate), and `tools/` (byobu, konsole, make, midnight-commander).
-3. **Boot Chain (`install.sh`)**:
-   - The installer image root contains `boot/`, `checksums/`, `EFI/`, `huronOS/` (the `.hsl`/`.hsm` payload), `install.sh`, and `utils/`, using `extlinux`/EFI boot per HuronOS's own installation documentation. (The specific partition-label scheme used internally by `install.sh` is not documented upstream and is not restated here to avoid inventing detail.)
+   - **42** independent SquashFS modules across **five** categories:
+     - `langs/` (9 modules): `c.hsm`, `cpp.hsm`, `javac.hsm`, `kotlinc.hsm` (96.7 MB), `python3.hsm`, `pypy3.hsm`, `dotnet.hsm`, `mono.hsm`, `ruby.hsm`.
+     - `programming/` (23 modules): `vscode.hsm` (VSCodium 1.81.1 at `/usr/share/codium`) plus 5 offline extension modules (`vsc-cpptools`, `vsc-clangd`, `vsc-vscodevim`, `vsc-intellij-idea-keybindings`, `vsc-cpp-compile-run`), IntelliJ IDEA, CLion, Rider, PyCharm, Eclipse, Code::Blocks, Geany, Vim, GVim, Neovim, Emacs, Atom, Sublime Text, Kate, KDevelop, Gedit, Joe.
+     - `debuggers/` (4 modules): `ddd.hsm`, `gdb.hsm`, `valgrind.hsm`, `visualvm.hsm`.
+     - `internet/` (3 modules): `chromium.hsm`, `firefox.hsm`, `crow.hsm`.
+     - `tools/` (3 modules): `byobu.hsm`, `konsole.hsm`, `midnight-commander.hsm` (no `make.hsm` is present in the release ISO).
+3. **Boot Chain & Storage Layout (`install.sh`)**:
+   - The installer image root contains `boot/`, `checksums` (a single 6,978-byte verification manifest, not a directory), `EFI/`, `huronOS/` (the `.hsl`/`.hsm` payload), `install.sh` (the canonical ISO installer script; distinct from the web repo wrapper `install-huronos.sh`), and `utils/`.
+   - Uses Syslinux/Extlinux (`UI vesamenu.c32` in `boot/huronos.cfg`) with boot labels `persistent` (default), `nosync` (`demo=true`), `debug`, and a commented-out `fresh` restore label.
+   - Partition scheme created by `install.sh` (lines 281–283): `HURONOS` (FAT32, 6 GiB), `event-data` (ext4, 5 GiB), and `contest-data` (ext4, 5 GiB).
+   - TTY console login renders the iconic `"huronOS Keep Training!"` ASCII art banner from `/etc/issue`.
+   - Kernel command line: `huronos.flags=(system.uuid=UUID;event.uuid=UUID;contest.uuid=UUID;persistence=true) vga=normal acpi=force`.
 4. **Kernel & Union Filesystem**:
    - Relies on a custom-patched Linux kernel with **AUFS** (AnotherUnionFS) support — HuronOS credits AUFS maintainer Junjiro Okajima directly — rather than in-tree OverlayFS. (The exact kernel version in alpha 0.4 is `vmlinuz-6.0.15-huronos+`.)
 
@@ -148,7 +156,7 @@ Inspection of the huronOS codebase, official deployment guides (such as the OMI 
    - When organizers saved or hosted their directives file using standard online paste services (such as Pastebin RAW), the server transmitted DOS/Windows CRLF (`\r\n`) line endings. This caused `sed` string replacements to fail, and `cat` comparisons between current and new files evaluated as empty strings. The sync daemon falsely reported *"no changes"*, silently dropping contest directives and leaving workstations in an unconfigured state.
    - During development of the bookmarks directive, the delimiter scheme itself proved ambiguous: bookmark entries already used commas and parentheses internally (`(label,url)`), so the original top-level `;` separator was replaced with `|` before release to avoid parsing conflicts.
    - In 2025, organizers reported two further sync-daemon failures in the field: setting `allowed_websites` to anything other than `"all"` (i.e. a restricted whitelist) blocked *every* site, including ones explicitly whitelisted (their own example was `boca.icpcmexico.org` becoming unreachable); and changing a contest's scheduled time window while a contest was already active was not picked up by the running sync daemon.
-   - **GallosOS Advantage:** Replaces `.hdf` with canonical **TOML (`gallos.toml`)** validated by strict JSON Schema (`directives.schema.json`) and parsed by robust, cross-platform serializers in `gallos-daemon`.
+   - **GallosOS Advantage:** Replaces `.hdf` with canonical **TOML (`gallos.toml`)** validated by strict JSON Schema (`directives.schema.json`) and parsed by robust, cross-platform serializers in `gallosd`.
 
 5. **BIOS RTC / NTP Time Desynchronization (6-Hour Drift Contest Lockout):**
    - In university laboratories dual-booting Windows and Linux, Windows sets the hardware Real-Time Clock (RTC) in the BIOS to local time (e.g. UTC-6 for Mexico Central Time), whereas Linux expects the hardware RTC to be in UTC.
@@ -173,8 +181,8 @@ Inspection of the huronOS codebase, official deployment guides (such as the OMI 
    - **GallosOS Advantage:** GallosOS provides declarative port allowlists in `gallos.toml` (`[firewall]`), allowing organizers to explicitly permit custom ports for local printing, judge servers, and monitoring proxies.
 
 9. **Air-Gapped VS Code Extensions Lifecycle & Permission Fragility:**
-   - HuronOS alpha 0.4 shipped **VSCodium 1.81.1** with official directive-selectable extensions for C/C++ (`vsc-cpptools`), clangd, IntelliJ keybindings, and Vim keybindings — but no equivalent official module for Python, Java, or Competitive Programming Helper (CPH). In isolated contest networks where the Open VSX marketplace is inaccessible, those three extensions were completely unavailable through HuronOS's own directive system.
-   - **Required Workaround in `icpc-gpm-uaa-huronos` (`02-inject-custom-layer.sh`, `02b-inject-vscode-extensions.sh`):** Required downloading offline `.vsix` packages, extracting them into `/opt/codium/contestant/extensions/`, creating synthetic `ids/vsc-*.json` manifests, forcing `chmod 777` permissions (because the Codium startup wrapper rewrites `extensions.json` as unprivileged user `contestant`), and manually registering module names across `/etc/hmm/any` and `/etc/hsync/all_software`.
+   - HuronOS alpha 0.4 shipped **VSCodium 1.81.1** (installed at `/usr/share/codium`) with five official directive-selectable extensions: C/C++ (`vsc-cpptools`), Clangd (`vsc-clangd`), Vim (`vsc-vscodevim`), IntelliJ keybindings (`vsc-intellij-idea-keybindings`), and C++ Compile-Run (`vsc-cpp-compile-run`) — but no equivalent official module for Python, Java, or Competitive Programming Helper (CPH). In isolated contest networks where the Open VSX marketplace is inaccessible, those three extensions were completely unavailable through HuronOS's own directive system.
+   - **Required Workaround in `icpc-gpm-uaa-huronos` (`02-inject-custom-layer.sh`, `02b-inject-vscode-extensions.sh`):** Required downloading offline `.vsix` packages, extracting them into `/opt/codium/contestant/extensions/` (a custom injection root), creating synthetic `ids/vsc-*.json` manifests, forcing `chmod 777` permissions (because the Codium startup wrapper rewrites `extensions.json` as unprivileged user `contestant`), and manually registering module names across `/etc/hmm/any` and `/etc/hsync/all_software`.
    - Two further bugs surfaced maintaining this workaround: VSCodium's marketplace client is intolerant of mixed-case extension IDs when resolving an offline `.vsix` against its local registry, silently failing to register the extension unless the ID is lowercase-normalized first; and the extension registry must stay writable across every dynamic HSM module injection, or the very next injected module clobbers permissions set by a prior one.
    - **GallosOS Advantage:** First-class, pre-packaged `.gsm` modules for VSCodium, CPH, Python (offline `jedi-language-server`), and Red Hat Java (offline JDT LS + OpenJDK 21) managed cleanly via declarative `gallos.toml` directives.
 
@@ -185,7 +193,7 @@ Inspection of the huronOS codebase, official deployment guides (such as the OMI 
 11. **Unsandboxed Display Server (X11 vs Wayland):** HuronOS runs Solus Budgie over legacy X11. While X11 allows administrative proctoring scripts (like screenshots or keyloggers) to run with ease, its lack of per-client input/output isolation means any unprivileged student process or background script can also capture other windows or intercept keystrokes without restriction.
 
 12. **Installer & Partitioning Fragility:**
-    - The installation script (`install-huronos.sh`) relied on extlinux and required repeated manual `sync` commands to prevent filesystem corruption on USB drives. Furthermore, live USBs required a two-stage initialization on first boot (running a background partition resizing script followed by a mandatory reboot) before practice mode became accessible.
+    - The canonical installation script (`install.sh` in the ISO root, distinct from the website wrapper `install-huronos.sh`) relied on Extlinux. While earlier documentation hypothesized repeated manual sync invocations, inspection confirms `install.sh` executes exactly one backgrounded `sync -f "$TARGET_CUSTOM_HSL" &` call (line 312) monitored by a custom `flush_stats` loop polling `/proc/meminfo` (`Writeback` and `Dirty` counters) until I/O settles. Furthermore, live USBs required a two-stage initialization on first boot (running a background partition resizing script followed by a mandatory reboot) before practice mode became accessible.
     - Flashing tools like Rufus were incompatible due to the custom partition layout, forcing users to use raw block-writing tools like Balena Etcher.
     - In a June 2026 community report, the huronOS build/install process failed with `"mksquashfs not found or doesn't support -comp xz"` on both Ubuntu and Arch Linux (with `squashfs-tools` and `xz` confirmed installed) while working on Fedora — the root cause was never resolved in the archive, so this is flagged here as an open, unconfirmed report rather than a diagnosed bug.
     - **GallosOS Advantage:** Standard hybrid ISO with parallel mass flasher (`gallos-flash`) and in-place delta updater (`gallos-inject`).
@@ -305,7 +313,7 @@ To ensure real-world architectural parity with actual 2024–2025 championship d
 ### A. ICPC Pacific Northwest / World Finals Baseline (`pac2025-2025-11-11_image-amd64.img.gz`)
 
 - **Reference:** [PacNW Build Instructions](https://image.icpc.global/pac2025/ImageBuildInstructions.html)
-- **Format & Size:** Raw Disk Image (`.img.gz`, 7.9 GB compressed, ~8.4 GB raw).
+- **Format & Size:** Raw Disk Image (`.img.gz`, 7.9 GiB / 8.48 GB compressed, ~29.8 GB raw disk matching standard 32 GB flash drives).
 - **Deployment Strategy:** Written directly to USB 3.2 flash drives via `dd`, Rufus, or Balena Etcher, or cloned onto internal hard drives using Clonezilla Live (`device-to-device`, `-k1` proportional partition table).
 - **Key Characteristics:**
   - Standard user account `team:contest`.
@@ -316,14 +324,17 @@ To ensure real-world architectural parity with actual 2024–2025 championship d
 ### B. ICPC Asia Yokohama Regional 2025 (`icpc-trial-2025yokohama-20251128.iso`)
 
 - **Reference:** [ICPC Yokohama System Trial Image](https://icpc.jp/2025/regional/environment/system-trial-image/)
-- **Format & Size:** Automated Ubuntu 24.04 Installer ISO (8.4 GB hybrid ISO).
+- **Format & Size:** Automated Ubuntu 24.04 Installer ISO (**8.92 GB / 8.31 GiB** hybrid ISO; `8,919,676,928` bytes).
 - **Deployment Strategy:** Subiquity/Curtin automated installation (`autoinstall ds=nocloud-net;s=file:///cdrom/`) that installs Ubuntu directly to the target machine disk with custom post-install scripts (`late-commands-common.sh`).
 - **Key Characteristics:**
-  - **LightDM over GDM/Wayland:** Replaces GDM3 and purges Wayland desktop entries, configuring LightDM with `greeter-hide-users=true` and `allow-guest=false`.
-  - **Resource Cgroups v2 Containment:** Injects `systemd-run --user --scope -p MemoryMax=4G -p MemorySwapMax=3G -p CPUQuota=600%` into desktop launcher `.desktop` files (CodeBlocks, Emacs, Geany, Gvim, Kate, GNOME Terminal) to prevent runaway memory leaks.
-  - **Prometheus Exporters:** Bundles `node-exporter` and custom `icpc-exporter` services.
-  - **Anti-Cheat Policy:** Explicitly disallows ML-assisted code completion plugins (e.g. JetBrains "Full Line Code Completion").
-  - **SSH Lockdown:** Disallows contestant SSH execution via `chmod o-rx /usr/bin/ssh`.
+  - **LightDM over GDM/Wayland:** Replaces GDM3 and purges Wayland desktop entries, configuring LightDM with `greeter-hide-users=true`, `allow-guest=false`, and `greeter-allow-guest=false`.
+  - **Resource Cgroups v2 Containment:** Injects `systemd-run --user --scope -p MemoryMax=4G -p MemorySwapMax=3G -p CPUQuota=600%` into desktop launcher `.desktop` files for `{codeblocks,emacs,emacs-term,geany,gvim,debian-xterm,debian-uxterm}` to prevent runaway memory leaks. (Kate is explicitly unthrottled; GNOME Terminal is throttled via a separate background script `/opt/icpc/gnome-terminal-limitter.sh` targeting `app-org.gnome.Terminal.slice`).
+  - **Deterministic CPU Frequency Pinning:** Deploys `/opt/icpc/set_cpufreq.sh` during initialization, disabling dynamic turbo boost (`echo 1 > /sys/devices/system/cpu/intel_pstate/no_turbo`) and locking CPU frequency (`scaling_max_freq`/`scaling_min_freq`) to 1.6 GHz across CPUs 0–7 — directly validating GallosOS's CPU determinism design argument.
+  - **De-telemetried VSCodium Stack:** Ships open-source **VSCodium** (`codium_1.105.17017`) and `vscodium-extensions-icpc` rather than Microsoft VS Code, confirming upstream ICPC alignment with GallosOS's anti-telemetry editor choices.
+  - **Modern Kernel Filtering (`nftables`):** Deploys native `nftables` (1.0.9-1build1) packet filtering rather than legacy iptables, providing strong regional precedent for GallosOS's nftables firewall model.
+  - **Prometheus Exporters:** Bundles `node-exporter` (1.9.1) and custom `icpc-exporter` (0.12) services.
+  - **Anti-Cheat Policy:** Contest regulations explicitly disallow ML-assisted code completion plugins (e.g. JetBrains "Full Line Code Completion").
+  - **SSH Lockdown & Desktop Trusting:** Disallows contestant SSH execution via `chmod o-rx /usr/bin/ssh` and uses `gio set "${i}" "metadata::trusted" true` in `desktop-truster.sh` (convergent with Maratona Linux's `zera-home-icpc`).
 - **GallosOS Architectural Design & Differentiation:** Rather than requiring automated installation to wipe and overwrite the host machine's internal disk, GallosOS is designed to boot directly into RAM as an immutable Live OS without modifying the host storage, while utilizing a process-isolated **Wayland compositor (Labwc)** instead of legacy X11.
 
 ### C. ICPC CloudContest Admin & Wizard Suite (`environment.cloudcontest.org`)
@@ -347,7 +358,7 @@ To ensure real-world architectural parity with actual 2024–2025 championship d
   - Base OS: **Ubuntu 20.04.1 LTS "Focal Fossa"** (`.disk/info: 20200731`, ISO build timestamp `2021-07-06 22:47 UTC`).
   - Active status: Official, mandatory standard for all CCF competitive events (NOI, NOIP, CSP-J/S) through 2024–2026.
 - **Binary Inspection Stack (`casper/filesystem.manifest`):**
-  - **Desktop Environment:** Standard monolithic **GNOME Shell 3.36.3** (`ubuntu-desktop` 1.450.1) on legacy **X11** (`xserver-xorg` 1.20.8). Lacks lightweight UI or process-level isolation.
+  - **Desktop Environment:** Standard monolithic **GNOME Shell 3.36.3** (`ubuntu-desktop` 1.450.1) on legacy **X11** (`xserver-xorg` 1:7.7+19ubuntu14 / `xserver-xorg-core` 1.20.8-2ubuntu2.2) with `gdm3 3.34.1`. Displays custom `"Ubuntu for NOI"` Plymouth bootsplash during startup.
   - **Compilers & Runtimes:**
     - C/C++: **GCC / G++ 9.3.0** (`9.3.0-17ubuntu1~20.04`)
     - Pascal: **Free Pascal FPC 3.0.4** (`3.0.4+dfsg-23`)
@@ -356,7 +367,7 @@ To ensure real-world architectural parity with actual 2024–2025 championship d
     - **Visual Studio Code:** Official Microsoft build `code 1.57.0` (ships with standard Microsoft telemetry and cloud login enabled by default).
     - **Code::Blocks:** `20.03-3` with `codeblocks-contrib`.
     - **Sublime Text:** Version `4107` (Sublime Text 4).
-    - **Geany:** Version `1.36` bundled with 40+ plugins (`geany-plugins`).
+    - **Geany:** Version `1.36` bundled with **38** plugin packages (`geany-plugin-*`).
     - **Vim / Emacs:** `vim 8.1.2269` and `emacs 26.3`.
 - **Architectural Bottlenecks & Missing Features:**
   - **No Live Fleet Management:** Static monolithic image designed for manual local installation via `ubiquity`. Lacks remote configuration sync (`.toml` or `.hdf`).
@@ -408,7 +419,7 @@ Binary and filesystem inspection of the official **EGOI 2023 Contestant VM** (`e
 
 - **Multi-Target Deployment (Live USB + Bare Metal + VM):** While IOI/EGOI VMs run strictly inside virtualizers (requiring host OS installation and allocating 8 GB RAM per virtual guest), GallosOS is designed to boot directly on bare-metal hardware via immutable Live USB as well as virtual appliances (`.ova`, `.qcow2`), avoiding host-guest virtualization overhead during compilation while supporting air-gapped environments.
 - **Modern Kernel Isolation (Wayland vs. X11 xhost):** Replaces legacy X11 screen-grabbing (`xhost +local:` / `x11grab`) with native **Wayland process isolation**, allowing secure administrative compositor screencasts without exposing window snooping vulnerabilities to unprivileged student processes.
-- **Declarative Directives Architecture (TOML vs. Custom Python Daemons):** Replaces custom monolithic Python pollers with a memory-safe daemon (`gallos-daemon`) governed by typed `gallos.toml` directives and JSON Schema validation.
+- **Declarative Directives Architecture (TOML vs. Custom Python Daemons):** Replaces custom monolithic Python pollers with a memory-safe daemon (`gallosd`) governed by typed `gallos.toml` directives and JSON Schema validation.
 
 ---
 
@@ -482,7 +493,7 @@ The examination of `icpcsysops/ansible` provides crucial real-world sysadmin pat
 2. **Granular Telemetry & DNS Sinkhole Filtering:**
    - GallosOS's `nftables` engine incorporates the ICPC SysOps blacklist: hard-dropping IDE-embedded DNS resolvers (e.g. JetBrains `9.9.9.10`), mDNS/Bonjour broadcast spam (`5353`), and NetBIOS chatter, paired with rate-limited kernel audit logging ([`docs/ANTI_CHEAT_AND_SECURITY.md`](./ANTI_CHEAT_AND_SECURITY.md)).
 3. **Forensic Audit & Process Monitoring Subsystems:**
-   - The auditing architecture in GallosOS borrows the concepts of `martkeys` (keystroke journaling) and `s.py` (process hierarchy and active window monitoring) as opt-in audit plugins managed cleanly by `gallos-daemon` during official Olympiad and Championship modes.
+   - The auditing architecture in GallosOS borrows the concepts of `martkeys` (keystroke journaling) and `s.py` (process hierarchy and active window monitoring) as opt-in audit plugins managed cleanly by `gallosd` during official Olympiad and Championship modes.
 4. **Venue Controller Fleet Integration (Tier 3 / Tier 4):**
    - For large-scale events where organizers manage hundreds of workstations from a central Venue Controller, GallosOS acts as a hardened, immutable client node. Because GallosOS includes Python 3, OpenSSH, and systemd out of the box, organizers can utilize Ansible from the Venue Controller for live ad-hoc intervention while relying on GallosOS's immutable OverlayFS for resilient boot behavior.
 
@@ -544,7 +555,7 @@ These repositories provide both immediate technical acceleration and high narrat
 These projects offer well-tested software lists, user permission configs, and package specifications that save development time without carrying a major narrative weight:
 
 1. **[`maratona-linux/maratona-team-tools`](https://github.com/maratona-linux/maratona-team-tools):**
-   - Written in Python (matching `gallos-daemon`'s in-band language requirement).
+   - Written in Python (matching `gallosd`'s in-band language requirement).
    - Provides a curated, tournament-tested package list of compilers, IDE configurations, and offline documentation that serves as an excellent starting point for the `[modules]` section of `build.toml`.
 
 2. **[`maratona-linux/maratona-usuario-icpc`](https://github.com/maratona-linux/maratona-usuario-icpc):**
@@ -578,7 +589,7 @@ Components that represent secondary features or auxiliary presentation tools sho
 > [!IMPORTANT]
 > **No existing competitive programming distribution has implemented a Wayland Kiosk desktop.**
 >
-> Every historical and active distribution in the competitive programming ecosystem—**HuronOS (Budgie/X11)**, **Maratona Linux (Ubuntu Desktop/X11)**, **ICPC-Env (XFCE/X11)**, **NOI Linux 2.0 (GNOME Flashback/X11)**, and **IOI Contestant-VM (GNOME/X11)**—operates entirely on legacy X11.
+> Every historical and active distribution in the competitive programming ecosystem—**HuronOS (Budgie/X11)**, **Maratona Linux (Ubuntu Desktop/X11)**, **ICPC-Env (XFCE/X11)**, **NOI Linux 2.0 (GNOME Shell 3.36/X11)**, and **IOI Contestant-VM (GNOME/X11)**—operates entirely on legacy X11.
 
 GallosOS's lightweight Wayland desktop (**Labwc + Waybar**) is the project's **signature technical innovation**, delivering:
 
@@ -603,4 +614,3 @@ Step 2: Upstream Community Engagement (Parallel)
 
 Step 3: Rigorous Hardware Graveyard Validation (Phase 1–2)
   ↳ Focus intensive display and input testing on the Labwc/Waybar Wayland stack across legacy GPUs.
-```

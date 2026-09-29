@@ -19,6 +19,7 @@ from .session_gate import release_kiosk, start_recovery_console, stop_kiosk
 from .storage import mount_event_data, unmount_event_data
 from .transition_record import read_record, write_record
 from .usb_manager import set_usb_storage_allowed
+from .web_egress import apply_web_egress
 
 UTC_TZ_OFFSET = "+00:00"
 
@@ -201,6 +202,7 @@ class ModeStateMachine:
     def _enter_contest_mode(self) -> None:
         """Applies all security and system lockdowns for Contest entry."""
         self.firewall.apply_mode_firewall("Contest", self.config)
+        apply_web_egress("Contest", self.config)
         unmount_event_data()
         set_usb_storage_allowed(False)
         apply_browser_policy("Contest", self.config)
@@ -218,6 +220,7 @@ class ModeStateMachine:
             "[state_machine] Post-Contest transition: Unlocking USB storage and restoring network."
         )
         self.firewall.apply_mode_firewall(target_mode, self.config)
+        apply_web_egress(target_mode, self.config)
         set_usb_storage_allowed(True)
         mount_event_data()
         apply_browser_policy(target_mode, self.config)
@@ -231,6 +234,7 @@ class ModeStateMachine:
     def _switch_open_mode(self, target_mode: str) -> None:
         """Transitions between Default and Event modes."""
         self.firewall.apply_mode_firewall(target_mode, self.config)
+        apply_web_egress(target_mode, self.config)
         set_usb_storage_allowed(True)
         mount_event_data()
         apply_browser_policy(target_mode, self.config)
@@ -280,6 +284,7 @@ class ModeStateMachine:
             self._enter_contest_mode()
         elif target_mode == "Contest":
             self.firewall.apply_mode_firewall("Contest", self.config)
+            apply_web_egress("Contest", self.config)
             unmount_event_data()
             set_usb_storage_allowed(False)
             apply_browser_policy("Contest", self.config)

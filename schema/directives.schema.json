@@ -16,7 +16,7 @@
     "website_list": {
       "type": "array",
       "items": { "type": "string" },
-      "description": "Array of allowed domain names. Use ['*'] to allow all traffic.",
+      "description": "Exact hostnames allowed for web traffic in this mode; Event inherits Default when omitted. Use ['*'] for open Default/Event access. Contest uses judge IP filtering and may also accept IP addresses.",
       "examples": [["boca.icpcmexico.org", "score.icpcmexico.org"], ["*"]]
     },
     "software_list": {
@@ -97,7 +97,7 @@
         "auto_start_on_boot": {
           "type": "boolean",
           "default": false,
-          "description": "If true and duration_minutes is set, the relative timer starts automatically when the desktop session is ready. If false, the organizer must trigger it manually via gallos-ctl."
+          "description": "If true and duration_minutes is set, the relative timer starts automatically when the desktop session is ready. If false, the organizer must trigger it manually via gallosctl."
         },
         "audit": { "$ref": "#/definitions/audit_config" },
         "printing": { "$ref": "#/definitions/printing_config" },
@@ -242,7 +242,7 @@
         "enabled": {
           "type": "boolean",
           "default": false,
-          "description": "If true, gallos-daemon opens a listener socket for signed gallos-broadcast messages. Leave false when the judge handles clarifications through its own portal (DOMjudge, BOCA, CMS)."
+          "description": "If true, gallosd opens a listener socket for signed gallos-broadcast messages. Leave false when the judge handles clarifications through its own portal (DOMjudge, BOCA, CMS)."
         },
         "broadcast_public_key": {
           "type": "string",

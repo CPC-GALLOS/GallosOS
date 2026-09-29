@@ -1,4 +1,4 @@
-"""Unit tests for gallos-daemon config ingestion module."""
+"""Unit tests for gallosd config ingestion module."""
 
 from datetime import datetime, timedelta, timezone
 from unittest.mock import mock_open, patch

@@ -1,6 +1,6 @@
 # GallosOS Directives Profiles (`examples/`)
 
-This directory contains production-ready configuration blueprints for the canonical **`gallos.toml`** directives format.
+This directory contains example profiles for the canonical **`gallos.toml`** directives format. Organizers must validate judge access, language versions, and desktop behavior before an official event.
 
 ---
 
@@ -16,10 +16,10 @@ To keep deployment modular and easy to manage, GallosOS separates configuration 
    - Unique to each physical workstation / USB drive.
    - Defines: `pc_name = "PC-14"`, `room = "Lab-A"`, `team_name = "Team-42"`, and `seat_label = "Desk 03"`.
    - Injected per-USB automatically by `gallos-flash` during mass writing or assigned dynamically via MAC matching by the **Venue Controller**.
-3. **`examples/*.gallos.toml` (Production-Ready Blueprints):**
+3. **`examples/*.gallos.toml` (Example Profiles):**
    - Pre-configured blueprints for popular competitive programming platforms.
    - **How to use:** Pick the template that matches your contest, customize your timestamps, and deploy!
-   - **Automatic Discovery:** If one profile is placed in an approved local config directory without `gallos.toml`, `gallos-daemon` loads it ahead of the ISO baseline. For predictable deployment, organizers should copy the chosen profile as `gallos.toml` to the approved boot-medium config directory.
+   - **Automatic Discovery:** If one profile is placed in an approved local config directory without `gallos.toml`, `gallosd` loads it ahead of the ISO baseline. For predictable deployment, organizers should copy the chosen profile as `gallos.toml` to the approved boot-medium config directory.
    - **Multiple Profiles:** Kernel boot arguments do not select policy. Copy the profile needed for the event to the approved boot medium as `gallos.toml` before boot.
 
 ---
@@ -30,13 +30,18 @@ A common point of confusion for new users is why this directory contains only ru
 
 - **Build-Time Recipes (`build/profiles/*.build.toml`):** Used strictly during ISO compilation by developers running the containerized build pipeline (`gallos-builder`). The repository maintains its canonical base build recipe at [`build/profiles/universal.build.toml`](../build/profiles/universal.build.toml); see [`build/profiles/README.md`](../build/profiles/README.md) and [`docs/BUILD_SYSTEM.md`](../docs/BUILD_SYSTEM.md).
 - **Run-Time Directives (`examples/*.gallos.toml`):** Blueprints in this directory are intended for **contest organizers**. Organizers do not compile custom OS images from scratch; they simply flash the official release ISO and supply one of these blueprints at runtime.
-- **The "Single Universal Base ISO" Principle:** The underlying base system (Ubuntu 24.04 LTS minimal, Linux kernel, Wayland kiosk stack, audio, and device management) is identical across all competitions. **A single ISO built with `universal.build.toml` runs every single contest archetype listed below.** All contest-specific constraints — judge IP whitelists, allowed IDEs, countdown clocks, and desktop lockouts — are evaluated dynamically at boot time by `gallos-daemon`.
+- **The "Single Universal Base ISO" Principle:** The underlying base system (Ubuntu 24.04 LTS minimal, Linux kernel, Wayland kiosk stack, audio, and device management) is identical across all competitions. **A single ISO built with `universal.build.toml` runs every single contest archetype listed below.** All contest-specific constraints — judge IP whitelists, allowed IDEs, countdown clocks, and desktop lockouts — are evaluated dynamically at boot time by `gallosd`.
 
 ---
 
 ## 📁 Event Archetypes & Operational Use Cases
 
 Each configuration profile in this directory demonstrates a distinct **real-world competitive programming use case**, showcasing the versatility and security features of GallosOS:
+
+The older contest examples include requested `software` module identifiers and
+version descriptions. Those entries do not install packages: `.gsm` module
+activation remains future work. Check `/usr/share/gallos/toolchains.tsv` in a
+built ISO for the toolchains actually present.
 
 ### 1. 🏆 In-Person Sanctioned Tournaments (Strict Arena Lockdown)
 
@@ -62,12 +67,11 @@ Each configuration profile in this directory demonstrates a distinct **real-worl
 
 ### 2. 🎓 Multi-Day Training Camps & Daily Upsolving (Flexible Time Cycles)
 
-- [**`codeforces-training.gallos.toml`**](./codeforces-training.gallos.toml) — **Summer/Winter Camps & University Club Practice**
-  - **Operational Context:** Multi-day intensive training (e.g., TCMX, ICPC training camps, university labs).
-  - **Automated Time Cycle:** Morning lectures/practice $\to$ afternoon virtual contest simulation $\to$ evening upsolving.
-  - **Network & Security:** Whitelist for major public practice platforms (Codeforces, AtCoder, CSES, Kattis, VJudge, GitHub).
-  - **Printing:** Disabled (`mode = "none"`).
-  - **Toolchain:** Extended language suite (GCC, Clang 18, Rust 1.75+, Python, Java, Kotlin) + CPH (Competitive Programmer Helper) extension for rapid testcase parsing.
+- [**`neutral.gallos.toml`**](./neutral.gallos.toml) — the GallosOS-branded ISO fallback for open practice and informal public-judge contests.
+- [**`club.gallos.toml`**](./club.gallos.toml) — CPC-GALLOS club identity and open internet access, with no expiring schedule.
+- [**`training.gallos.toml`**](./training.gallos.toml) — restricted multi-judge practice, including the Codeforces main site, `m1`, `m2`, `m3`, and `mirror` hosts. The list contains hosts whose pages or problem catalogs could be confirmed at review time; unavailable or unconfirmed legacy links are excluded pending a new check. Judge login, assets, and submissions require graphical acceptance before release.
+
+The training profile restricts the whole workstation through a local proxy and outbound firewall. An Event window inherits the Default site list unless it explicitly overrides it. Search engines and general GitHub access are not on this allowlist. AI features hosted within an allowed judge are a separate policy question. See the [judge review](../docs/TRAINING_JUDGES.md) for inclusion limits and excluded links.
 
 ---
 
@@ -79,9 +83,15 @@ Each configuration profile in this directory demonstrates a distinct **real-worl
   - **Auditing:** Scheduled background desktop screenshots and fleet telemetry streaming.
   - **Printing:** Disabled (`mode = "none"`).
 
+### 4. 🏫 University Exam Workstations (Moodle Policy Example)
+
+- [**`exam.gallos.toml`**](./exam.gallos.toml) — a restrictive Contest-mode profile for testing LMS allowlisting against Moodle's public demo host. It is a policy example only and must not be used for a live exam; institutions need to identify and test their own LMS, SSO, and supporting service hosts.
+- **Lockdown options:** GallosOS browser-only kiosk controls and the third-party [SEB for Linux](https://github.com/Jvr2022/seb-linux) client are separate options to evaluate. The community SEB project is an experimental compatibility candidate; GallosOS integration, secure lockdown behavior, and Moodle/Canvas compatibility have not been verified.
+- **Assessment policy:** Google Scholar and other external reference sites are excluded from the sample allowlist. Organizers should explicitly allow each resource only when the exam rules permit it.
+
 ---
 
-### 4. 🏫 School & Regional Informatics Olympiads (Bilingual & Accessible)
+### 5. 🏫 School & Regional Informatics Olympiads (Bilingual & Accessible)
 
 - [**`omegaup-omi.gallos.toml`**](./omegaup-omi.gallos.toml) — **National Informatics Olympiad (OMI / omegaUp)**
   - **Operational Context:** High school and junior olympiads (Olimpiada Mexicana de Informática).
@@ -111,7 +121,7 @@ gallos-flash --image gallos-os-amd64.iso \
              --prefix "PC-"
 ```
 
-Before an event, copy the selected profile to the approved boot medium as `gallos.toml`. If an authorized Organizer needs a last-minute correction during Contest, edit `/etc/gallos/gallos.toml` and run `gallosctl reload` (or `gallos-ctl reload`). The existing controller reports parse errors and retains the active policy when reload fails.
+Before an event, copy the selected profile to the approved boot medium as `gallos.toml`. If an authorized Organizer needs a last-minute correction during Contest, edit `/etc/gallos/gallos.toml` and run `gallosctl reload`. The existing controller reports parse errors and retains the active policy when reload fails.
 
 ### 3. Visual Authoring (`GallosOS Config Builder`)
 

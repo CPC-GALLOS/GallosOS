@@ -10,7 +10,21 @@ In modern competitive programming (ICPC, IOI, local tournaments), unauthorized a
 
 ### 1.1 The AI Risk Philosophy
 
-Generative AI presents a unique risk to algorithmic development. Competitive programming relies on deep analytical thinking, algorithm design, and manual tracing (the "old way"). If a student wants to use AI coding assistants and other distractions, they are free to use their personal laptop in the club or training camp (if permitted by the organizers), during their own time, or at their own place. **GallosOS is built with competitive programming in mind.** To enforce this, even in the open `Default` mode, GallosOS continuously sinks known AI domains (OpenAI, Claude, Copilot, Cursor) using an auto-updating host blacklist (synced with community-maintained AI tracking lists like [`ai.robots.txt`](https://github.com/ai-robots-txt/ai.robots.txt), [`Stevos-GenAI-Blocklist`](https://github.com/Stevoisiak/Stevos-GenAI-Blocklist), and [`hagezi/dns-blocklists`](https://github.com/hagezi/dns-blocklists)), ensuring the training environment remains pure.
+Generative AI presents a risk to contest integrity. GallosOS currently limits network access in Contest and in named-host training profiles. The club and neutral Default profiles allow general browsing; blocking AI sites and AI-generated search panels remains a separate release requirement. A domain list cannot remove AI answers embedded on an otherwise allowed search page, and an allowed judge may itself host AI features. Do not claim those controls are active until they have been implemented and tested.
+
+For the later search-policy design, [DuckDuckGo NoAI](https://duckduckgo.com/duckduckgo-help-pages/ai-features/about-noaiduckduckgocom) is an explicit no-AI search option. [Startpage Anonymous View](https://support.startpage.com/hc/en-us/articles/4455317663764-How-does-Anonymous-View-work) is a proxy for opening arbitrary search results, so admitting its proxy hosts would bypass a judge-domain allowlist. Google's [Web filter](https://support.google.com/websearch/answer/14901683) shows text links; permitting ordinary Google results as “AI-free” requires a separate enforced-navigation design and graphical verification. None of these candidates is an active GallosOS restriction yet.
+
+### Deferred web relay review
+
+An allowed website that fetches another URL on the user's behalf can hide the final destination from a hostname-only allowlist. The future anti-AI and search policy must review these services as web relays, alongside AI endpoints. This is a review list, not a complete blocklist or an active ISO policy.
+
+| Candidate | Documented behavior | Review before allowing the service |
+| --- | --- | --- |
+| [Google Translate website translation](https://developers.google.com/search/docs/appearance/ad-network-and-translation) | Google retrieves the source page and serves translated content on a hostname ending in `.translate.goog`. | Distinguish text translation from website translation; inventory entry points and translated-page hosts, then test whether an arbitrary destination can be opened. |
+| [CroxyProxy](https://www.croxy.network/) | Its website offers browsing of other sites through its web proxy. | Identify the current official service hosts, alternate hosts, redirects, and browser extension behavior before deciding how to exclude it. |
+| [Startpage Anonymous View](https://support.startpage.com/hc/en-us/articles/4455317663764-How-does-Anonymous-View-work) | It opens search results through Startpage's proxy. | Determine whether search can remain available while Anonymous View and its relay hosts are inaccessible. |
+
+Hostname inventory alone is insufficient to prove a restriction: verify real browser navigation and attempts to open a blocked destination through each allowed service. Do not infer that every host under a search or translation provider is safe merely because one feature is permitted.
 
 ### 1.2 Primary Threat Vectors
 
@@ -64,15 +78,15 @@ The GallosOS specification mandates a **Strict Default-DROP** policy for all out
 ### 3.1 Kernel Packet Filter (`nftables`)
 
 > [!IMPORTANT]
-> **These sets are rendered per-event by `gallos-daemon`, never copy-pasted as-is.** The elements shown below are illustrative placeholders. `allowed_judge_ips` MUST resolve to the organizer's actual judge host(s) — never a whole RFC1918 supernet (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), which would let a contestant reach every other device on the venue LAN and defeat the judge-only guarantee entirely. The daemon keeps the kiosk stopped if applying a required Contest policy fails and reports the error through `gallos-ctl status`.
+> **These sets are rendered per-event by `gallosd`, never copy-pasted as-is.** The elements shown below are illustrative placeholders. `allowed_judge_ips` MUST resolve to the organizer's actual judge host(s) — never a whole RFC1918 supernet (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), which would let a contestant reach every other device on the venue LAN and defeat the judge-only guarantee entirely. The daemon keeps the kiosk stopped if applying a required Contest policy fails and reports the error through `gallosctl status`.
 
 > [!NOTE]
-> **IPv6 is disabled network-wide, not merely un-whitelisted.** [Precedent: huronOS's own docs (`docs/start/requirements.md`) recommend disabling IPv6 outright because a dual-stack firewall that is only IPv4-aware can let contestants reach IPv6-only destinations unfiltered.] GallosOS follows the same posture: IPv6 is turned off at the kernel level (`ipv6.disable=1` boot parameter, or `net.ipv6.conf.all.disable_ipv6=1` at runtime), and the ruleset below uses `table ip` (IPv4-only), not `table inet` (dual-stack) — so there is no separate IPv6 chain to keep in sync or accidentally leave open.
+> **IPv6 has two safeguards in restricted modes.** GallosOS disables it at boot with `ipv6.disable=1` and applies an `inet` family firewall with a default-drop output policy for both IPv4 and IPv6. This keeps restricted egress closed if a boot configuration omits the kernel parameter. Open Default/Event mode remains intentionally open when no website list is configured.
 
 ```nftables
 #!/usr/sbin/nft -f
 
-table ip gallos_filter {
+table inet gallos_filter {
     # Judge server(s) reachable during Contest mode, derived from
     # [contest].allowed_websites in gallos.toml:
     #   - Self-hosted LAN judges (BOCA / DOMjudge / CMS, the typical ICPC
@@ -135,7 +149,7 @@ table ip gallos_filter {
         ip daddr @telemetry_dns_blacklist drop
         tcp dport 853 drop
 
-        # 5. Allow Local DNS (Port 53 UDP/TCP) to verified local gateway only (dynamically populated by gallos-daemon)
+        # 5. Allow Local DNS (Port 53 UDP/TCP) to verified local gateway only (dynamically populated by gallosd)
         udp dport 53 ip daddr 192.168.1.1 accept
         tcp dport 53 ip daddr 192.168.1.1 accept
 
@@ -203,11 +217,11 @@ This ensures that even if `omegaup.com` is whitelisted in the firewall, contesta
 
 `gallos.toml`'s `allowed_websites` is declared by **domain name** (e.g. `boca.icpcmexico.org`), but `nftables` filters only by IP address. GallosOS resolves this gap differently depending on judge topology:
 
-- **Self-hosted LAN judges (BOCA, DOMjudge, CMS — the typical ICPC/IOI onsite case):** These run on a dedicated machine on the venue LAN with a fixed IP. Rather than resolving the domain at every boot, `gallos-daemon` resolves it **once at configure-time and writes a static `/etc/hosts` entry** pinning the domain to that IP, which is also what populates `allowed_judge_ips`. [Precedent: this directly follows `maratona-firewall`'s real `config-ip-boca.sh` script, which hardcodes the resolved judge IP into `/etc/hosts` at configure-time and never re-resolves it live — simpler than a periodic-repin daemon, and correct for this case because a self-hosted LAN judge's IP does not change during the contest.] The organizer can also supply the IP directly, skipping resolution entirely.
-- **CDN-fronted remote judges (Codeforces, AtCoder, omegaUp, used in `Event`/`Default` practice profiles):** These sit behind shared CDN infrastructure with edge IPs that rotate and are frequently shared with unrelated tenants — the static-pin approach above does not fit here. `gallos-daemon` periodically (every 30–60 seconds) re-resolves each whitelisted domain via the allowed local DNS server and diffs the result into `allowed_judge_ips` (`nft add element` / `nft delete element`), keeping the set current as CDN IPs rotate.
+- **Self-hosted LAN judges (BOCA, DOMjudge, CMS — the typical ICPC/IOI onsite case):** These run on a dedicated machine on the venue LAN with a fixed IP. Rather than resolving the domain at every boot, `gallosd` resolves it **once at configure-time and writes a static `/etc/hosts` entry** pinning the domain to that IP, which is also what populates `allowed_judge_ips`. [Precedent: this directly follows `maratona-firewall`'s real `config-ip-boca.sh` script, which hardcodes the resolved judge IP into `/etc/hosts` at configure-time and never re-resolves it live — simpler than a periodic-repin daemon, and correct for this case because a self-hosted LAN judge's IP does not change during the contest.] The organizer can also supply the IP directly, skipping resolution entirely.
+- **CDN-fronted remote judges (Codeforces, AtCoder, omegaUp, used in `Event`/`Default` practice profiles):** These sit behind shared CDN infrastructure with edge IPs that rotate and are frequently shared with unrelated tenants — the static-pin approach above does not fit here. `gallosd` periodically (every 30–60 seconds) re-resolves each whitelisted domain via the allowed local DNS server and diffs the result into `allowed_judge_ips` (`nft add element` / `nft delete element`), keeping the set current as CDN IPs rotate.
 
 > [!WARNING]
-> **Documented residual limitation, not a solved problem:** IP-based allowlisting — with or without periodic re-resolution — cannot distinguish between two hostnames that happen to share the same CDN edge IP, because `nftables` has no visibility into the TLS SNI or HTTP Host header. A contestant who already knows a whitelisted domain's current edge IP could, in principle, reach unrelated content hosted behind the same edge if the CDN routes by SNI rather than IP. Closing this gap requires SNI-aware filtering (e.g. an inline stream proxy with `ssl_preread`-style hostname matching), which is heavier infrastructure than the in-band Bash/Python daemon is designed to run and is not currently planned for the MVP. This is why strict `Contest`-mode lockdowns should prefer self-hosted LAN judges wherever possible — the CDN-sharing risk does not apply to them — and why CDN-fronted judges are treated as acceptable for lower-stakes `Event`/`Default` practice contexts rather than official lockdown scenarios.
+> **Residual limitation:** Contest still uses IP-based judge filtering. Shared CDN addresses can expose unrelated hosts, so official Contest profiles should prefer a dedicated LAN judge. Named-host Default/Event training uses a local explicit proxy to check requested hostnames and blocks direct workstation egress; it is not a content filter and does not make third-party judges free of AI features or proxy-like functionality.
 >
 > **IDEA FOR LATER, not adopted:** `icpc-environment/icpc-env` closes this exact gap for real — it forces all contestant traffic through a local Squid instance with full TLS interception (`ssl_bump bump all`, a self-signed CA installed system-wide, UID-locked to the contestant user) backed by an nginx reverse proxy doing per-path filtering on the decrypted traffic (`files/squid/squid.conf.j2`, `files/nginx.conf.j2`). This would give real hostname/path-level filtering instead of IP allowlisting, at the cost of trusting a MITM proxy in the TCB and installing a CA cert everywhere. Flagged as a documented option for a future design decision, not implemented here.
 >
@@ -282,7 +296,7 @@ Every proprietary component discussed above (§ 4.1–4.2) is a *userspace* bina
 During **`Contest` Mode**:
 
 - **HID Allowed:** USB keyboards, mice, and assistive devices are permitted.
-- **Mass Storage Blocked (primary mechanism — polkit/udisks2 denial):** When `allow_usb_storage = false`, `gallos-daemon` (and the build-time hardening stage) installs a `polkit` rule denying the `contestant` user all `org.freedesktop.udisks2.*` actions outright (`ResultAny=no` / `polkit.Result.NO`), so mass-storage devices are refused at the policy layer before they're ever mounted. [Precedent: this directly follows `maratona-usuario-icpc`'s real polkit rules, which deny the `icpc` user `NetworkManager.*`, `timedate1.*`, and `udisks2.*` actions the same way.]
+- **Mass Storage Blocked (primary mechanism — polkit/udisks2 denial):** When `allow_usb_storage = false`, `gallosd` (and the build-time hardening stage) installs a `polkit` rule denying the `contestant` user all `org.freedesktop.udisks2.*` actions outright (`ResultAny=no` / `polkit.Result.NO`), so mass-storage devices are refused at the policy layer before they're ever mounted. [Precedent: this directly follows `maratona-usuario-icpc`'s real polkit rules, which deny the `icpc` user `NetworkManager.*`, `timedate1.*`, and `udisks2.*` actions the same way.]
 
   > [!NOTE]
   > **Polkit `.pkla` vs. Modern JavaScript `.rules` (Ubuntu 24.04 LTS):**
@@ -345,14 +359,14 @@ To ensure non-native English speakers can compete fairly without internet access
 
 2. **Dual-Mode Translation Engine (Offline Dictd + Whitelisted API Crow Translate):**
    - **Airtight Offline Mode (Air-Gapped & Strict Regionals):** Bundles a local `dictd` daemon (`127.0.0.1:2628`) with FreeDict bilingual databases (`eng-spa`, `eng-por`) and StarDict lexicons. Lookups run entirely over loopback with zero external network traffic, guaranteeing 100% functionality even under complete firewall lockdown.
-   - **Controlled Online Translation Mode (Optional for Camps / Qualifiers):** When organizers permit online translation, they whitelist raw API endpoints (e.g. `translate.googleapis.com` or LibreTranslate) in `gallos.toml`. Because Crow Translate communicates strictly via raw translation APIs (JSON payload) rather than rendering web pages, it provides full-sentence translation **without exposing web-proxy bypass vulnerabilities** (which occur when contestants access the full `translate.google.com` web browser interface to load forbidden sites).
+   - **Controlled Online Translation Mode (Future Design):** If an Organizer permits translation, evaluate a text-only API separately from browser-based website translation. Do not assume that allowing `translate.google.com` or translated-page hosts under `.translate.goog` preserves a judge-domain restriction; Google documents that its website translation fetches and rewrites source pages. Validate any proposed API endpoint and client behavior before adding it to `gallos.toml`.
    - **Automatic Local Fallback:** If online translation endpoints become unreachable or network drops, translation tools fall back seamlessly to the bundled local dictionary databases.
 
 ---
 
 ## 8. Administrative Proctoring, Auditing & Fleet Telemetry
 
-For official tournaments requiring strict proctoring (such as ICPC Regionals, IOI selection contests, and certified remote competitions), the GallosOS architecture defines an **opt-in, declarative auditing engine** managed by `gallos-daemon`:
+For official tournaments requiring strict proctoring (such as ICPC Regionals, IOI selection contests, and certified remote competitions), the GallosOS architecture defines an **opt-in, declarative auditing engine** managed by `gallosd`:
 
 ### 8.1 Periodic Desktop Screen Auditing
 
@@ -377,7 +391,7 @@ For official tournaments requiring strict proctoring (such as ICPC Regionals, IO
 
 ### 8.4 Process Hierarchy & Focused Window Tracking
 
-- **Forensic Activity Journal:** Inspired by `s.py` from ICPC SysOps, `gallos-daemon` optionally samples the active focused window and maps its parent-child process hierarchy via `/proc/<pid>/task/<pid>/children` and `comm` descriptors.
+- **Forensic Activity Journal:** Inspired by `s.py` from ICPC SysOps, `gallosd` optionally samples the active focused window and maps its parent-child process hierarchy via `/proc/<pid>/task/<pid>/children` and `comm` descriptors.
 - **Cheating & Anomaly Detection:** Allows arbiters to verify what editor, tool, or background process was running at any specific second of the contest timeline (e.g. distinguishing between interactive terminal execution vs. background scripts).
 - **IDEA FOR LATER, not adopted:** the real `s.py` (`roles/team/files/s.py`) detects the focused window via X11-only `xprop`/`_NET_ACTIVE_WINDOW`, which has no Wayland/labwc equivalent and cannot be ported as-is. The process-hierarchy half above is already portable. A Wayland-native replacement for the window-focus half (e.g. `wlr-foreign-toplevel-management`) is needed before this feature can be implemented; not designed here.
 
@@ -404,7 +418,7 @@ To prevent contestants from executing malicious kernel system calls (`syscall` /
 
 ### 9.3 Systemd Hardening & Syscall Filtering (`seccomp-BPF`)
 
-- **Systemd Service Sandboxing:** Background services (such as `gallos-daemon`, OOM notifier, and telemetry exporter) run under systemd hardening guidelines:
+- **Systemd Service Sandboxing:** Background services (such as `gallosd`, OOM notifier, and telemetry exporter) run under systemd hardening guidelines:
   - `NoNewPrivileges=true`: Prevents child processes from gaining more privileges than their parents.
   - `ProtectSystem=strict`: Mounts the entire OS filesystem tree as read-only to the service.
   - `SystemCallFilter=~execve` or strict whitelist restrictions: Blocks unauthorized system calls at the kernel level using `seccomp-BPF`.

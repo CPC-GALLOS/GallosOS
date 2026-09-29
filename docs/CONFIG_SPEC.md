@@ -15,8 +15,8 @@ GallosOS is designed to seamlessly adapt to **any competitive programming scenar
 
 - **Source Code Persistence:** Session work is manually saved to an **optional external workspace** (GitHub / GitLab / Google Drive / OneDrive / Nextcloud), configured once by the student on their account. The organizer whitelists these cloud services per the event profile.
 - **Online IDEs:** Students may use browser-based IDEs (VS Code for the Web, Gitpod, Replit) if the organizer allows them — the browser is still governed by GallosOS's bookmark/whitelist policy.
-- **Controlled Browsing:** Even in open club mode, the browser enforces curated bookmarks and optionally strips AI-generated response panels (e.g., blocks Google AI Overviews, Bing Copilot answers, ChatGPT).
-- **Offline Tools:** Full access to compilers, VSCodium + CPH extension, and offline documentation (cppreference, Python docs, Kotlin manual) without requiring internet.
+- **Controlled Browsing:** The open club profile permits the web. The anti-AI website and search-results policy, including web-relay bypass review, is planned separately and is not enforced by this profile yet.
+- **Offline Tools:** The ISO build targets GCC, Clang, OpenJDK, Python/PyPy, Rust, Kotlin, Geany, and VSCodium. Their installed versions are recorded in the image.
 
 ### Context 2 — Multi-Day Training Camps & Warm-Ups (Event + Contest Transitions)
 
@@ -45,7 +45,7 @@ Kernel boot arguments, DHCP options, network URLs, and arbitrary attached disks 
 
 ### Last-Minute Contest Correction
 
-An authorized Organizer with local root access can edit `/etc/gallos/gallos.toml` using a normal text editor, then run `gallosctl reload` (or `gallos-ctl reload`). This is the same controller command already used for status and mode operations; it is not a separate configuration utility. A successful reload replaces the active policy. If parsing or validation fails, the command reports an error and the in-memory policy remains active. See [`ROOT_ACCESS.md`](./ROOT_ACCESS.md) for the recovery workflow.
+An authorized Organizer with local root access can edit `/etc/gallos/gallos.toml` using a normal text editor, then run `gallosctl reload`. This is the same controller command already used for status and mode operations; it is not a separate configuration utility. A successful reload replaces the active policy. If parsing or validation fails, the command reports an error and the in-memory policy remains active. See [`ROOT_ACCESS.md`](./ROOT_ACCESS.md) for the recovery workflow.
 
 The Live image includes `schema/directives.schema.json` and Python `jsonschema`; the daemon checks the selected local directives against that schema before applying a reload. The Organizer can correct the file and retry `gallosctl reload` without rebooting.
 
@@ -60,7 +60,7 @@ To prevent configuration pollution and keep deployment modular, GallosOS enforce
 | **`build.toml`** | `*.build.toml` (e.g., `universal.build.toml`) | **Container Build Recipe (HOW & BASE):** Used exclusively during ISO compilation. Defines what core Ubuntu packages, kernels, and optimizations are permanently baked into the base OS before the USB is even flashed. | Developers & System Admins (`gallos-builder`) | `base_os = "ubuntu-24.04-minimal"`, `preinstall_apt = ["python3"]`, `strip_docs = true`. |
 | **`gallos.toml`** | `*.gallos.toml` (e.g., `icpc-onsite.gallos.toml`) | **Global Contest Policy (WHAT & WHEN):** Identical for all 50–200 machines in the arena. Governs the rules, schedules, and security constraints of the event. | Contest Organizers & Jury | Schedule windows, `allowed_websites` (judge IPs), available IDEs, firewall rules, printing mode. |
 | **`machine.toml`** | `*.machine.toml` (e.g., `seat-14.machine.toml`) | **Local Station Identity (WHO & WHERE):** Unique to each individual USB / physical PC. Defines the physical seat and assigned team metadata. | Flashing station (`gallos-flash`) / Venue Controller | `pc_name = "PC-14"`, `room = "Lab-A"`, `team_name = "Team-42"`, `seat_label = "Desk 03"`. |
-| **`examples/*.gallos.toml`** | `.gallos.toml` | **Production-Ready Blueprints & Templates:** Pre-baked configuration recipes for popular contest platforms. | Event Organizers | `icpc-onsite.gallos.toml`, `maratona-sbc.gallos.toml`, `ioi-cms.gallos.toml`, `codeforces-training.gallos.toml`. |
+| **`examples/*.gallos.toml`** | `.gallos.toml` | Runtime policy examples for the neutral ISO, club practice, training, and Organizer contests. | Organizers | `neutral.gallos.toml`, `club.gallos.toml`, `training.gallos.toml`, `icpc-onsite.gallos.toml`. |
 
 > [!TIP]
 > **How to use `examples/`:** Organizers do not write `gallos.toml` from scratch. For an ICPC regional, simply copy [`examples/icpc-onsite.gallos.toml`](../examples/icpc-onsite.gallos.toml) (or [`examples/maratona-sbc.gallos.toml`](../examples/maratona-sbc.gallos.toml) for South America / BOCA) to your server or USB, adjust the competition timestamps, and deploy!
@@ -78,7 +78,7 @@ To prevent configuration pollution and keep deployment modular, GallosOS enforce
 3. **Strict Schema Validation:** Integrates natively with `taplo` and JSON Schema (`directives.schema.json`), providing real-time linting and auto-completion directly in the organizer's IDE.
 4. **Native Datetime Literals (RFC 3339 / ISO 8601):** Timestamps like `2026-08-29T11:00:00Z` are first-class primitives in TOML, eliminating string parsing errors and timezone ambiguities.
 5. **Zero Indentation Vulnerabilities:** Unlike YAML, TOML uses explicit headers (`[contest]`, `[[contest.schedule]]`) and is immune to broken indentation, tab vs. space mixups, or accidental whitespace corruption during copy-pasting.
-6. **Native TOML Parsing:** Python 3.11+ includes `tomllib`; `gallos-daemon` uses it for parsing and the packaged `jsonschema` library for runtime validation, without requiring a compiler on the Live system.
+6. **Native TOML Parsing:** Python 3.11+ includes `tomllib`; `gallosd` uses it for parsing and the packaged `jsonschema` library for runtime validation, without requiring a compiler on the Live system.
 
 ---
 
@@ -101,7 +101,7 @@ graph LR
     end
 
     subgraph "3. Runtime & Live Event"
-        Daemon["gallos-daemon (Mode Controller)"]
+        Daemon["gallosd (Mode Controller)"]
         Firewall["nftables (Anti-Cheat Default DROP)"]
         OOM["EarlyOOM + systembus-notify"]
     end
@@ -219,7 +219,7 @@ The following matrix defines the **exact behavior** of every configurable subsys
 
 | Subsystem | `Default` Mode | `Event` Mode | `Contest` Mode |
 | :--- | :--- | :--- | :--- |
-| **Network Firewall** | Open (`allowed_websites = ["*"]`) | Configurable (whitelist or open) | 🔒 Default-DROP, judge-only IPs |
+| **Network Firewall** | Open for `[*]`; named hosts use the restricted proxy | Inherits Default unless overridden | 🔒 Default-DROP, judge-only IPs |
 | **Audio (PipeWire)** | ✅ Enabled | ✅ Enabled | 🔇 Muted & disabled |
 | **Wallpaper** | Default branding | Default or event branding | 🔴 Contest branding |
 | **Regular Clock (Time of Day)** | ⌚ Visible (with Stress Toggle) | ⌚ Visible (with Stress Toggle) | ⌚ Visible (with Stress Toggle) |
@@ -229,28 +229,28 @@ The following matrix defines the **exact behavior** of every configurable subsys
 | **Software Modules (.gsm)** | All available | Configurable subset | Configurable subset |
 | **Contestant Files** | Persistent across sessions | Persistent between classes | 🧹 **Clean State Wipe on entry** |
 | **USB Mass Storage** | Configurable (`allow_usb_storage`) | Configurable (`allow_usb_storage`) | 🔒 Always blocked |
-| **AI Plugin Purging** | ⛔ Always purged on boot | ⛔ Always purged on boot | ⛔ Always purged on boot |
+| **AI Plugin Purging** | Planned | Planned | Planned; judge-only network is the current control |
 | **OOM Protection** | ⛔ Always active | ⛔ Always active | ⛔ Always active |
 | **Wayland Kiosk Lock** | ⛔ Always locked | ⛔ Always locked | ⛔ Always locked |
 | **Virtual TTY (`Ctrl+Alt+F3`)** | ⛔ Always disabled | ⛔ Always disabled | ⛔ Always disabled |
 
 > [!IMPORTANT]
-> **The Clean State Wipe** is the single most critical anti-cheat mechanism. When `gallos-daemon` transitions into `Contest` mode from any other mode, it kills the Wayland session, purges `/home/contestant/` (destroying all browser caches, bash history, bookmarks, and saved files from the previous session), restores the pristine `/etc/skel` skeleton, and restarts the session. This guarantees that no student can pre-load answers, algorithm templates, or saved code before the contest begins.
+> **The Clean State Wipe** is the single most critical anti-cheat mechanism. When `gallosd` transitions into `Contest` mode from any other mode, it kills the Wayland session, purges `/home/contestant/` (destroying all browser caches, bash history, bookmarks, and saved files from the previous session), restores the pristine `/etc/skel` skeleton, and restarts the session. This guarantees that no student can pre-load answers, algorithm templates, or saved code before the contest begins.
 
-The daemon releases the contestant session only after the required firewall, storage, USB, browser-policy, and home-restoration steps succeed. `gallos-ctl status` reports the committed `mode`, `target_mode`, `transition_status` (`pending`, `ready`, or `error`), and `last_error`. If a required step fails, the kiosk stays stopped and the configured local root recovery prompt appears on tty1. Scheduled changes require no password entry; an organizer needs root authentication to issue manual CLI requests.
+The daemon releases the contestant session only after the required firewall, storage, USB, browser-policy, and home-restoration steps succeed. `gallosctl status` reports the committed `mode`, `target_mode`, `transition_status` (`pending`, `ready`, or `error`), and `last_error`. If a required step fails, the kiosk stays stopped and the configured local root recovery prompt appears on tty1. Scheduled changes require no password entry; an organizer needs root authentication to issue manual CLI requests.
 
 #### 1. `Default` Mode (Fallback / Always)
 
 - **Trigger:** Active when neither a Contest nor Event time window is scheduled.
 - **Use Case:** Regular competitive programming club sessions, everyday training, general university lab usage, initial setup, and post-event cleanup.
-- **Network:** Open internet access (or organizer-curated whitelist), backed by a persistent, auto-updating DNS host blocklist (e.g., via `/etc/hosts` or `dnsmasq`) for known AI domains (OpenAI, Claude, Copilot, etc.) to enforce traditional algorithmic practice.
+- **Network:** The neutral and club profiles allow general browsing. A named Default allowlist restricts HTTP/HTTPS access through the local proxy and blocks direct workstation egress. The separate anti-AI search and domain policy is not implemented yet.
 - **Files:** Persistent. Students can save files, browse freely, and configure their environment.
 
 #### 2. `Event` Mode (Medium Priority)
 
 - **Trigger:** Active ISO 8601 time window in `[event.schedule]` (e.g., training camp, lecture, warm-up).
 - **Use Case:** Multi-day camps where students attend lectures in the morning and practice in the afternoon.
-- **Network:** Broad internet access or course-specific whitelist.
+- **Network:** Inherits Default's website list unless `event.allowed_websites` overrides it; `[*]` means open access. Named lists use the local proxy and direct-egress firewall.
 - **Files:** Persistent between classes within the same Event window, but **hidden and inaccessible** during any overlapping Contest window. This prevents students from referencing lecture notes during a simulated contest.
 
 #### 3. `Contest` Mode (Highest Priority — Strict Lockdown)
@@ -261,7 +261,7 @@ The daemon releases the contestant session only after the required firewall, sto
 - **Network:** Kernel-level Default-DROP firewall. Only judge IPs in `allowed_websites` are reachable.
 - **Audio:** PipeWire is muted and disabled to enforce arena silence.
 - **Visual:** Contest wallpaper applied, countdown timer visible in Waybar.
-- **Transition Out:** When the contest window ends, `gallos-daemon` automatically unlocks the network and transitions back to `Event` or `Default`, allowing contestants to export their code via USB or the internet.
+- **Transition Out:** When the contest window ends, `gallosd` automatically unlocks the network and transitions back to `Event` or `Default`, allowing contestants to export their code via USB or the internet.
 
 ---
 
@@ -270,6 +270,10 @@ The daemon releases the contestant session only after the required firewall, sto
 ### 7.1 `software` Module Categories
 
 Every `software` entry follows `<category>/<package>`, validated against `schema/directives.schema.json`'s `software_list` pattern. Categories: `internet` (browsers, translation tools), `langs` (compilers/runtimes), `programming` (IDEs/editors), `tools` (terminal/utility apps), `docs` (offline reference material), and `drivers` (opt-in hardware drivers not baked into the base image by default — currently `drivers/nvidia-proprietary`; see `docs/HARDWARE_COMPATIBILITY.md` § 1.3 for the SecureBoot/MOK implications of enabling it).
+
+The schema validates these identifiers, but the current daemon does not mount
+or switch `.gsm` modules from `software`. Use the built image's
+`/usr/share/gallos/toolchains.tsv` to identify installed programs.
 
 ```toml
 # ==============================================================================
@@ -425,7 +429,7 @@ end   = "2026-08-29T16:00:00Z"
 
 ### 7.2 `[recovery]` — Local Root Access
 
-See `docs/ROOT_ACCESS.md` for the operational behavior. `root_password_hash` is a `crypt(3)` hash (never a plaintext password), applied via `chpasswd -e` by the local `gallos-root-access.service` when the daemon boots or receives `gallos-ctl reload`. It is available in every mode, including Contest. Keep this hash out of shared example profiles and protect the local configuration that contains it.
+See `docs/ROOT_ACCESS.md` for the operational behavior. `root_password_hash` is a `crypt(3)` hash (never a plaintext password), applied via `chpasswd -e` by the local `gallos-root-access.service` when the daemon boots or receives `gallosctl reload`. It is available in every mode, including Contest. Keep this hash out of shared example profiles and protect the local configuration that contains it.
 
 ---
 

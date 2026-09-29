@@ -286,6 +286,10 @@ install -m 0644 "$REPO_ROOT/daemon/gallosd.service" "$ROOTFS/etc/systemd/system/
 install -m 0644 "$REPO_ROOT/daemon/gallos-event-storage.service" "$ROOTFS/etc/systemd/system/gallos-event-storage.service"
 install -m 0644 "$REPO_ROOT/daemon/gallos-root-access.service" "$ROOTFS/etc/systemd/system/gallos-root-access.service"
 install -m 0644 "$REPO_ROOT/daemon/gallos-recovery-console.service" "$ROOTFS/etc/systemd/system/gallos-recovery-console.service"
+install -m 0644 "$REPO_ROOT/daemon/gallos-web-proxy.service" "$ROOTFS/etc/systemd/system/gallos-web-proxy.service"
+# The package enables its generic listener on port 3128 by default. Only the
+# policy-managed instance may accept contestant browser traffic.
+chroot "$ROOTFS" systemctl mask squid.service
 chroot "$ROOTFS" systemctl enable gallosd.service
 
 echo "Stage 3 complete."

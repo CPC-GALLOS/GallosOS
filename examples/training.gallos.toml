@@ -1,0 +1,79 @@
+#:schema https://raw.githubusercontent.com/CPC-GALLOS/GallosOS/main/schema/directives.schema.json
+# Multi-judge training: reviewed judge and official training hosts.
+# Event inherits this Default allowlist unless an Organizer overrides it.
+[global]
+timezone = "UTC"
+available_keyboard_layouts = ["us", "latam", "es"]
+default_keyboard_layout = "us"
+enable_contest_mode = false
+enable_event_mode = false
+
+[branding]
+name = "GallosOS Training"
+hostname = "gallosos-training"
+show_powered_by_gallos = true
+
+[default]
+allowed_websites = [
+    "cpcjudge.com",
+    "omegaup.com",
+    "vjudge.net",
+    "leetcode.com",
+    "www.hackerearth.com",
+    "usaco.training",
+    "www.france-ioi.org",
+    "formacion.olimpiada-informatica.org",
+    "soi.ch",
+    "codeforces.com",
+    "m1.codeforces.com",
+    "m2.codeforces.com",
+    "m3.codeforces.com",
+    "mirror.codeforces.com",
+    "acm.timus.ru",
+    "www.hustoj.org",
+    "www.spoj.com",
+    "acm.hdu.edu.cn",
+    "onlinejudge.org",
+    "judge.u-aizu.ac.jp",
+    "lightoj.com",
+    "ac.2333.moe",
+    "www.codechef.com",
+    "open.kattis.com",
+    "atcoder.jp",
+    "www.hackerrank.com",
+    "www.51nod.com",
+    "eolymp.com",
+    "loj.ac",
+    "uoj.ac",
+    "darkbzoj.cc",
+    "dmoj.ca",
+    "toph.co",
+    "www.luogu.com.cn",
+    "qoj.ac",
+    "cses.fi",
+    "usaco.org",
+    "oj.uz",
+    "judge.yosupo.jp",
+    "yukicoder.me",
+    "oj.vnoi.info",
+    "tlx.toki.id",
+    "kilonova.ro",
+    "szkopul.edu.pl",
+    "csacademy.com",
+    "ac.nowcoder.com",
+    "olymp.krsu.kg",
+]
+allow_usb_storage = true
+wallpaper = "default"
+
+[[default.bookmarks]]
+name = "Codeforces"
+url = "https://codeforces.com/"
+
+[[default.bookmarks]]
+name = "CSES"
+url = "https://cses.fi/problemset/"
+
+[[default.bookmarks]]
+name = "Virtual Judge"
+url = "https://vjudge.net/"

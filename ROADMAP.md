@@ -17,7 +17,7 @@ This document translates the complete architectural and security specifications 
 - [x] **Casper Live Boot Engine:** Configure `casper` boot parameters and hooks:
   - [x] Basic home seeding and overlay assembly hook (`vendor/inherited/maratona-casper/55gallos-live`).
   - [x] Mount SquashFS modules (`.gsm`) into union layers using in-tree **OverlayFS** (build-time patch to casper's own `setup_overlay()`, `vendor/inherited/maratona-casper/casper-gsm-overlay.sh` — casper-bottom hooks run after the overlay is already assembled, so this can't be a hook). QEMU-verified: `mount` shows `lowerdir=/test.gsm:/filesystem.squashfs`, correctly composes with `toram`.
-  - [x] Automatically mount the 2-partition Live USB layout (`GALLOS_BOOT`, optional `event-data`) by filesystem label. GALLOS_BOOT exposure via `55gallos-live`'s `/boot/gallos` symlink (QEMU-verified: real `gallos.toml` content readable post-boot). `event-data` label-mount is owned by `gallos-daemon` (`daemon/src/storage.py`), not casper, since mounting it is mode-aware (never during Contest) and that precedence already lives in `ModeStateMachine` — QEMU-verified the mount itself succeeds, but see the note below: it's currently only visible inside the daemon's own sandboxed mount namespace, not to the desktop session, which is a separate follow-up.
+  - [x] Automatically mount the 2-partition Live USB layout (`GALLOS_BOOT`, optional `event-data`) by filesystem label. GALLOS_BOOT exposure via `55gallos-live`'s `/boot/gallos` symlink (QEMU-verified: real `gallos.toml` content readable post-boot). `event-data` label-mount is owned by `gallosd` (`daemon/src/storage.py`), not casper, since mounting it is mode-aware (never during Contest) and that precedence already lives in `ModeStateMachine` — QEMU-verified the mount itself succeeds, but see the note below: it's currently only visible inside the daemon's own sandboxed mount namespace, not to the desktop session, which is a separate follow-up.
   - [x] Support the `toram` boot parameter (copy entire OS to RAM) — stock upstream Ubuntu `casper` behavior, not GallosOS-authored; QEMU-verified (`copy_live_to()`'s tmpfs RAM copy triggers correctly with `toram` on the cmdline).
   - [x] Expose Organizer configuration from the approved GALLOS_BOOT medium at `/boot/gallos/`; runtime policy is loaded from trusted local TOML sources. Arbitrary-device config scanning and boot-argument policy selection are not supported.
 - [x] **SquashFS Packaging Scripts:** Write `build-squashfs.sh` to package system layers with `mksquashfs -comp zstd`.
@@ -33,7 +33,7 @@ This document translates the complete architectural and security specifications 
 *Goal: Enforce strict Zero-Trust contest integrity, network air-gapping, and out-of-memory protections.*
 
 - [x] **Anti-Cheat Enforcement (`nftables`):**
-  - [x] Implement default DROP policy (Zero-Trust), IPv4-only (`table ip`)
+  - [x] Implement default DROP policy (Zero-Trust) in an `inet` table for restricted modes
   - [x] Disable IPv6 network-wide (kernel `ipv6.disable=1` + `/etc/sysctl.d/99-gallos-noipv6.conf`) — huronOS precedent, avoids a dual-stack firewall bypass
   - [x] Static IP / CIDR whitelisting for Judge Servers (`[security]` build-time posture; dynamic `gallos.toml` runtime rendering in Phase 3)
   - [x] Port-locking (block outbound 22, 853, and telemetry DNS list; STUN / hole-punching heuristics deferred to daemon phase)
@@ -43,7 +43,7 @@ This document translates the complete architectural and security specifications 
   - Disable virtual terminal switching (TTY1–6) via `logind.conf.d/99-gallos-novt.conf`, masked `autovt@.service`, and kernel keymap remapping (`gallos-novt-keymap.service`).
   - Configure the `contestant` user as unprivileged without `sudo` (purged) or administrative rights, and locked `root` account.
 - [x] **EarlyOOM Guard (`earlyoom -n` + `systembus-notify`):**
-  - Configure `earlyoom -n` (D-Bus broadcast) and enable `earlyoom.service` (`systembus-notify` desktop bridge and `oom_score_adj` protection of `gallos-daemon`/browsers deferred to Phase 3 when those processes exist).
+  - Configure `earlyoom -n` (D-Bus broadcast) and enable `earlyoom.service` (`systembus-notify` desktop bridge and `oom_score_adj` protection of `gallosd`/browsers deferred to Phase 3 when those processes exist).
 
 ---
 
@@ -51,11 +51,10 @@ This document translates the complete architectural and security specifications 
 
 *Goal: Implement the real-time configuration engine, multi-mode scheduling, and network sync.*
 
-- [x] **`gallos-daemon` Core Engine:**
+- [x] **`gallosd` Core Engine:**
   - Develop a persistent `systemd.service` (Python) capable of maintaining state and open sockets for real-time broadcasts.
   - Implement strict TOML parsing and runtime schema validation against `schema/directives.schema.json` via Python `jsonschema`; `taplo` supports organizer editing and local linting.
-  - `gallosd` systemd unit alias (`Alias=gallosd.service` in `daemon/gallos-daemon.service`), so `systemctl status/restart gallosd` also works for sysadmins who assume a generic `<name>d` daemon name.
-  - Install `gallosctl` as a symlink to the existing `gallos-ctl` command for administrators who expect the no-hyphen executable spelling.
+  - Install the daemon as the canonical `gallosd.service` systemd unit and the controller as `/usr/bin/gallosctl`.
 - [x] **Trusted Local Config Ingestion:**
   - Load Organizer TOML from approved local sources and the bundled baseline. A root-only `/etc/gallos/gallos.toml` override supports last-minute Contest corrections through `gallosctl reload`.
   - Reject kernel boot arguments, network URLs, DHCP options, and arbitrary attached disks as policy sources.
@@ -70,9 +69,11 @@ This document translates the complete architectural and security specifications 
 - [x] **Machine Identity & Team Assignment:**
   - Assign workstation hostnames via DHCP MAC reservations or per-USB `machine.toml` directives.
 
-> **Known issues found during Phase 1's QEMU boot verification** (this was the first time `gallos-daemon` was actually booted end-to-end via `test-iso-qemu.sh` rather than only unit-tested — `daemon/tests/` mocks every `subprocess`/filesystem call, so none of these were previously exercised):
-> - **Fixed in this pass:** `gallos-daemon.service` crash-looped on every boot (`ProtectSystem=strict` + `ReadWritePaths=` requires listed paths to pre-exist; `/etc/chromium/policies/managed`, `/etc/firefox/policies`, and `/media/event-data` didn't — fixed by pre-creating them in `build/scripts/03-harden.sh`); `main.py` failed with `ImportError: attempted relative import with no known parent package` when invoked as a plain script (fixed by installing under a valid module name `gallos_daemon` and invoking via `python3 -m gallos_daemon.main`, see `daemon/gallos-daemon.service` and `build/scripts/02-provision.sh`); `ModeStateMachine` never called `mount_event_data()`/`_switch_open_mode()` on a boot straight into Default mode, since `current_mode` started pre-equal to the first evaluated target (fixed with a `_BOOT_SENTINEL_MODE` in `daemon/src/state_machine.py`); `_is_schedule_active()` assumed `contest.schedule`/`event.schedule` were single `{start_time, end_time}` dicts, but `schema/directives.schema.json`'s `time_window` (and every `examples/*.toml`) defines `schedule` as an array of `{start, end}` objects — every real profile's `[[contest.schedule]]` crashed the main loop on every iteration (fixed in `daemon/src/state_machine.py`; the pre-existing test in `daemon/tests/test_state_machine.py` was asserting against the wrong shape too, also fixed).
+> **Known issues found during Phase 1's QEMU boot verification** (this was the first time `gallosd` was actually booted end-to-end via `test-iso-qemu.sh` rather than only unit-tested — `daemon/tests/` mocks every `subprocess`/filesystem call, so none of these were previously exercised):
+> - **Fixed in this pass:** `gallosd.service` crash-looped on every boot (`ProtectSystem=strict` + `ReadWritePaths=` requires listed paths to pre-exist; `/etc/chromium/policies/managed`, `/etc/firefox/policies`, and `/media/event-data` didn't — fixed by pre-creating them in `build/scripts/03-harden.sh`); `main.py` failed with `ImportError: attempted relative import with no known parent package` when invoked as a plain script (fixed by installing under a valid module name `gallosd` and invoking via `python3 -m gallosd.main`, see `daemon/gallosd.service` and `build/scripts/02-provision.sh`); `ModeStateMachine` never called `mount_event_data()`/`_switch_open_mode()` on a boot straight into Default mode, since `current_mode` started pre-equal to the first evaluated target (fixed with a `_BOOT_SENTINEL_MODE` in `daemon/src/state_machine.py`); `_is_schedule_active()` assumed `contest.schedule`/`event.schedule` were single `{start_time, end_time}` dicts, but `schema/directives.schema.json`'s `time_window` (and every `examples/*.toml`) defines `schedule` as an array of `{start, end}` objects — every real profile's `[[contest.schedule]]` crashed the main loop on every iteration (fixed in `daemon/src/state_machine.py`; the pre-existing test in `daemon/tests/test_state_machine.py` was asserting against the wrong shape too, also fixed).
 > - **MVP stabilization in progress:** event-data mount operations use a separate host-namespace systemd service; transition errors keep the contestant kiosk stopped and expose a local root recovery prompt when configured; the ISO builder uses Ubuntu's signed EFI boot chain. A complete Live-image QEMU run verified local root login, a busy-mount transition failure with the recovery console active, manual retry into Contest, return to Default, and preserved event data. Physical hardware and graphical contestant-session behavior remain acceptance gates before Phase 4.
+
+The distribution target is one neutral GallosOS ISO that boots into open practice without an Organizer profile. `club.gallos.toml` supplies CPC-GALLOS identity; `training.gallos.toml` supplies a reviewed public-judge allowlist. Official Contest lockdown still needs an Organizer profile. The six-family toolchain, default browser set, Geany, VSCodium, and restricted training proxy require a successful built-image and graphical acceptance run before they can be marked delivered. The anti-AI search and website policy will be designed later, including a web-relay review of Google Translate website translation, CroxyProxy, and Startpage Anonymous View before those services are allowed in a restricted profile.
 
 ---
 
@@ -140,8 +141,13 @@ This document translates the complete architectural and security specifications 
 
 - [ ] **Compilers & Runtimes:**
   - Package and verify standard contest toolchains (cross-referencing package manifests from `icpc-environment/icpc-env`, `maratona-linux/maratona-team-tools`, and `ioi-2025/contestant-vm`): GCC (C/C++), Clang, OpenJDK 21 (Java), Python 3, PyPy3, Rust, Kotlin, Mono / .NET.
+- [ ] **Default Browser Support:**
+  - Target Chromium (Blink/V8), Firefox (Gecko/SpiderMonkey), and GNOME Web (WebKitGTK/JavaScriptCore) as the supported browser set. Verify offline launch, contest policy coverage, telemetry controls, printing, and graphical-session behavior for each before marking them delivered.
+- [ ] **University Exam Workstation Use Case:**
+  - Evaluate GallosOS as an optional locked-down workstation for in-person university exams, using Contest mode and an Organizer allowlist for the institution's LMS. Assess both a browser-only kiosk configuration and integration with the community [SEB for Linux](https://github.com/Jvr2022/seb-linux) project; treat compatibility as unverified until built-image, LMS, and graphical-session acceptance is complete.
+  - Add `examples/exam.gallos.toml` as a Moodle policy-testing example. It uses Moodle's public demo host and is explicitly unsuitable for live exams; real deployments must replace it with the institution's tested LMS, SSO, and required service hosts.
 - [ ] **Contestant IDEs:**
-  - Pre-configure and package VSCodium (with offline extensions), JetBrains Community Edition (IntelliJ IDEA, PyCharm), CLion (with activation script), Code::Blocks, Geany, Kdevelop, Neovim (lazyvim), Vim (linters, plugins), and Kate.
+  - Pre-configure and package VSCodium (with offline extensions), JetBrains Community Edition (IntelliJ IDEA, PyCharm), CLion (with activation script), Code::Blocks, Geany, Kdevelop, Neovim (LazyVim), Vim (linters, plugins), and Kate. Evaluate Zed for contest suitability, offline operation, packaging, and disabling AI features and telemetry before deciding whether to include it.
   - Offline extension-registry robustness for VSCodium `.gsm` modules: no marketplace dependency, correct extension-ID normalization, and correct write permissions preserved across every module's OverlayFS layer — lessons from huronOS's own offline-`.vsix` fragility (`docs/COMPARATIVE_ANALYSIS.md` §4, item 9).
 - [ ] **Anti-Cheat Purge & Telemetry Neutralization (Post-MVP):**
   - Write a startup service to purge `com.intellij.ml.llm` and Copilot plugins from JetBrains and VSCodium installations.

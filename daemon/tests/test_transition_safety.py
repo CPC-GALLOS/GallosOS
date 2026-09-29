@@ -35,6 +35,23 @@ def test_failed_contest_policy_does_not_publish_contest(tmp_path):
     assert publish.call_args.args[0] != "Contest"
 
 
+def test_failed_training_proxy_keeps_kiosk_stopped(tmp_path):
+    machine = ModeStateMachine({"default": {"allowed_websites": ["codeforces.com"]}}, MagicMock())
+    with (
+        patch("daemon.src.state_machine.stop_kiosk"),
+        patch("daemon.src.state_machine.release_kiosk") as release,
+        patch(
+            "daemon.src.state_machine.apply_web_egress", side_effect=RuntimeError("proxy failed")
+        ),
+        patch("daemon.src.state_machine.start_recovery_console"),
+        patch("daemon.src.state_machine.export_waybar_state"),
+        patch("daemon.src.transition_record.RECORD", tmp_path / "transition.json"),
+    ):
+        machine.transition_to("Default", 0)
+    assert machine.transition_status == "error"
+    release.assert_not_called()
+
+
 def test_failed_transition_latches_until_organizer_retries(tmp_path):
     firewall = MagicMock()
     firewall.apply_mode_firewall.side_effect = RuntimeError("nft failed")
@@ -65,12 +82,14 @@ def test_restart_in_contest_reapplies_policy_without_wiping(tmp_path):
             patch("daemon.src.state_machine.unmount_event_data"),
             patch("daemon.src.state_machine.set_usb_storage_allowed"),
             patch("daemon.src.state_machine.apply_browser_policy"),
+            patch("daemon.src.state_machine.apply_web_egress") as web_egress,
             patch("daemon.src.state_machine.perform_clean_state_wipe") as wipe,
             patch("daemon.src.state_machine.export_waybar_state"),
         ):
             machine.transition_to("Contest", 20)
     assert machine.transition_status == "ready"
     assert firewall.apply_mode_firewall.call_count == 1
+    web_egress.assert_called_once_with("Contest", machine.config)
     wipe.assert_not_called()
 
 
@@ -86,6 +105,7 @@ def test_retrying_same_mode_after_error_reapplies_policy(tmp_path):
         patch("daemon.src.state_machine.mount_event_data") as mount,
         patch("daemon.src.state_machine.set_usb_storage_allowed"),
         patch("daemon.src.state_machine.apply_browser_policy"),
+        patch("daemon.src.state_machine.apply_web_egress"),
         patch("daemon.src.state_machine.update_wallpaper"),
         patch("daemon.src.state_machine.export_waybar_state"),
         patch("daemon.src.transition_record.RECORD", tmp_path / "transition.json"),
