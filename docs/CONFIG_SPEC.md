@@ -37,11 +37,19 @@ GallosOS is designed to seamlessly adapt to **any competitive programming scenar
 
 GallosOS is designed to be **infrastructure-agnostic**: it operates across the full spectrum of network infrastructure that a venue may provide — from completely offline rooms to university-managed networks to full Venue Controller setups (see [§10 of `ARCHITECTURE.md`](./ARCHITECTURE.md#10-deployment-infrastructure-spectrum)).
 
-### Trusted Local Policy Sources
+### Current Runtime: Local Policy and Build-Trusted HTTPS Updates
 
-The running daemon loads policy only from local TOML files. In priority order, it checks `/etc/gallos/gallos.toml` (root-only emergency override), the approved boot medium at `/boot/gallos/config/gallos.toml` and `/boot/gallos/gallos.toml`, a single unambiguous `*.gallos.toml` profile on those local directories, and finally the ISO's bundled baseline. If the selected canonical file or named profile is malformed, loading fails instead of falling through to a different policy.
+The running daemon loads policy from local TOML files. In priority order, it checks `/etc/gallos/gallos.toml` (root-only emergency override), the approved boot medium at `/boot/gallos/config/gallos.toml` and `/boot/gallos/gallos.toml`, a single unambiguous `*.gallos.toml` profile on those local directories, and finally the ISO's bundled baseline. If the selected canonical file or named profile is malformed, loading fails instead of falling through to a different policy.
 
-Kernel boot arguments, DHCP options, network URLs, and arbitrary attached disks are not policy sources. The Casper hook exposes the approved GallosOS boot medium; it does not search other attached filesystems for TOML.
+For a custom ISO, an Organizer may also inject one HTTPS policy URL at build time with `REMOTE_POLICY_URL`. This URL is stored separately from the downloaded policy on the read-only ISO; the remote TOML cannot change its own source URL. GallosOS keeps the bundled Organizer profile as the offline starting policy, fetches immediately after daemon startup, then polls every five minutes. A valid response replaces the bundled baseline at runtime without rebooting. Existing `/etc` or approved boot-medium policies retain higher priority.
+
+The last-known-good remote response is cached under `/run/gallos/remote-policy.toml` for the current boot, so a daemon restart does not discard it. `/run` is volatile: after a reboot the machine starts from the local profile in the custom ISO and retries the HTTPS source. If Wi-Fi is unavailable at boot, the local profile remains active and a later poll retries automatically.
+
+The build-injected URL and ordinary HTTPS certificate/hostname validation establish source trust; no key-pair signatures are required. Redirects must remain HTTPS and on the configured host. Responses larger than 1 MiB, invalid TOML, and schema-invalid policies are rejected without replacing the active or cached policy. Root password hashes remain local-only and are discarded from remote content.
+
+Kernel boot arguments, DHCP options, and arbitrary attached disks are not policy sources. The Casper hook exposes only the approved GallosOS boot medium; it does not search other attached filesystems for TOML. An Organizer must include a suitable local policy in the custom ISO when the machine must enforce Organizer rules before networking is available.
+
+The official ISO does not embed a remote URL and continues to use `examples/neutral.gallos.toml`. See [`BUILD_SYSTEM.md`](./BUILD_SYSTEM.md) for custom ISO build arguments. Authorized local edits can be applied with `gallosctl reload` as described below.
 
 ### Last-Minute Contest Correction
 

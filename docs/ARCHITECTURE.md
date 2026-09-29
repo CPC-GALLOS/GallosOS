@@ -404,17 +404,25 @@ Before physical USB mass-flashing, images are verified against multiple hypervis
 
 ---
 
-## 10. Deployment Infrastructure Spectrum (Future Design)
+## 10. Deployment Infrastructure Spectrum
 
-GallosOS is intended to support venues ranging from air-gapped rooms to institution-managed networks. The tiers below describe architectural options; remote policy distribution, Venue Controller services, fleet monitoring, and printing are future design work, not current runtime capabilities.
+GallosOS is intended to support venues ranging from air-gapped rooms to institution-managed networks. The tiers below describe architectural options. Build-trusted HTTPS policy refresh is implemented; Venue Controller services, fleet monitoring, and printing remain future design work.
 
-### Tier 0 — Local and Air-Gapped
+This spectrum describes how much venue infrastructure is available. It is separate from the three GallosOS operating modes (`Contest`, `Event`, and `Default`) and from the USB customization tiers in [`BUILD_SYSTEM.md` §5](./BUILD_SYSTEM.md#5-in-place-usb-delta-updates-layer-injection-gallos-inject).
 
-The current runtime loads Organizer policy from `/etc/gallos/gallos.toml`, approved local boot media, or the bundled baseline. A Contest Organizer with root access can make an emergency local edit and reload it with `gallosctl`. No network service is needed for policy loading.
+| Tier | Venue setup | Typical available services | Policy delivery and current status |
+| :--- | :--- | :--- | :--- |
+| **0 — Local / air-gapped** | Standalone workstations with no network dependency | Local clock and Organizer-prepared boot media | Implemented: load policy from local files or the ISO baseline; relative contest duration supports unreliable clocks. |
+| **1 — Network-connected** | Workstations connect to venue-provided or public networks | Internet access and possibly external NTP | A custom ISO can retrieve policy from its build-injected HTTPS source. |
+| **2 — Judge LAN** | Workstations and the separate Judge Server share a venue LAN | Judge portal, venue DNS, and optionally NTP | Judge services remain separate from GallosOS. Policy can come from the ISO's configured HTTPS source. |
+| **3 — Venue Controller** | Organizer deploys an optional local GallosOS controller | Planned fleet monitoring, DHCP/NTP, printing, machine assignment, and audit aggregation | Controller services are design-only; GallosOS does not host the Judge Server. |
+| **4 — Institution-managed** | Venue integrates with existing institutional IT systems | Institution-managed network, identity, monitoring, and other approved services | Integration is future design work; it is not required to run GallosOS. |
 
-### Tiers 1–4 — Planned Infrastructure Options
+The current daemon loads policy from `/etc/gallos/gallos.toml`, approved local boot media, the bundled baseline, or (for a custom ISO that embeds a source URL) a validated remote update replacing only that bundled baseline. An Organizer with root access can make an emergency local edit and reload it with `gallosctl`. It does not accept DHCP options or boot arguments as policy sources.
 
-Future designs include existing DHCP/network services, an optional Venue Controller, and institution-managed services. These options do not currently distribute `gallos.toml`; in particular, DHCP options, boot arguments, and remote URLs are not accepted policy sources. The Venue Controller remains optional, and GallosOS does not host the Judge Server.
+Custom ISOs can embed an HTTPS source URL at build time. GallosOS polls immediately and every five minutes, validates TOML against the directives schema, and applies valid changes without rebooting. BYOD machines use the ISO's Organizer profile while offline and retry automatically; a current-boot last-known-good response is retained under `/run/gallos`. Invalid or unavailable responses leave the current policy active. See [`CONFIG_SPEC.md` §2](./CONFIG_SPEC.md#2-configuration-delivery-methods).
+
+The Venue Controller is optional at every tier. GallosOS never hosts the Judge Server.
 
 | Planned option | Intended role | Current status |
 | :--- | :--- | :--- |

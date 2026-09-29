@@ -31,11 +31,25 @@ for signed in "$GRUB_SIGNED" "$MOK" "$STAGING/casper/vmlinuz"; do
     fi
 done
 
-mkdir -p "$STAGING/boot/grub" "$STAGING/gallos/config/baseline" "$(dirname "$OUT_ISO")"
+mkdir -p "$STAGING/boot/grub" "$(dirname "$OUT_ISO")"
 DEFAULT_DIRECTIVES="$REPO_ROOT/examples/neutral.gallos.toml"
-DIRECTIVES_SRC="${DIRECTIVES_PROFILE:-$DEFAULT_DIRECTIVES}"
-rm -f "$STAGING/gallos/config/gallos.toml" "$STAGING/gallos/config/baseline.toml"
-cp "$DIRECTIVES_SRC" "$STAGING/gallos/config/baseline/baseline.gallos.toml"
+DIRECTIVES_PROFILE="${3:-}"
+REMOTE_POLICY_URL="${4:-}"
+if [[ -z "$DIRECTIVES_PROFILE" ]]; then
+    DIRECTIVES_SRC="$DEFAULT_DIRECTIVES"
+elif [[ "$DIRECTIVES_PROFILE" = /* ]]; then
+    DIRECTIVES_SRC="$DIRECTIVES_PROFILE"
+else
+    DIRECTIVES_SRC="$REPO_ROOT/$DIRECTIVES_PROFILE"
+fi
+if [[ ! -f "$DIRECTIVES_SRC" ]]; then
+    echo "build-iso.sh: runtime directives profile not found: $DIRECTIVES_SRC" >&2
+    exit 1
+fi
+# shellcheck source=build/scripts/lib-directives.sh
+source "$SCRIPT_DIR/lib-directives.sh"
+copy_directives_profile "$DIRECTIVES_SRC" "$STAGING"
+copy_remote_policy_url "$REMOTE_POLICY_URL" "$STAGING"
 cat > "$STAGING/boot/grub/grub.cfg" <<EOF
 serial --unit=0 --speed=115200
 terminal_input serial console

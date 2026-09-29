@@ -167,6 +167,8 @@ The distribution target is one neutral GallosOS ISO that boots into open practic
 
 *Goal: Centralized infrastructure for massive deployments, fleet monitoring, and automated auditing.*
 
+- [x] **Remote Organizer Policy Updates:** Custom ISOs can embed a trusted HTTPS source URL at build time. GallosOS fetches on startup and every five minutes, validates TOML against the directives schema, and applies updates without rebooting. Offline machines start with the bundled Organizer profile; the last-known-good remote file is cached under `/run` for the current boot. Explicit local policies keep precedence. See [`docs/CONFIG_SPEC.md`](./docs/CONFIG_SPEC.md#2-configuration-delivery-methods).
+
 - [ ] **Venue Controller Server Mode:**
   - Dedicated GallosOS boot mode to act as the central orchestrator (DHCP, NTP, MAC mapping).
 - [ ] **Administrative Proctoring, Auditing & Keystroke Forensics:**

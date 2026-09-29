@@ -191,9 +191,8 @@ def is_config_expired(config: dict[str, Any]) -> bool:
 def _load_local_recovery_hash() -> str | None:
     """Loads recovery.root_password_hash from local directives only.
 
-    Deliberately never sourced from a remotely-fetched config: gallos.toml can be
-    hosted on a shared Gist/server (see fetch_remote_config above), and a root
-    password hash traveling through and resting in that file would defeat the
+    Deliberately never sourced from a remotely-fetched config. A root password
+    hash traveling through and resting in a hosted policy file would defeat the
     point of keeping it secret. See docs/ROOT_ACCESS.md.
     """
     local_data, _ = load_local_config()
@@ -202,9 +201,13 @@ def _load_local_recovery_hash() -> str | None:
     return None
 
 
-def load_active_config() -> dict[str, Any]:
-    """Load trusted local directives; kernel arguments cannot replace Organizer policy."""
+def load_active_config(remote_config: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Load policy, allowing remote updates to replace only the ISO baseline."""
     config_data, source_name = load_local_config()
+
+    if remote_config is not None and source_name.endswith("/baseline/baseline.gallos.toml"):
+        config_data = remote_config.copy()
+        source_name = "build-trusted HTTPS policy source"
 
     if config_data is not None:
         validate_directives(config_data)

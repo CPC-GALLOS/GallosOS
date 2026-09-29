@@ -7,21 +7,25 @@ and coordinates state machine ticks and dynamic policy enforcement.
 import contextlib
 import json
 import os
+import queue
 import select
 import signal
 import socket
 import struct
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 from .config import load_active_config, load_machine_config
 from .firewall import FirewallManager
 from .identity import apply_machine_identity
+from .remote_policy import REMOTE_POLICY_URL_PATH, RemotePolicySync, read_source_url
 from .root_access import apply_local_root_password
 from .state_machine import ModeStateMachine
 
 SOCKET_PATH = "/run/gallos/daemon.sock"
+REMOTE_POLICY_CACHE_PATH = Path("/run/gallos/remote-policy.toml")
 
 
 class GallosDaemon:
@@ -34,6 +38,8 @@ class GallosDaemon:
         self.firewall = FirewallManager()
         self.state_machine: ModeStateMachine | None = None
         self.server_sock: socket.socket | None = None
+        self.remote_policy_sync: RemotePolicySync | None = None
+        self.pending_remote_configs: queue.SimpleQueue[dict[str, Any]] = queue.SimpleQueue()
 
     def setup_signals(self) -> None:
         """Configures OS signal handling."""
@@ -49,9 +55,13 @@ class GallosDaemon:
         print("[daemon] Received SIGHUP. Reloading configuration...")
         self.reload_config()
 
-    def reload_config(self) -> None:
+    def reload_config(self, remote_config: dict[str, Any] | None = None) -> None:
         """Reloads active configuration on the fly."""
-        new_config = load_active_config()
+        if remote_config is None and self.remote_policy_sync:
+            remote_config = self.remote_policy_sync.load_cached_policy()
+        new_config = (
+            load_active_config(remote_config) if remote_config is not None else load_active_config()
+        )
         new_machine_cfg = load_machine_config()
         apply_machine_identity(new_config, new_machine_cfg)
         apply_local_root_password()
@@ -60,6 +70,33 @@ class GallosDaemon:
         if self.state_machine:
             self.state_machine.config = self.config
             self.state_machine.request_reapply()
+
+    def _queue_remote_config(self, config: dict[str, Any]) -> None:
+        self.pending_remote_configs.put(config)
+
+    def _configure_remote_policy_sync(self) -> None:
+        if not REMOTE_POLICY_URL_PATH.is_file():
+            return
+        try:
+            source_url = read_source_url()
+            self.remote_policy_sync = RemotePolicySync(
+                source_url,
+                REMOTE_POLICY_CACHE_PATH,
+                self._queue_remote_config,
+            )
+        except (OSError, ValueError) as exc:
+            print(f"[policy-sync] Remote policy sync disabled: {exc}", file=sys.stderr)
+
+    def _apply_pending_remote_config(self) -> None:
+        while True:
+            try:
+                remote_config = self.pending_remote_configs.get_nowait()
+            except queue.Empty:
+                return
+            try:
+                self.reload_config(remote_config)
+            except Exception as exc:
+                print(f"[policy-sync] Could not apply remote policy: {exc}", file=sys.stderr)
 
     def setup_socket(self) -> None:
         """Initializes the control Unix domain socket for gallosctl."""
@@ -170,16 +207,22 @@ class GallosDaemon:
         self.setup_signals()
         self.setup_socket()
 
-        # Ingest configs
-        self.reload_config()
+        self._configure_remote_policy_sync()
+        cached_policy = (
+            self.remote_policy_sync.load_cached_policy() if self.remote_policy_sync else None
+        )
+        self.reload_config(cached_policy)
 
         # Start firewall manager
         self.firewall.start()
         self.state_machine = ModeStateMachine(self.config, self.firewall)
+        if self.remote_policy_sync:
+            self.remote_policy_sync.start()
 
         print("[daemon] Initialization complete. Entering state monitor loop.")
         while self.running:
             try:
+                self._apply_pending_remote_config()
                 # 1. State machine evaluation
                 target_mode, rem_sec = self.state_machine.evaluate_target_mode()
                 self.state_machine.transition_to(target_mode, rem_sec)
@@ -198,6 +241,8 @@ class GallosDaemon:
 
         # Cleanup
         print("[daemon] Stopping firewall resolver thread and cleaning sockets...")
+        if self.remote_policy_sync:
+            self.remote_policy_sync.stop()
         self.firewall.stop()
         if self.server_sock:
             self.server_sock.close()

@@ -33,6 +33,8 @@ A critical design choice in GallosOS is the decoupling of the **immutable operat
 - **Dynamic Runtime Personalization:** All tournament-specific variations (whitelisted judge IPs, IDE choices, countdown clocks, USB lockdown policies) are governed by runtime directives in [`examples/*.gallos.toml`](../examples/README.md) loaded dynamically by `gallosd`.
 - **Directory Roles:** Build manifests live in [`build/profiles/`](../build/profiles/README.md) (used by system builders), whereas runtime competition blueprints live in [`examples/`](../examples/README.md) (used by contest organizers).
 
+The official universal ISO bundles `examples/neutral.gallos.toml` as its fallback and has no remote policy source. Organizers building a bespoke ISO can select a different runtime fallback independently of the build manifest with `DIRECTIVES_PROFILE`, for example `make -C build iso CONFIG=profiles/my-custom.build.toml DIRECTIVES_PROFILE=examples/maratona-sbc.gallos.toml`. To enable online policy updates, optionally pass a build-trusted HTTPS URL with `REMOTE_POLICY_URL=https://example.org/path/gallos.toml`. The ISO embeds this URL separately from the policy file; the selected local profile is used offline and remains the startup fallback. Policies on `/etc` or the approved boot medium take precedence over remote updates. See [`CONFIG_SPEC.md` §2](./CONFIG_SPEC.md#2-configuration-delivery-methods) for polling and cache behavior.
+
 ---
 
 ## 2. Declarative ISO Generation (`build.toml`)

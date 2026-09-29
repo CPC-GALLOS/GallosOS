@@ -54,6 +54,45 @@ def test_load_active_config_uses_root_local_recovery_hash():
     assert result["recovery"]["root_password_hash"] == "$6$local$hash"
 
 
+def test_remote_policy_can_replace_only_the_bundled_iso_baseline():
+    remote_policy = {
+        "global": {"timezone": "UTC"},
+        "branding": {"name": "Remote Policy"},
+    }
+    baseline_path = "/boot/gallos/config/baseline/baseline.gallos.toml"
+    with (
+        patch(
+            "daemon.src.config.load_local_config",
+            return_value=({"global": {"timezone": "UTC"}}, baseline_path),
+        ),
+        patch("daemon.src.config._load_local_recovery_hash", return_value=None),
+    ):
+        result = load_active_config(remote_policy)
+
+    assert result["branding"]["name"] == "Remote Policy"
+
+
+def test_remote_policy_does_not_override_explicit_boot_policy():
+    remote_policy = {
+        "global": {"timezone": "UTC"},
+        "branding": {"name": "Remote Policy"},
+    }
+    boot_path = "/boot/gallos/config/gallos.toml"
+    with (
+        patch(
+            "daemon.src.config.load_local_config",
+            return_value=(
+                {"global": {"timezone": "UTC"}, "branding": {"name": "Local Policy"}},
+                boot_path,
+            ),
+        ),
+        patch("daemon.src.config._load_local_recovery_hash", return_value=None),
+    ):
+        result = load_active_config(remote_policy)
+
+    assert result["branding"]["name"] == "Local Policy"
+
+
 def test_load_local_config_prefers_boot_gallos_config_dir():
     """The 55gallos-live /boot/gallos symlink target must win over flat-path fallbacks."""
     toml_bytes = b'mode = "Default"\n'

@@ -60,8 +60,13 @@ To build an ISO using a specific build profile, run from the repository root:
 # Build using the default universal profile (build/profiles/universal.build.toml)
 make -C build iso
 
-# Build using a custom profile
-make -C build iso CONFIG=profiles/my-custom.build.toml
+# Build a custom ISO and bundle a runtime profile as its fallback policy
+make -C build iso \
+  CONFIG=profiles/my-custom.build.toml \
+  DIRECTIVES_PROFILE=examples/maratona-sbc.gallos.toml \
+  REMOTE_POLICY_URL=https://example.org/gallos.toml
 ```
+
+`CONFIG` selects the build-time OS recipe. `DIRECTIVES_PROFILE` separately selects the runtime `.gallos.toml` to bundle as the ISO's local fallback. Its path is relative to the repository root; if omitted, the ISO uses `examples/neutral.gallos.toml`. Optionally, `REMOTE_POLICY_URL` embeds a build-trusted HTTPS source separately from the fallback TOML. The profile on the approved boot medium takes precedence over remote policy and the bundled fallback. The official ISO sets neither custom input.
 
 The output image is named after the build profile: the default produces `build/output/gallosos-universal-amd64.iso` (also available as `gallos-os-amd64.iso`), while the custom example produces `build/output/gallosos-my-custom-amd64.iso`.
