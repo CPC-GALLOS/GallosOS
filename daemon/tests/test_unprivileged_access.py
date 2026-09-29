@@ -10,7 +10,7 @@ from daemon.src.main import GallosDaemon
 
 
 def _load_gallos_ctl():
-    p = Path(__file__).resolve().parents[2] / "daemon" / "gallos-ctl"
+    p = Path(__file__).resolve().parents[2] / "daemon" / "gallosctl"
     loader = SourceFileLoader("gallos_ctl", str(p))
     spec = importlib.util.spec_from_file_location("gallos_ctl", str(p), loader=loader)
     assert spec is not None

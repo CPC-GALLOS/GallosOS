@@ -7,11 +7,11 @@ Wants=network-online.target
 Type=simple
 # main.py's sibling modules use package-relative imports (`from .config
 # import ...`), which only resolve when it runs as a package submodule —
-# `python3 -m gallos_daemon.main` from WorkingDirectory=/usr/libexec, not
-# `python3 /usr/libexec/gallos_daemon/main.py` (that raises ImportError:
+# `python3 -m gallosd.main` from WorkingDirectory=/usr/libexec, not
+# `python3 /usr/libexec/gallosd/main.py` (that raises ImportError:
 # attempted relative import with no known parent package).
 WorkingDirectory=/usr/libexec
-ExecStart=/usr/bin/python3 -m gallos_daemon.main
+ExecStart=/usr/bin/python3 -m gallosd.main
 Restart=always
 RestartSec=3s
 OOMScoreAdjust=-900
@@ -26,6 +26,3 @@ AmbientCapabilities=CAP_NET_ADMIN
 
 [Install]
 WantedBy=multi-user.target
-# Alias so `systemctl status/restart gallosd` also works, for sysadmins who
-# assume a generic "<name>d" unit name rather than the project's gallos-daemon.
-Alias=gallosd.service

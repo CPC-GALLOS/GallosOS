@@ -1,5 +1,5 @@
 [project]
-name = "gallos-daemon"
+name = "gallosd"
 version = "0.2.0"
 description = "GallosOS Live System Dynamic Security & Mode Daemon"
 authors = [{ name = "GallosOS Contributors" }]

@@ -89,7 +89,7 @@ When assisting in this repository, follow these core tenets:
    All documentation, architectural design documents, code comments, schema descriptions, diagrams, and commit messages MUST be written strictly in clear, professional English.
 
 2. **Accurate Project Status & Non-Misleading Claims:**
-   GallosOS's MVP (Phase 1–3 of `ROADMAP.md` — build pipeline, `gallos-daemon`, Wayland kiosk shell) is implemented; later phases (organizer tooling, specialized subsystems, Venue Controller) remain in the architectural design and specification phase. Regardless of implementation status, never state or imply that GallosOS has undergone empirical hardware benchmarking, physical write speed tests, or real-world laboratory trials. Frame all comparative analyses strictly as **conceptual and architectural evaluations** derived from binary inspection and source analysis of the reference distributions and production contest images.
+   GallosOS's MVP (Phase 1–3 of `ROADMAP.md` — build pipeline, `gallosd`, Wayland kiosk shell) is implemented; later phases (organizer tooling, specialized subsystems, Venue Controller) remain in the architectural design and specification phase. Regardless of implementation status, never state or imply that GallosOS has undergone empirical hardware benchmarking, physical write speed tests, or real-world laboratory trials. Frame all comparative analyses strictly as **conceptual and architectural evaluations** derived from binary inspection and source analysis of the reference distributions and production contest images.
 
 3. **Factual Grounding, Real Links & Zero Hallucination Policy:**
    - **Zero Hallucination:** Every technical claim, package name, version number, compiler flag, kernel parameter, and architectural feature MUST be grounded in reality and cross-referenced with local reference trees (`HuronOS/`, `maratona-linux/`, `icpc-env/`, `contestant-vm/`) or official upstream sources.
@@ -128,7 +128,7 @@ When assisting in this repository, follow these core tenets:
 
 10. **In-Band vs Out-of-Band Tooling Philosophy:**
     Adhere strictly to the tooling separation defined in the architecture:
-    - **In-Band (Live OS Core):** Any script running *inside* the contest environment (`gallos-daemon`, hooks) MUST be written in **Bash or Python** to guarantee on-the-fly hackability during a regional event without needing a compiler.
+    - **In-Band (Live OS Core):** Any script running *inside* the contest environment (`gallosd`, hooks) MUST be written in **Bash or Python** to guarantee on-the-fly hackability during a regional event without needing a compiler.
     - **Out-of-Band (Organizer CLI Tools):** Any tool run by the organizer on their host machine (`gallos-flash`, `gallos-convert`) MUST be built as **Statically Compiled Binaries (Rust)** to prevent dependency hell and ensure they work instantly.
 
 11. **Conventional Commits Enforcement:**

@@ -11,11 +11,11 @@
 #   - Contestant privilege hardening (sudo purge, locked root account)
 #
 # NOTE: Real per-event dynamic firewall rendering, mode transitions, and
-# live DNS resolution from gallos.toml are Phase 3 (gallos-daemon) work.
+# live DNS resolution from gallos.toml are Phase 3 (gallosd) work.
 #
 # NOTE: The following items are explicitly deferred to later phases:
 #   - earlyoom --avoid/--prefer regexes and oom_score_adj overrides for
-#     gallos-daemon, labwc, and browsers (deferred to Phase 3/4 when those exist)
+#     gallosd, labwc, and browsers (deferred to Phase 3/4 when those exist)
 #   - mDNS, CUPS printing, and ICMP venue-controller rules in nftables
 #     (deferred to Phase 4 when printing and venue subsystems are introduced)
 #   - Dynamic USB re-authorization at contest end (deferred to Phase 3)
@@ -179,7 +179,7 @@ EOF
 
 echo "Configuring EarlyOOM..."
 cat > "$ROOTFS/etc/default/earlyoom" <<'EOF'
-EARLYOOM_ARGS="-r 60 -m 10 -s 5 -n --avoid '^(gallos-daemon|labwc|mako|Xwayland)$' --prefer '^(chromium|firefox|code)$'"
+EARLYOOM_ARGS="-r 60 -m 10 -s 5 -n --avoid '^(gallosd|labwc|mako|Xwayland)$' --prefer '^(chromium|firefox|code)$'"
 EOF
 chroot "$ROOTFS" systemctl enable earlyoom.service
 chroot "$ROOTFS" systemctl enable seatd.service || true
@@ -272,8 +272,8 @@ chroot "$ROOTFS" /bin/bash -euxc "
     passwd -l root || true
 "
 
-echo "Installing and enabling gallos-daemon.service..."
-# gallos-daemon.service's ProtectSystem=strict + ReadWritePaths= requires
+echo "Installing and enabling gallosd.service..."
+# gallosd.service's ProtectSystem=strict + ReadWritePaths= requires
 # every listed path to already exist at service start — systemd bind-mounts
 # each one back to read-write over the otherwise read-only root, which
 # fails outright (226/NAMESPACE) for a path that isn't there yet. Chromium/
@@ -282,10 +282,10 @@ echo "Installing and enabling gallos-daemon.service..."
 # crash-loops on every single boot of a profile lacking a browser.
 mkdir -p "$ROOTFS/etc/chromium/policies/managed" "$ROOTFS/etc/firefox/policies" "$ROOTFS/media/event-data" "$ROOTFS/etc/gallos"
 chmod 0700 "$ROOTFS/etc/gallos"
-install -m 0644 "$REPO_ROOT/daemon/gallos-daemon.service" "$ROOTFS/etc/systemd/system/gallos-daemon.service"
+install -m 0644 "$REPO_ROOT/daemon/gallosd.service" "$ROOTFS/etc/systemd/system/gallosd.service"
 install -m 0644 "$REPO_ROOT/daemon/gallos-event-storage.service" "$ROOTFS/etc/systemd/system/gallos-event-storage.service"
 install -m 0644 "$REPO_ROOT/daemon/gallos-root-access.service" "$ROOTFS/etc/systemd/system/gallos-root-access.service"
 install -m 0644 "$REPO_ROOT/daemon/gallos-recovery-console.service" "$ROOTFS/etc/systemd/system/gallos-recovery-console.service"
-chroot "$ROOTFS" systemctl enable gallos-daemon.service
+chroot "$ROOTFS" systemctl enable gallosd.service
 
 echo "Stage 3 complete."

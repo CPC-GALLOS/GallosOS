@@ -119,7 +119,7 @@ def run_check(as_json: bool = False) -> None:
 def main() -> None:
     if len(sys.argv) < 2:
         print(
-            "Usage: gallos-ctl [contest start [mins] | contest stop | status | "
+            "Usage: gallosctl [contest start [mins] | contest stop | status | "
             "check [--json] | reload]"
         )
         sys.exit(1)
@@ -128,7 +128,7 @@ def main() -> None:
 
     if cmd_type == "contest":
         if len(sys.argv) < 3:
-            print("Usage: gallos-ctl contest [start [mins] | stop]")
+            print("Usage: gallosctl contest [start [mins] | stop]")
             sys.exit(1)
         sub = sys.argv[2].lower()
         if sub == "start":
@@ -153,4 +153,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("Interrupted.", file=sys.stderr)
+        sys.exit(130)

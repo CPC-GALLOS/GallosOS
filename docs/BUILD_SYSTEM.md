@@ -30,7 +30,7 @@ GallosOS separates concerns across three distinct TOML configuration files using
 A critical design choice in GallosOS is the decoupling of the **immutable operating system base** from **contest-specific runtime rules**:
 
 - **One Base Image for All Contests:** Organizers do not compile distinct ISOs for ICPC vs. IOI vs. Codeforces. A single universal Live ISO image built from [`build/profiles/universal.build.toml`](../build/profiles/universal.build.toml) contains the core kernel, systemd runtime, Wayland compositor (`labwc`), `waybar`, and base utilities.
-- **Dynamic Runtime Personalization:** All tournament-specific variations (whitelisted judge IPs, IDE choices, countdown clocks, USB lockdown policies) are governed by runtime directives in [`examples/*.gallos.toml`](../examples/README.md) loaded dynamically by `gallos-daemon`.
+- **Dynamic Runtime Personalization:** All tournament-specific variations (whitelisted judge IPs, IDE choices, countdown clocks, USB lockdown policies) are governed by runtime directives in [`examples/*.gallos.toml`](../examples/README.md) loaded dynamically by `gallosd`.
 - **Directory Roles:** Build manifests live in [`build/profiles/`](../build/profiles/README.md) (used by system builders), whereas runtime competition blueprints live in [`examples/`](../examples/README.md) (used by contest organizers).
 
 ---
@@ -150,12 +150,26 @@ The builder enters the chroot environment and:
 1. Installs the Linux kernel, casper live boot machinery, and system utilities.
 2. Injects the GallosOS casper-bottom hook (`55gallos-live`).
 3. Parses `build.toml` $\to$ `[packages]` and executes `apt-get install -y <packages>`.
+4. For the universal recipe, installs Firefox from Mozilla's signed DEB repository and a pinned, SHA-256-checked VSCodium release. GCC, Clang, OpenJDK, Python/PyPy, Rust, Kotlin, Geany, and the local training proxy come from the configured Ubuntu package repositories. The image records installed package versions in `/usr/share/gallos/toolchains.tsv`.
+
+After building, run the compiler smoke test against the generated rootfs:
+
+```bash
+podman run --rm --privileged --security-opt label=disable \
+  -v "$PWD:/repo" -w /repo/build gallos-builder \
+  bash scripts/verify-rootfs-toolchains.sh /repo/build/output/rootfs
+```
+
+Run this command from the repository root. It compiles and executes a small
+program in every advertised language family and checks the browser, editor,
+and proxy commands. The graphical browser/editor session still needs VM
+acceptance.
 
 ### Stage 3: Security Lockdown & Resource Hardening (`chroot`)
 
 Enforces the static Zero-Trust contest security posture defined in `[security]`:
 
-1. Installs and enables `nftables` with a default-DROP IPv4-only firewall ruleset whitelisting judge IPs and dropping telemetry DNS.
+1. Installs and enables `nftables` with an `inet` family default-DROP firewall for restricted modes, whitelisting judge IPs in Contest and dropping telemetry DNS.
 2. Disables IPv6 via `/etc/sysctl.d/99-gallos-noipv6.conf` and kernel bootcmd parameters.
 3. Locks down USB mass-storage via modern Polkit JavaScript rules (`/etc/polkit-1/rules.d/99-gallos-usb-block.rules`) and Udev fallback rules.
 4. Configures and enables the `earlyoom` daemon with `-n` D-Bus notification support.
@@ -173,7 +187,7 @@ To keep the Live OS memory footprint minimal (Crucial for `toram` boot):
 ### Stage 5: Squash & Stitch (`mksquashfs` & `xorriso`)
 
 1. **Stage 5a (Squash):** Compresses the entire optimized rootfs into `filesystem.squashfs` (using `zstd` for high-speed decompression in RAM).
-2. **Stage 5b (ISO):** Sets up the GRUB bootloader for UEFI and Legacy BIOS with `ipv6.disable=1` and uses `xorriso` to output the final hybrid bootable image: `gallosos-<profile>-amd64.iso` (profile-derived from the `CONFIG` `*.build.toml` filename, e.g. `gallosos-universal-amd64.iso` from `profiles/universal.build.toml`). The ICPC example is bundled as `/gallos/config/baseline/baseline.gallos.toml`; an organizer's canonical `gallos.toml` or unique `*.gallos.toml` takes precedence at boot. The baseline stays in a subdirectory so automatic profile discovery does not count it. Copying `[modules]` `.gsm` bundles from `build.toml` onto the ISO's `/gallos/modules/` directory is not yet wired into `build-iso.sh` — the `.gsm` *mounting mechanism* (this stage's casper-side counterpart) is implemented per ROADMAP.md Phase 1, but populating an ISO with real bundled modules at build time is separate, still-open work.
+2. **Stage 5b (ISO):** Sets up the GRUB bootloader for UEFI and Legacy BIOS with `ipv6.disable=1` and uses `xorriso` to output the final hybrid bootable image: `gallosos-<profile>-amd64.iso` (profile-derived from the `CONFIG` `*.build.toml` filename, e.g. `gallosos-universal-amd64.iso` from `profiles/universal.build.toml`). The neutral practice example is bundled as `/gallos/config/baseline/baseline.gallos.toml`; an organizer's canonical `gallos.toml` or unique `*.gallos.toml` takes precedence at boot. The baseline stays in a subdirectory so automatic profile discovery does not count it. Copying `[modules]` `.gsm` bundles from `build.toml` onto the ISO's `/gallos/modules/` directory is not yet wired into `build-iso.sh` — the `.gsm` *mounting mechanism* (this stage's casper-side counterpart) is implemented per ROADMAP.md Phase 1, but populating an ISO with real bundled modules at build time is separate, still-open work.
 
 ---
 

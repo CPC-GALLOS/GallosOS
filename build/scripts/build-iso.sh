@@ -32,7 +32,7 @@ for signed in "$GRUB_SIGNED" "$MOK" "$STAGING/casper/vmlinuz"; do
 done
 
 mkdir -p "$STAGING/boot/grub" "$STAGING/gallos/config/baseline" "$(dirname "$OUT_ISO")"
-DEFAULT_DIRECTIVES="$REPO_ROOT/examples/icpc-onsite.gallos.toml"
+DEFAULT_DIRECTIVES="$REPO_ROOT/examples/neutral.gallos.toml"
 DIRECTIVES_SRC="${DIRECTIVES_PROFILE:-$DEFAULT_DIRECTIVES}"
 rm -f "$STAGING/gallos/config/gallos.toml" "$STAGING/gallos/config/baseline.toml"
 cp "$DIRECTIVES_SRC" "$STAGING/gallos/config/baseline/baseline.gallos.toml"
@@ -45,12 +45,12 @@ set timeout=5
 
 menuentry "GallosOS Live" {
     search --no-floppy --set=root --label $VOLID
-    linux /casper/vmlinuz boot=casper hostname=gallos console=ttyS0,115200n8 ipv6.disable=1
+    linux /casper/vmlinuz boot=casper hostname=GallosOS console=ttyS0,115200n8 ipv6.disable=1
     initrd /casper/initrd
 }
 menuentry "GallosOS Live (toram)" {
     search --no-floppy --set=root --label $VOLID
-    linux /casper/vmlinuz boot=casper hostname=gallos console=ttyS0,115200n8 ipv6.disable=1 toram
+    linux /casper/vmlinuz boot=casper hostname=GallosOS console=ttyS0,115200n8 ipv6.disable=1 toram
     initrd /casper/initrd
 }
 EOF

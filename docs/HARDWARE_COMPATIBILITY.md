@@ -124,7 +124,7 @@ Inspired by proven production practices from the **ICPC World Finals Systems Ope
 
 ### 5.1 Dynamic Boost Disabling & Fixed Performance Governor
 
-During `Contest` mode (or declaratively via `[system.hardware]`), `gallos-daemon` configures kernel CPU frequency interfaces:
+During `Contest` mode (or declaratively via `[system.hardware]`), `gallosd` configures kernel CPU frequency interfaces:
 
 - **Intel Processors (`intel_pstate`):**
 

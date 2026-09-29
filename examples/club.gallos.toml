@@ -1,0 +1,28 @@
+#:schema https://raw.githubusercontent.com/CPC-GALLOS/GallosOS/main/schema/directives.schema.json
+# CPC-GALLOS club practice: open internet, with club identity and no schedule.
+# The anti-AI search and website policy is a separate release requirement.
+[global]
+timezone = "America/Mexico_City"
+available_keyboard_layouts = ["latam", "us", "es", "dvorak"]
+default_keyboard_layout = "latam"
+enable_contest_mode = false
+enable_event_mode = false
+
+[branding]
+name = "CPC-GALLOS Club"
+organizer = "CPC-GALLOS"
+hostname = "gallosos-club"
+show_powered_by_gallos = true
+
+[default]
+allowed_websites = ["*"]
+allow_usb_storage = true
+wallpaper = "default"
+
+[[default.bookmarks]]
+name = "Codeforces"
+url = "https://codeforces.com/"
+
+[[default.bookmarks]]
+name = "omegaUp"
+url = "https://omegaup.com/"

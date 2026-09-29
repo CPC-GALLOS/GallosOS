@@ -43,8 +43,28 @@ preinstall_apt = [
     "fonts-liberation",
     "fonts-noto-color-emoji",
     "fonts-font-awesome",
+    "fonts-inter",
+    "fontconfig",
     "adwaita-icon-theme",
     "dbus-x11",
+    "qemu-guest-agent",
+    "spice-vdagent",
+    "virtualbox-guest-utils",
+    "open-vm-tools",
+    "build-essential",
+    "clang",
+    "openjdk-21-jdk",
+    "python3",
+    "pypy3",
+    "rustc",
+    "cargo",
+    "kotlin",
+    "geany",
+    "nano",
+    "vim-tiny",
+    "squid",
+    "ca-certificates",
+    "gnupg",
 ]
 
 [modules]
@@ -54,7 +74,7 @@ bundle = []
 
 [security]
 # Static MVP posture baked at build time (docs/ANTI_CHEAT_AND_SECURITY.md §3).
-# Real per-event/per-mode rendering from gallos.toml is Phase 3 (gallos-daemon)
+# Real per-event/per-mode rendering from gallos.toml is Phase 3 (gallosd)
 # work — these are illustrative build-time-only defaults for this walking
 # skeleton, not a live judge whitelist.
 disable_ipv6 = true

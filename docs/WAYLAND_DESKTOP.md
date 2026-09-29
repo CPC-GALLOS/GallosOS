@@ -103,6 +103,8 @@ All keybindings are centralized within `/etc/xdg/labwc/rc.xml` and enforced auth
 | **`Alt + Tab`** | Window Switcher | Switches focus between open contestant application windows. |
 | **`Super + Q` / `Alt + F4`** | Close Window | Closes the active client window. |
 
+Both keyboard layout shortcuts invoke the session helper at `/usr/bin/gallos-layout-toggle`.
+
 ### 4.2 Security Restrictions
 
 - **Virtual Terminal (VT) Console Switch Lockout:** Keybindings for switching virtual terminals (`Ctrl+Alt+F1` through `Ctrl+Alt+F6`) are explicitly disabled at the compositor level. In legacy X11 distributions like huronOS, contestants pressing IDE shortcuts (e.g. VS Code comment toggles or Fn shortcuts) routinely triggered accidental VT switches to raw text prompts, leading to panic reboots, DHCP IP churn, and subsequent BOCA judge "IP Warning" lockouts.
@@ -124,7 +126,7 @@ The status bar (`Waybar`) is customized specifically for competitive programming
    - A clean dropdown launcher anchored to the left of the bar.
    - Exposes strictly authorized contest applications (IDEs, Terminal, Docs, Browser) according to the active mode (`Contest`, `Event`, or `Default`).
 2. **Dynamic Contest Countdown:**
-   - Local script polling `gallos-daemon` state. Displays remaining time (e.g. `Time Left: 02:45:10`) and flashes amber when under 15 minutes remain.
+   - Local script polling `gallosd` state. Displays remaining time (e.g. `Time Left: 02:45:10`) and flashes amber when under 15 minutes remain.
 3. **Interactive Stress-Free Clock:**
    - Clicking directly on the clock widget cycles between:
      $$\text{Full Precision (HH:MM:SS)} \longrightarrow \text{Relaxed (HH:MM)} \longrightarrow \text{Focus Mode (Hidden)}$$
@@ -141,9 +143,11 @@ The status bar (`Waybar`) is customized specifically for competitive programming
 
 GallosOS enforces a clean, distraction-free dark aesthetic across both native Wayland and XWayland applications:
 
-- **UI Font:** `Inter` / `Roboto` (clean legibility on high-resolution displays).
-- **Monospace Font:** `JetBrains Mono` (high-clarity code rendering with distinct punctuation and ligatures).
-- **Theme Palette:** Neutral dark background with high-contrast text and subtle accents, reducing eye strain during 5-hour contest sessions.
+- **Status Bar Icon Font:** Ubuntu 24.04's `fonts-font-awesome` package provides the `FontAwesome` family (Font Awesome 4.7). Waybar uses glyphs from that version for `` Wi-Fi, `` Ethernet, `` Offline, and `` Clock. The build refreshes the font cache after provisioning; rendering still needs graphical-session verification.
+- **UI & Contest Platform Font:** `Inter` (matches modern contest platforms like MOJ that specify `font-family: "Inter"` without bundling webfonts), with `Liberation Sans` and `DejaVu Sans` as universal offline fallbacks.
+- **Monospace Font:** `Liberation Mono` and `DejaVu Sans Mono` (configured in Foot terminal and Mako notifications) alongside `JetBrains Mono` for contestant code editors.
+- **Full Color Emoji & Unicode Fallback:** `Noto Color Emoji` is installed and added through fontconfig (`/etc/fonts/conf.d/56-fonts-noto-color-emoji.conf`) as a fallback for `sans-serif`, `serif`, and `monospace`. Emoji rendering in browsers and desktop widgets still needs graphical-session verification.
+- **Theme Palette:** Neutral dark background (`#1e1e2e` Catppuccin Mocha) with high-contrast text (`#cdd6f4`) and subtle accents, reducing eye strain during 5-hour contest sessions.
 - **GTK/Qt Consistency:** Unified GTK3/GTK4 dark theme (`Adwaita-dark` / `Arc-Dark`) applied globally to Geany, VSCodium, JetBrains, and Chromium without requiring full desktop background daemons.
 
 ---

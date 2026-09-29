@@ -1,6 +1,6 @@
-# Development, Linting & Testing (`gallos-daemon`)
+# Development, Linting & Testing (`gallosd`)
 
-This document covers the local development workflow for the Python code in this repository — currently `gallos-daemon` (`daemon/`), the early Phase 3 runtime configuration daemon. It does **not** cover the containerized ISO build pipeline (`build/scripts/*.sh`, `build.toml`) beyond the ShellCheck step those scripts share with this same quality gate — see [`docs/BUILD_SYSTEM.md`](./BUILD_SYSTEM.md) for everything else about that pipeline.
+This document covers the local development workflow for the Python code in this repository — currently `gallosd` (`daemon/`), the early Phase 3 runtime configuration daemon. It does **not** cover the containerized ISO build pipeline (`build/scripts/*.sh`, `build.toml`) beyond the ShellCheck step those scripts share with this same quality gate — see [`docs/BUILD_SYSTEM.md`](./BUILD_SYSTEM.md) for everything else about that pipeline.
 
 ---
 

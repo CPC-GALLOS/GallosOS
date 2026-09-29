@@ -11,7 +11,7 @@ GallosOS enforces a strict separation between **Build-Time OS Recipes** and **Ru
 | Layer | Configuration File | Location | Consumed By | Purpose |
 | :--- | :--- | :--- | :--- | :--- |
 | **Build-Time** | `*.build.toml` | `build/profiles/` | `gallos-builder` (Podman/Docker) | Compiles the immutable base OS rootfs (`filesystem.squashfs`), Linux kernel, Wayland kiosk stack, and hybrid bootloader into an ISO. |
-| **Run-Time** | `*.gallos.toml` | `examples/`, `/boot/gallos/` | `gallos-daemon` (Python systemd service) | Evaluates competition schedules, dynamically locks down `nftables` firewall rules, switches wallpapers, manages USB storage access, and configures kiosk UX. |
+| **Run-Time** | `*.gallos.toml` | `examples/`, `/boot/gallos/` | `gallosd` (Python systemd service) | Evaluates competition schedules, dynamically locks down `nftables` firewall rules, switches wallpapers, manages USB storage access, and configures kiosk UX. |
 
 For contest blueprints and tournament configurations, see [`examples/`](../../examples/README.md).
 
@@ -19,14 +19,16 @@ For contest blueprints and tournament configurations, see [`examples/`](../../ex
 
 ## ❓ Why is there only one profile (`universal.build.toml`)?
 
-New contributors and contest organizers often ask why there are six contest blueprints in [`examples/`](../../examples/) (`icpc-onsite`, `maratona-sbc`, `ioi-cms`, `codeforces-training`, `icpc-online-exam`, `omegaup-omi`), but only one build profile (`universal.build.toml`) in this directory.
+The runtime profiles in [`examples/`](../../examples/) cover neutral practice,
+CPC-GALLOS club use, multi-judge training, and Organizer-configured contests.
+The build still uses one `universal.build.toml` recipe.
 
 The reasons are architectural:
 
 ### 1. The Single Universal Base ISO Architecture (The MVP Release Image)
-For the GallosOS Minimum Viable Product (MVP), **only one official `.iso` is compiled and distributed**. The underlying operating system stack — Ubuntu 24.04 LTS minimal, Linux HWE kernel, Labwc Wayland compositor, Waybar status bar, foot terminal, audio, and device management — is identical across collegiate contests, high school olympiads, and training camps.
+For the GallosOS Minimum Viable Product (MVP), **only one official `.iso` is compiled and distributed**. Its embedded fallback is `examples/neutral.gallos.toml`: open practice with GallosOS identity. A strict official contest needs an Organizer policy with the correct judge and schedule. The underlying operating system stack is shared across club sessions, training, and contests.
 
-All contest-specific behaviors (allowed judge IPs, IDE choices, countdown clocks, USB lockdown policies) are applied dynamically at boot by [`gallos-daemon`](../../daemon/) reading a `gallos.toml` file. **Organizers do not compile custom ISOs for every competition — the single universal ISO runs them all.**
+All contest-specific behaviors (allowed judge IPs, IDE choices, countdown clocks, USB lockdown policies) are applied dynamically at boot by [`gallosd`](../../daemon/) reading a `gallos.toml` file. **Organizers do not compile custom ISOs for every competition — the single universal ISO runs them all.**
 
 ### 2. The Universal Reference Baseline
 [`universal.build.toml`](./universal.build.toml) is the canonical, maintainer-tested recipe. It validates:

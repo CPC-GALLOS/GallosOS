@@ -1,0 +1,19 @@
+#:schema https://raw.githubusercontent.com/CPC-GALLOS/GallosOS/main/schema/directives.schema.json
+# Shipped ISO baseline: GallosOS-branded, ready for open practice.
+# Official Contest restrictions require an Organizer-supplied gallos.toml.
+[global]
+timezone = "UTC"
+available_keyboard_layouts = ["us", "latam", "es"]
+default_keyboard_layout = "us"
+enable_contest_mode = false
+enable_event_mode = false
+
+[branding]
+name = "GallosOS"
+hostname = "gallosos"
+show_powered_by_gallos = true
+
+[default]
+allowed_websites = ["*"]
+allow_usb_storage = true
+wallpaper = "default"

@@ -54,7 +54,7 @@ fi
 QEMU_ARGS=(-m "$MEM" -smp "$CPUS" -netdev "user,id=net0"
     -device "virtio-net-pci,netdev=net0" -cdrom "$ISO" -boot d)
 if [[ -r /dev/kvm && -w /dev/kvm ]]; then
-    QEMU_ARGS+=(-enable-kvm -cpu host)
+    QEMU_ARGS+=(-enable-kvm -cpu "host,-vmx")
 else
     QEMU_ARGS+=(-accel tcg -cpu qemu64)
 fi

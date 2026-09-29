@@ -1,6 +1,6 @@
 """Main entry point for GallosOS Daemon (Python Core Engine).
 
-Runs the primary daemon loop, handles Unix socket IPC commands from gallos-ctl,
+Runs the primary daemon loop, handles Unix socket IPC commands from gallosctl,
 and coordinates state machine ticks and dynamic policy enforcement.
 """
 
@@ -62,7 +62,7 @@ class GallosDaemon:
             self.state_machine.request_reapply()
 
     def setup_socket(self) -> None:
-        """Initializes the control Unix domain socket for gallos-ctl."""
+        """Initializes the control Unix domain socket for gallosctl."""
         sock_dir = os.path.dirname(SOCKET_PATH)
         os.makedirs(sock_dir, exist_ok=True)
         with contextlib.suppress(OSError):
@@ -213,4 +213,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("[daemon] Interrupted. Shutting down.", file=sys.stderr)
+        sys.exit(130)

@@ -22,7 +22,7 @@
 #     vendor/inherited/maratona-casper/casper-gsm-overlay.sh) — by the
 #     time this casper-bottom hook runs, the overlay is already mounted
 #     and casper-bottom can no longer add lowerdir= layers.
-#   - event-data partition mount-by-label: owned by gallos-daemon
+#   - event-data partition mount-by-label: owned by gallosd
 #     (daemon/src/storage.py), not casper, because mounting it is
 #     mode-aware (Contest never mounts it) and that precedence logic
 #     already lives in the Python ModeStateMachine — see
