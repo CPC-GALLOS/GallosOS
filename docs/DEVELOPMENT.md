@@ -9,6 +9,7 @@ This document covers the local development workflow for the Python code in this 
 | Tool | Required? | Purpose |
 | :--- | :--- | :--- |
 | Python `>= 3.10` | Yes | Matches `requires-python` in `pyproject.toml`. |
+| [`uv`](https://docs.astral.sh/uv/) or `pip` | One required | Python package installer. `uv` is the recommended option; `pip` remains supported. |
 | [`ruff`](https://docs.astral.sh/ruff/) | Yes | Linting (style, complexity, security via `bandit`-equivalent rules) and formatting. |
 | [`pytest`](https://docs.pytest.org/) | Yes | Runs the `daemon/tests/` unit test suite. |
 | [`jsonschema`](https://python-jsonschema.readthedocs.io/) | Yes | Validates organizer directives during daemon boot and reload against the schema shipped in the Live image. |
@@ -16,7 +17,24 @@ This document covers the local development workflow for the Python code in this 
 | [`taplo`](https://taplo.tamasfe.dev/) | Optional locally | Validates TOML files against `schema/directives.schema.json`. If absent, `scripts/check.sh` falls back to `scripts/validate_toml.py`, which also checks organizer directives against the schema when `jsonschema` is installed. |
 | [`pre-commit`](https://pre-commit.com/) | Recommended | Automates local checks on every `git commit` (code formatting, linting, hygiene) and commit message validation via `commit-msg`. |
 
-Install the Python tools with `pip install ruff pytest jsonschema` (matching what `.github/workflows/ci.yml` installs in CI).
+Create a local virtual environment and install the Python tools with either `uv` (recommended) or `pip`. Install `uv` using the [official instructions](https://docs.astral.sh/uv/getting-started/installation/), then run:
+
+```sh
+uv venv
+uv pip install --python .venv/bin/python ruff pytest jsonschema pre-commit
+source .venv/bin/activate
+```
+
+The equivalent `pip` workflow is:
+
+```sh
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install ruff pytest jsonschema pre-commit
+```
+
+GitHub Actions continues to install its Python dependencies with `pip`; local `uv` use does not change the CI workflow.
 
 ---
 
@@ -105,9 +123,11 @@ python3 scripts/check_commits.py --msg "feat(daemon): add dynamic reload"
 Install the hooks once per clone:
 
 ```sh
-pip install pre-commit
+uv pip install --python .venv/bin/python pre-commit
 pre-commit install --install-hooks
 ```
+
+With the `pip` environment, use `python -m pip install pre-commit` instead of the first command.
 
 `pre-commit install --install-hooks` sets up both `pre-commit` and `commit-msg` hooks (as defined in `default_install_hook_types`). `.pre-commit-config.yaml` then runs automatically:
 

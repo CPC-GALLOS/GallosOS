@@ -55,23 +55,55 @@ To build, test, and develop GallosOS locally, your host machine requires:
 | **Container Engine** *(Required for ISO build)* | `podman` *(recommended)* or `docker` | Containerized pipeline build (`cd build && make iso`). |
 | **Virtualization & Emulation** *(Testing)* | `qemu-system-x86`, `edk2-ovmf`, `virt-manager`, `libvirt` | Booting the Live ISO (`build/scripts/test-iso-qemu.sh`) in BIOS or UEFI mode. |
 | **Disk & Image Utilities** | `parted`, `mtools`, `dosfstools`, `e2fsprogs`, `xorriso` | Generating synthetic USB test images and extracting `toram` boot images. |
-| **Python & QA Suite** | `python3` (>=3.10), `ruff`, `pytest`, `shellcheck` | Running `./scripts/check.sh` and local unit test suites. |
+| **Python & QA Suite** | `python3` (>=3.10), `uv` (recommended) or `pip`, `ruff`, `pytest`, `shellcheck` | Running `./scripts/check.sh` and local unit test suites. |
 
 ### Installing Prerequisites
 
 #### Fedora / RHEL
 ```bash
 sudo dnf install -y podman qemu-kvm edk2-ovmf virt-manager libvirt \
-                    parted mtools dosfstools e2fsprogs xorriso shellcheck python3-pytest
-pip install ruff
+                    parted mtools dosfstools e2fsprogs xorriso shellcheck
+```
+
+For Python QA tools, install [`uv`](https://docs.astral.sh/uv/getting-started/installation/) and create a project-local environment:
+
+```bash
+uv venv
+uv pip install --python .venv/bin/python ruff pytest jsonschema
+source .venv/bin/activate
+```
+
+Prefer `pip`? Use the equivalent virtual environment and install command:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install ruff pytest jsonschema
 ```
 
 #### Debian / Ubuntu
 ```bash
 sudo apt update
 sudo apt install -y podman qemu-system-x86 ovmf virt-manager libvirt-daemon-system \
-                    parted mtools dosfstools e2fsprogs xorriso shellcheck python3-pytest
-pip install ruff
+                    parted mtools dosfstools e2fsprogs xorriso shellcheck python3-venv
+```
+
+For Python QA tools, install [`uv`](https://docs.astral.sh/uv/getting-started/installation/) and create a project-local environment:
+
+```bash
+uv venv
+uv pip install --python .venv/bin/python ruff pytest jsonschema
+source .venv/bin/activate
+```
+
+Prefer `pip`? Use the equivalent virtual environment and install command:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install ruff pytest jsonschema
 ```
 
 ---
