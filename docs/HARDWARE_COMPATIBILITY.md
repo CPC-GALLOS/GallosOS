@@ -40,6 +40,54 @@ Some venues run discrete-GPU-only workstations — an Intel or AMD CPU with no i
 - **This enrollment is not lost on the next ephemeral boot.** MOK trust is stored in the machine's UEFI NVRAM — firmware-level storage on the motherboard, entirely separate from GallosOS's tmpfs-overlay root filesystem or which USB stick is inserted. A live-USB reboot wipes the OS overlay, not the firmware's key store, so a machine enrolled once continues loading the signed module on every future GallosOS boot (any USB, any release built with the same MOK) without re-enrollment.
 - **No additional contest-integrity surface:** this module is graphics-only (kernel-level display driver), so it does not interact with the Contest-mode network lockdown or Anti-Cheat threat model described in `docs/ANTI_CHEAT_AND_SECURITY.md`.
 
+### 1.4 Architectural Baseline: Why 32-bit (x86 / i386) is Definitively Out of Scope
+
+GallosOS is strictly engineered for 64-bit architectures (`x86_64` / `amd64`). Development for 32-bit x86 targets is permanently out of scope due to fundamental contest parity, ABI consistency, and upstream maintenance realities:
+
+1. **Strict Contest Judge Parity (64-bit Reference):**
+   - Every official competitive programming judging platform—including the ICPC World Finals, DOMjudge, BOCA, CMS (IOI), Codeforces, AtCoder, CSES, and omegaUp (OMI)—executes solutions exclusively on 64-bit `x86_64` Linux kernels within sandboxed 64-bit runtime containers.
+   - Providing a 32-bit workstation environment violates the core mission of GallosOS: guaranteeing that contestant code executes identically on their local machine and on the judge server.
+
+2. **Fatal ABI & Data Model Discrepancies (LP64 vs ILP32):**
+   - 64-bit Linux employs the **LP64** data model (`sizeof(int) = 4`, `sizeof(long) = 8`, `sizeof(long long) = 8`, `sizeof(void*) = 8`, `sizeof(size_t) = 8`).
+   - 32-bit x86 Linux employs the **ILP32** data model (`sizeof(int) = 4`, `sizeof(long) = 4`, `sizeof(long long) = 8`, `sizeof(void*) = 4`, `sizeof(size_t) = 4`).
+   - In competitive programming, relying on `long` on 32-bit machines creates catastrophic bugs: code assuming 64-bit range overflows at $2 \times 10^9$ instead of $9 \times 10^{18}$, producing silent wrong-answer (WA) penalties during contests.
+   - **Instruction & Timing Distortion:** 64-bit integer arithmetic (`long long`, `__int128_t`) on 32-bit x86 requires multi-instruction register splitting (`edx:eax` emulation). Local execution timings and algorithmic constant-factor benchmarking are completely warped compared to native 64-bit execution on judge CPUs.
+   - **Address Space Bottleneck:** 32-bit architectures restrict per-process virtual address space to 2–3 GB, preventing accurate simulation of judge memory limits (e.g. the 2 GB sandbox ceiling at ICPC World Finals) alongside modern IDEs.
+
+3. **Upstream Deprecation & Kernel Ecosystem:**
+   - Canonical ceased 32-bit desktop ISO releases after Ubuntu 18.04 LTS. Ubuntu 24.04 LTS does not build 32-bit kernels or support full 32-bit base installations. Supporting 32-bit would forfeit the upstream LTS kernel, modern HWE driver stacks, and Canonical's signed SecureBoot shim infrastructure.
+
+4. **Edge-Case Recommendation for Legacy Hardware Salvage:**
+   - For organizers or educators dealing with extreme edge cases—such as salvaging obsolete 32-bit scrap PCs (vintage Intel Atom or Pentium netbooks) for basic student terminals—GallosOS recommends dedicated ultra-lightweight distributions engineered specifically for resource-constrained 32-bit hardware:
+     - **Alpine Linux** (`x86` / i686 target, `musl` libc, ultra-minimal RAM footprint).
+     - **Void Linux** (`i686` target, available with `glibc` or `musl`, `runit` init).
+   - GallosOS will not dilute its security architecture, SecureBoot chain, or toolchain fidelity to accommodate obsolete 32-bit machines.
+
+### 1.5 Future Architecture Trajectory: ARM64 (AArch64) & Hardware Prioritization
+
+While GallosOS's canonical distribution targets `x86_64` (AMD64), modern university environments and BYOD (Bring Your Own Device) training events—such as Training Camp México (TCMX), state olympiad camps, and university programming clubs—increasingly encounter student-owned ARM64 laptops.
+
+When engineering future multi-architecture support, GallosOS establishes a strict hardware prioritization based on actual contestant demographics rather than generic embedded boards:
+
+1. **Priority 1: Apple Silicon MacBooks (M1 / M2 / M3 / M4 via Asahi Linux Ecosystem):**
+   - **Rationale:** Apple Silicon MacBooks represent the single largest demographic of ARM-based laptops brought by computer science students and competitors to BYOD workshops and university training camps.
+   - **Technical Baseline:** Live-boot support requires integrating with the Asahi Linux bootloader chain (`m1n1` stage 1/2 bootloader, U-Boot / GRUB EFI payload, Apple-specific Device Tree bindings, and customized kernel graphics drivers).
+
+2. **Priority 2: Qualcomm Snapdragon X Elite / Plus Laptops (Windows on ARM / Surface):**
+   - **Rationale:** The emergence of modern ARM64 Windows laptops (such as the Microsoft Surface Laptop 7, Surface Pro 11, and OEM Snapdragon systems) introduces standard UEFI firmware booting into the student ecosystem.
+   - **Technical Baseline:** Mainline Linux kernel 6.11+ and standard AArch64 UEFI SecureBoot boot chains.
+
+3. **Explicitly Deprioritized: Generic ARM Single Board Computers (Raspberry Pi, Orange Pi, Rockchip):**
+   - **Rationale:** While popular in maker and IoT hobbies, headless or low-powered ARM SBCs are virtually never deployed as contestant workstations during competitive programming events. GallosOS will not allocate build infrastructure or validation effort to SBC targets before laptop targets are production-grade.
+
+4. **Judge Parity Considerations on ARM64:**
+   - ARM64 operates under the **LP64** data model, matching `x86_64` pointer and integer widths (`sizeof(long) = 8`, `sizeof(void*) = 8`), which avoids the catastrophic type-size pitfalls of 32-bit systems.
+   - However, organizers and contestants must maintain awareness of architecture-specific nuances:
+     - **Intrinsic & Instruction Differences:** x86-specific bit-manipulation intrinsics or inline assembly are non-portable to ARM NEON. Local CPU cycle benchmarking may diverge from x86_64 judge CPUs.
+     - **Memory Model Semantics:** ARM64 employs a weakly ordered memory model compared to x86 Total Store Ordering (TSO), which can reveal hidden concurrency discrepancies in multi-threaded problem solutions or local test runners.
+     - **Official Reference Status:** All major competitive programming bodies maintain `x86_64` as the authoritative judging standard.
+
 ---
 
 ## 2. Hardware Requirements Matrix
@@ -50,7 +98,7 @@ Because GallosOS uses an immutable SquashFS + OverlayFS architecture, its memory
 
 In this mode, the core OS resides compressed on the USB drive (mounted read-only). All system changes, logs, and contestant files are written exclusively to ephemeral RAM (`tmpfs`). **The USB drive is never written to during operation.**
 
-- **Minimum CPU:** 64-bit AMD64 / x86_64 processor (Intel Core 2 Duo / AMD Athlon 64 X2 or newer).
+- **Minimum CPU:** 64-bit AMD64 / x86_64 processor (Intel Core 2 Duo / AMD Athlon 64 X2 or newer; 32-bit x86 is deliberately unsupported per § 1.4).
 - **Minimum RAM:** 4 GB (Recommended: 8 GB for heavy IDEs like IntelliJ or CLion, as all session data and modified files live in RAM).
   - **Documented rationale for keeping 4 GB (a deliberate divergence from huronOS):** huronOS's own docs (`docs/start/requirements.md`) recommend 8 GB minimum from direct field experience ("with 4 GiB you'll likely run out of memory with a bad programmed DP"). GallosOS keeps 4 GB as the floor because the *contestant's own program* is bounded independently of the OS: the 2024 ICPC World Finals Technical Notes state the judging sandbox "will allow allocation of up to 2GB of memory for your program," and individual problems commonly impose much tighter per-test memory limits (e.g. 256 MB is a typical single-problem constraint). A contest-legal solution cannot itself exhaust a 4 GB machine the way an unbounded local experiment (an unsubmitted `int dp[100000][100000];` during practice, which huronOS's warning is really about) can. 4 GB remains the floor for lighter IDEs (VSCodium, Geany); the existing 8 GB *recommendation* still stands for IntelliJ/CLion-heavy setups.
 - **Storage:** 16 GB+ USB Flash Drive.

@@ -176,3 +176,7 @@ The distribution target is one neutral GallosOS ISO that boots into open practic
   - Implement scheduled background screenshot captures via dedicated root Wayland socket.
   - Bundle `node-exporter` and `gallos-exporter` for real-time fleet health metrics.
   - Build `gallos-audit-export` CLI to aggregate and export ephemeral workstation logs, EarlyOOM kill events, firewall drops, `martkeys` activity metrics, print history, and proctoring snapshots into a persistent `gallos-audit-YYYYMMDD.tar.gz` archive.
+
+- [ ] **ARM64 (AArch64) Multi-Architecture Exploration (Post-GA):**
+  - Evaluate containerized AArch64 Live ISO generation for BYOD contestant laptops, prioritizing **Apple Silicon MacBooks** (via Asahi Linux boot stack: `m1n1` / U-Boot / GRUB) and **Qualcomm Snapdragon X Elite / Plus laptops** (UEFI ARM64 / Surface) over generic embedded SBCs (see `docs/HARDWARE_COMPATIBILITY.md` § 1.5).
+  - Explicitly maintain 32-bit (x86/i386) exclusion due to contest judge parity, LP64 vs ILP32 data model divergence, and upstream Ubuntu 24.04 deprecation (`docs/HARDWARE_COMPATIBILITY.md` § 1.4).
