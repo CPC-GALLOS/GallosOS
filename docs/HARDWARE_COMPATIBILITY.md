@@ -64,7 +64,19 @@ GallosOS is strictly engineered for 64-bit architectures (`x86_64` / `amd64`). D
      - **Void Linux** (`i686` target, available with `glibc` or `musl`, `runit` init).
    - GallosOS will not dilute its security architecture, SecureBoot chain, or toolchain fidelity to accommodate obsolete 32-bit machines.
 
-### 1.5 Future Architecture Trajectory: ARM64 (AArch64) & Hardware Prioritization
+### 1.5 Intel Mac Labs in Mexico
+
+Mexican university and competitive-programming labs may still contain Intel-based Macs, especially as previously purchased lab equipment remains in service. These machines must be included in venue compatibility planning rather than treated as ordinary PC hardware or excluded in favor of newer Apple Silicon systems.
+
+- **Architecture:** 64-bit Intel Macs are within GallosOS's `amd64` target and are potential Live USB hosts. 32-bit Intel Macs remain out of scope under § 1.4.
+- **Boot setup:** Organizers must confirm that the specific Mac can boot external EFI media. On T2-equipped Intel Macs, Startup Security Utility may need to permit external/removable-media boot. This is a per-machine firmware setting and must be checked before deployment.
+- **Hardware validation:** Test the exact Mac model and year for display output, keyboard, trackpad, Wi-Fi, suspend behavior, and USB-C/Thunderbolt adapters. Apple-specific peripherals and older Broadcom wireless chips can require a wired connection or a supported USB Ethernet/Wi-Fi adapter.
+- **Operational recommendation:** Keep a USB keyboard and a wired network or compatible USB network adapter available at Mexican venues using Intel Mac labs. Prefer a direct USB boot test on every model family before contest day; QEMU validation does not establish physical Mac compatibility.
+- **Security and data safety:** Booting the Live USB is intended to leave the internal macOS installation untouched, but organizers must not change Startup Security settings or repartition internal storage without the machine owner’s authorization and a tested recovery process.
+
+GallosOS currently has no empirical validation matrix covering every Intel Mac generation. Intel Mac labs are therefore a supported deployment consideration.
+
+### 1.6 Future Architecture Trajectory: ARM64 (AArch64) & Hardware Prioritization
 
 While GallosOS's canonical distribution targets `x86_64` (AMD64), modern university environments and BYOD (Bring Your Own Device) training events—such as Training Camp México (TCMX), state olympiad camps, and university programming clubs—increasingly encounter student-owned ARM64 laptops.
 
