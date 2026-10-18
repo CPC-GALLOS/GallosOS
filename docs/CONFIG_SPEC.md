@@ -247,6 +247,8 @@ The following matrix defines the **exact behavior** of every configurable subsys
 
 The daemon releases the contestant session only after the required firewall, storage, USB, browser-policy, and home-restoration steps succeed. `gallosctl status` reports the committed `mode`, `target_mode`, `transition_status` (`pending`, `ready`, or `error`), and `last_error`. If a required step fails, the kiosk stays stopped and the configured local root recovery prompt appears on tty1. Scheduled changes require no password entry; an organizer needs root authentication to issue manual CLI requests.
 
+`allow_usb_storage` is honored independently in Default and Event, including initial boot, mode changes, configuration reapplication, and Contest exit. Omitting the flag defaults to `true` in either open mode; Event does not inherit Default's USB flag. Contest always blocks external USB storage. The boot drive's optional `event-data` workspace remains a separate mechanism, as described in [the storage architecture](./ARCHITECTURE.md#4-storage--filesystem-architecture).
+
 #### 1. `Default` Mode (Fallback / Always)
 
 - **Trigger:** Active when neither a Contest nor Event time window is scheduled.

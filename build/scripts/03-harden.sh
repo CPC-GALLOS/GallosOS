@@ -165,17 +165,10 @@ if [[ "$allow_usb_storage" == "false" ]]; then
         "$ROOTFS/etc/polkit-1/rules.d/99-gallos-usb-block.rules"
 fi
 
-mkdir -p "$ROOTFS/etc/udev/rules.d"
-cat > "$ROOTFS/etc/udev/rules.d/99-contest-usb-block.rules" <<'EOF'
-# GallosOS fallback USB mass storage block rule.
-# Must match on the usb_device node (DEVTYPE), not a usb_interface node:
-# the "authorized" sysfs attribute this rule writes only exists on the
-# device node, while "bInterfaceClass" is only set on its interface
-# children — hence ATTRS{} (plural, searches descendants) instead of
-# ATTR{} (which would only see the matched node's own attributes and, on
-# an interface node, has no "authorized" file to write).
-ACTION=="add", SUBSYSTEM=="usb", DEVTYPE=="usb_device", ATTRS{bInterfaceClass}=="08", ATTR{authorized}="0"
-EOF
+# Install interface denial only after live boot, when the host helper can
+# identify and preserve the boot storage. A baked-in rule would block coldplug
+# of the same USB medium needed by casper.
+rm -f "$ROOTFS/etc/udev/rules.d/99-contest-usb-block.rules"
 
 echo "Configuring EarlyOOM..."
 cat > "$ROOTFS/etc/default/earlyoom" <<'EOF'
@@ -285,6 +278,7 @@ chmod 0700 "$ROOTFS/etc/gallos"
 install -m 0644 "$REPO_ROOT/daemon/gallosd.service" "$ROOTFS/etc/systemd/system/gallosd.service"
 install -m 0644 "$REPO_ROOT/daemon/gallos-event-storage.service" "$ROOTFS/etc/systemd/system/gallos-event-storage.service"
 install -m 0644 "$REPO_ROOT/daemon/gallos-clean-state.service" "$ROOTFS/etc/systemd/system/gallos-clean-state.service"
+install -m 0644 "$REPO_ROOT/daemon/gallos-usb-storage@.service" "$ROOTFS/etc/systemd/system/gallos-usb-storage@.service"
 install -m 0644 "$REPO_ROOT/daemon/gallos-root-access.service" "$ROOTFS/etc/systemd/system/gallos-root-access.service"
 install -m 0644 "$REPO_ROOT/daemon/gallos-recovery-console.service" "$ROOTFS/etc/systemd/system/gallos-recovery-console.service"
 install -m 0644 "$REPO_ROOT/daemon/gallos-web-proxy.service" "$ROOTFS/etc/systemd/system/gallos-web-proxy.service"

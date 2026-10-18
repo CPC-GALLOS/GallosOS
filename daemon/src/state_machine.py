@@ -217,19 +217,22 @@ class ModeStateMachine:
         )
 
     def _exit_contest_mode(self, target_mode: str) -> None:
-        """Restores network and unlocks USB storage when leaving Contest mode."""
-        print(
-            "[state_machine] Post-Contest transition: Unlocking USB storage and restoring network."
-        )
+        """Restore the target mode's network and USB policy after Contest."""
+        print("[state_machine] Post-Contest transition: Applying target mode policy.")
         self.firewall.apply_mode_firewall(target_mode, self.config)
         apply_web_egress(target_mode, self.config)
-        set_usb_storage_allowed(True)
+        usb_allowed = self.config.get(target_mode.lower(), {}).get("allow_usb_storage", True)
+        set_usb_storage_allowed(usb_allowed)
         mount_event_data()
         apply_browser_policy(target_mode, self.config)
         update_wallpaper(target_mode)
         send_desktop_notification(
             "Contest Ended",
-            "USB mass storage is now authorized. You may export your solutions.",
+            (
+                "USB mass storage is authorized. You may export your solutions."
+                if usb_allowed
+                else "USB mass storage remains blocked by organizer policy."
+            ),
             urgency="normal",
         )
 
@@ -237,7 +240,9 @@ class ModeStateMachine:
         """Transitions between Default and Event modes."""
         self.firewall.apply_mode_firewall(target_mode, self.config)
         apply_web_egress(target_mode, self.config)
-        set_usb_storage_allowed(True)
+        set_usb_storage_allowed(
+            self.config.get(target_mode.lower(), {}).get("allow_usb_storage", True)
+        )
         mount_event_data()
         apply_browser_policy(target_mode, self.config)
         update_wallpaper(target_mode)

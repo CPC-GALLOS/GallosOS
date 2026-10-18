@@ -62,7 +62,7 @@
         "allowed_websites": { "$ref": "#/definitions/website_list" },
         "allow_usb_storage": {
           "type": "boolean",
-          "description": "Whether to allow USB mass-storage devices to be mounted."
+          "description": "Whether to allow external USB mass-storage devices in Default/Event, defaulting to true when omitted. Contest always denies external storage regardless of this value. The boot-drive event-data workspace is separate."
         },
         "allow_audio": {
           "type": "boolean",

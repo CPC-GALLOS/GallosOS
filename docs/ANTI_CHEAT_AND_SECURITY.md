@@ -297,6 +297,8 @@ Every proprietary component discussed above (§ 4.1–4.2) is a *userspace* bina
 
 During **`Contest` Mode**:
 
+Default and Event honor their own `allow_usb_storage` flag (default `true`), including policy reloads and Contest exit. Contest always denies external storage. Post-Contest notifications report the target policy instead of promising that storage is always unlocked.
+
 - **HID Allowed:** USB keyboards, mice, and assistive devices are permitted.
 - **Mass Storage Blocked (primary mechanism — polkit/udisks2 denial):** When `allow_usb_storage = false`, `gallosd` (and the build-time hardening stage) installs a `polkit` rule denying the `contestant` user all `org.freedesktop.udisks2.*` actions outright (`ResultAny=no` / `polkit.Result.NO`), so mass-storage devices are refused at the policy layer before they're ever mounted. [Precedent: this directly follows `maratona-usuario-icpc`'s real polkit rules, which deny the `icpc` user `NetworkManager.*`, `timedate1.*`, and `udisks2.*` actions the same way.]
 
@@ -325,15 +327,18 @@ During **`Contest` Mode**:
   ResultActive=no
   ```
 
-- **Fallback mechanism (systems without polkit/udisks2 enforcement):** a dynamic `udev` rule unbinds the `usb-storage` and `uas` kernel modules directly:
+- **Existing mounts:** `gallosd` synchronously starts `gallos-usb-storage@lock.service`. The helper runs in the host mount namespace with `CAP_SYS_ADMIN`, rather than attempting unmounts inside the daemon's sandbox. It joins structured `lsblk` ancestry with the complete `findmnt` mount list, so partitions without their own transport field, bind mounts, and paths containing spaces are included. It unmounts nested paths first and verifies that no targeted mount remains. Busy mounts or enforcement errors keep the kiosk stopped.
+
+- **Live medium and HID:** The helper preserves system mounts (including `/cdrom` and `/isodevice`) and their underlying USB storage interfaces. It unmounts other partitions on that medium but leaves the boot interface authorized. Other class-08 storage interfaces are deauthorized through their resolved sysfs interface path; keyboard and mouse interfaces remain active. These behaviors have regression coverage; physical USB and booted-live acceptance remain required.
+
+- **New storage interfaces:** A runtime `udev` rule denies class-08 interfaces. It is installed after boot-medium discovery is possible, rather than baked into the image where coldplug could disable the live USB:
 
   ```bash
-  # Block new USB mass storage devices from being exposed as block nodes
-  echo 'ACTION=="add", SUBSYSTEM=="usb", ATTR{bInterfaceClass}=="08", RUN+="/bin/sh -c '\''echo 0 > /sys$DEVPATH/authorized'\''"' > /etc/udev/rules.d/99-contest-usb-block.rules
-  udevadm control --reload-rules
+  # /etc/udev/rules.d/99-contest-usb-block.rules (managed by the host helper)
+  ACTION=="add", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_interface", ATTR{bInterfaceClass}=="08", ATTR{authorized}="0"
   ```
 
-- At the end of the contest, USB storage is re-authorized (polkit rule removed, or `udev` rule reverted) so contestants can manually export their source code.
+- At Contest exit, `gallos-usb-storage@unlock.service` removes the denial rules, reloads udev, authorizes connected class-08 interfaces and explicitly probes their drivers so contestants can mount storage for code export. Interface authorization and the required driver probe follow the [Linux kernel USB authorization interface](https://docs.kernel.org/usb/authorization.html#interface-authorization).
 
 ---
 

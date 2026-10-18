@@ -1,0 +1,12 @@
+[Unit]
+Description=GallosOS USB storage policy (%i)
+After=local-fs.target systemd-udevd.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/usr/libexec
+ExecStart=/usr/bin/python3 -m gallosd.usb_storage_host %i
+NoNewPrivileges=true
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_DAC_OVERRIDE
+PrivateMounts=no
+TimeoutStartSec=90
