@@ -26,6 +26,7 @@ from .state_machine import ModeStateMachine
 
 SOCKET_PATH = "/run/gallos/daemon.sock"
 REMOTE_POLICY_CACHE_PATH = Path("/run/gallos/remote-policy.toml")
+IPC_RECEIVE_TIMEOUT_SECONDS = 1.0
 
 
 class GallosDaemon:
@@ -182,7 +183,8 @@ class GallosDaemon:
         try:
             conn, _ = self.server_sock.accept()
             with conn:
-                client_uid = 0
+                conn.settimeout(IPC_RECEIVE_TIMEOUT_SECONDS)
+                client_uid = -1
                 if hasattr(socket, "SO_PEERCRED"):
                     try:
                         cred = conn.getsockopt(
@@ -190,7 +192,7 @@ class GallosDaemon:
                         )
                         _, client_uid, _ = struct.unpack("3i", cred)
                     except OSError:
-                        client_uid = 0
+                        client_uid = -1
 
                 data = conn.recv(1024).decode("utf-8").strip()
                 if not data:
@@ -198,6 +200,8 @@ class GallosDaemon:
                 print(f"[daemon] IPC Command received from uid {client_uid}: '{data}'")
                 response = self._process_ipc_command(data, client_uid=client_uid)
                 conn.sendall(response)
+        except TimeoutError:
+            print("[daemon] IPC client timed out before sending a command", file=sys.stderr)
         except Exception as e:
             print(f"[daemon] IPC handle error: {e}", file=sys.stderr)
 

@@ -4,7 +4,7 @@ import importlib.util
 import json
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from daemon.src.main import GallosDaemon
 
@@ -49,6 +49,21 @@ def test_ipc_mutating_commands_allowed_for_root():
     resp_stop = daemon._process_ipc_command("STOP", client_uid=0)
     assert resp_stop == b"OK Default transition requested\n"
     daemon.state_machine.set_manual_mode.assert_called_once_with("Default")
+
+
+def test_socket_credential_failure_denies_mutation():
+    daemon = GallosDaemon()
+    daemon.state_machine = MagicMock()
+    conn = MagicMock()
+    conn.__enter__.return_value = conn
+    conn.getsockopt.side_effect = OSError("peer credentials unavailable")
+    conn.recv.return_value = b"STOP"
+    daemon.server_sock = MagicMock()
+    daemon.server_sock.accept.return_value = (conn, None)
+    with patch("daemon.src.main.socket.SO_PEERCRED", 17, create=True):
+        daemon.handle_socket_connection()
+    conn.sendall.assert_called_once_with(b"ERROR Permission denied: root required\n")
+    daemon.state_machine.set_manual_mode.assert_not_called()
 
 
 def test_ipc_status_allowed_for_non_root():
