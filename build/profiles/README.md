@@ -58,6 +58,7 @@ To build an ISO using a specific build profile, run from the repository root:
 
 ```bash
 # Build using the default universal profile (build/profiles/universal.build.toml)
+# Export GALLOS_GRUB_PASSWORD_HASH first (see docs/BUILD_SYSTEM.md).
 make -C build iso
 
 # Build a custom ISO and bundle a runtime profile as its fallback policy

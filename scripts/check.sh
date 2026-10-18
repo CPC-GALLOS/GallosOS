@@ -46,7 +46,7 @@ fi
 
 # 3. Python Unit Tests (Pytest)
 echo -e "\n${YELLOW}[3/6] Running Python unit tests (Pytest)...${NC}"
-if python3 -m pytest daemon/tests/ -v; then
+if python3 -m pytest daemon/tests/ build/tests/ -v; then
     echo -e "${GREEN}✓ All Pytest unit tests passed.${NC}"
 else
     echo -e "${RED}✗ Pytest unit tests failed.${NC}"

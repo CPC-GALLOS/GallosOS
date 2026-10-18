@@ -4,6 +4,19 @@ GallosOS is designed to be **100% reproducible and infrastructure-agnostic**. To
 
 The ISO assembler uses Ubuntu's packaged signed shim, GRUB, and kernel and writes both BIOS and EFI boot entries. It fails if the kernel or GRUB cannot be verified against Canonical's bundled certificate. It places `md5sum.txt` inside the ISO for Casper's media check and writes boot package versions and SHA-256 hashes alongside the ISO. Build verification is separate from physical-machine compatibility.
 
+Before building, generate a GRUB password hash with `grub-mkpasswd-pbkdf2` inside the builder container and export its `grub.pbkdf2.sha512...` output as `GALLOS_GRUB_PASSWORD_HASH`. The Makefile forwards this environment variable without expanding its value into the container command. The pipeline rejects missing or malformed hashes before bootstrap. This credential protects menu editing and the GRUB command line; normal boot remains unrestricted. BIOS embeds the `password_pbkdf2` module and its dependencies. Password interaction on both firmware paths still requires a rebuilt-image boot test.
+
+To generate the hash without host-installed GRUB tools:
+
+```sh
+make -C build image
+podman run --rm -it gallos-builder grub-mkpasswd-pbkdf2
+read -r -p 'Paste the generated GRUB hash: ' GALLOS_GRUB_PASSWORD_HASH
+export GALLOS_GRUB_PASSWORD_HASH
+```
+
+Use `docker` in place of `podman` when that is your container engine. The ISO boot CI job generates an ephemeral credential solely for its verification image.
+
 ```sh
 make -C build iso
 bash build/scripts/test-iso-qemu.sh --secure-boot --smoke
@@ -189,7 +202,7 @@ To keep the Live OS memory footprint minimal (Crucial for `toram` boot):
 ### Stage 5: Squash & Stitch (`mksquashfs` & `xorriso`)
 
 1. **Stage 5a (Squash):** Compresses the entire optimized rootfs into `filesystem.squashfs` (using `zstd` for high-speed decompression in RAM).
-2. **Stage 5b (ISO):** Sets up the GRUB bootloader for UEFI and Legacy BIOS with `ipv6.disable=1` and uses `xorriso` to output the final hybrid bootable image: `gallosos-<profile>-amd64.iso` (profile-derived from the `CONFIG` `*.build.toml` filename, e.g. `gallosos-universal-amd64.iso` from `profiles/universal.build.toml`). The neutral practice example is bundled as `/gallos/config/baseline/baseline.gallos.toml`; an organizer's canonical `gallos.toml` or unique `*.gallos.toml` takes precedence at boot. The baseline stays in a subdirectory so automatic profile discovery does not count it. Copying `[modules]` `.gsm` bundles from `build.toml` onto the ISO's `/gallos/modules/` directory is not yet wired into `build-iso.sh` — the `.gsm` *mounting mechanism* (this stage's casper-side counterpart) is implemented per ROADMAP.md Phase 1, but populating an ISO with real bundled modules at build time is separate, still-open work.
+2. **Stage 5b (ISO):** Sets up the GRUB bootloader for UEFI and Legacy BIOS with `ipv6.disable=1` and uses `xorriso` to output the final hybrid bootable image: `gallosos-<profile>-amd64.iso` (profile-derived from the `CONFIG` `*.build.toml` filename, e.g. `gallosos-universal-amd64.iso` from `profiles/universal.build.toml`). Set `GALLOS_GRUB_PASSWORD_HASH` to a GRUB PBKDF2 hash before building; the generated menu permits normal boot but requires authentication to edit entries or access the GRUB command line. The neutral practice example is bundled as `/gallos/config/baseline/baseline.gallos.toml`; an organizer's canonical `gallos.toml` or unique `*.gallos.toml` takes precedence at boot. The baseline stays in a subdirectory so automatic profile discovery does not count it. Copying `[modules]` `.gsm` bundles from `build.toml` onto the ISO's `/gallos/modules/` directory is not yet wired into `build-iso.sh` — the `.gsm` *mounting mechanism* (this stage's casper-side counterpart) is implemented per ROADMAP.md Phase 1, but populating an ISO with real bundled modules at build time is separate, still-open work.
 
 ---
 

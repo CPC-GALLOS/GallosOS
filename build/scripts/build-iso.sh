@@ -35,6 +35,10 @@ mkdir -p "$STAGING/boot/grub" "$(dirname "$OUT_ISO")"
 DEFAULT_DIRECTIVES="$REPO_ROOT/examples/neutral.gallos.toml"
 DIRECTIVES_PROFILE="${3:-}"
 REMOTE_POLICY_URL="${4:-}"
+GRUB_PASSWORD_HASH="${GALLOS_GRUB_PASSWORD_HASH:-}"
+# shellcheck source=build/scripts/lib-grub.sh
+source "$SCRIPT_DIR/lib-grub.sh"
+require_grub_password_hash "$GRUB_PASSWORD_HASH"
 if [[ -z "$DIRECTIVES_PROFILE" ]]; then
     DIRECTIVES_SRC="$DEFAULT_DIRECTIVES"
 elif [[ "$DIRECTIVES_PROFILE" = /* ]]; then
@@ -54,15 +58,17 @@ cat > "$STAGING/boot/grub/grub.cfg" <<EOF
 serial --unit=0 --speed=115200
 terminal_input serial console
 terminal_output serial console
+set superusers="gallos"
+password_pbkdf2 gallos $GRUB_PASSWORD_HASH
 set default=0
 set timeout=5
 
-menuentry "GallosOS Live" {
+menuentry --unrestricted "GallosOS Live" {
     search --no-floppy --set=root --label $VOLID
     linux /casper/vmlinuz boot=casper hostname=GallosOS console=ttyS0,115200n8 ipv6.disable=1
     initrd /casper/initrd
 }
-menuentry "GallosOS Live (toram)" {
+menuentry --unrestricted "GallosOS Live (toram)" {
     search --no-floppy --set=root --label $VOLID
     linux /casper/vmlinuz boot=casper hostname=GallosOS console=ttyS0,115200n8 ipv6.disable=1 toram
     initrd /casper/initrd
@@ -78,6 +84,8 @@ cat > "$WORK_DIR/efi-grub.cfg" <<EOF
 serial --unit=0 --speed=115200
 terminal_input serial console
 terminal_output serial console
+set superusers="gallos"
+password_pbkdf2 gallos $GRUB_PASSWORD_HASH
 search --no-floppy --set=root --label $VOLID
 configfile /boot/grub/grub.cfg
 EOF
@@ -104,7 +112,8 @@ mcopy -i "$ESP_IMAGE" "$WORK_DIR/efi-grub.cfg" ::/EFI/BOOT/grub.cfg
 cp "$WORK_DIR/efi-grub.cfg" "$WORK_DIR/bios-grub.cfg"
 grub-mkimage -O i386-pc-eltorito -C xz -o "$STAGING/boot/grub/bios.img" \
     -p /boot/grub -c "$WORK_DIR/bios-grub.cfg" \
-    biosdisk iso9660 normal search search_label linux part_msdos part_gpt configfile serial terminal
+    biosdisk iso9660 normal search search_label linux part_msdos part_gpt configfile serial terminal \
+    password_pbkdf2
 
 # casper-md5check expects a manifest at the ISO root. Generate it after all
 # staged files are final; the manifest itself cannot include its own digest.

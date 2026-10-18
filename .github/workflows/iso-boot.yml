@@ -32,7 +32,15 @@ jobs:
       - name: Install QEMU and ISO inspection tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-x86 ovmf xorriso
+          sudo apt-get install -y qemu-system-x86 ovmf xorriso grub-common
+
+      - name: Generate an ephemeral GRUB password for boot verification
+        shell: bash
+        run: |
+          password="$(openssl rand -hex 32)"
+          hash="$(printf '%s\n%s\n' "$password" "$password" | grub-mkpasswd-pbkdf2 | awk '/grub.pbkdf2.sha512/ {print $NF}')"
+          test -n "$hash"
+          printf 'GALLOS_GRUB_PASSWORD_HASH=%s\n' "$hash" >> "$GITHUB_ENV"
 
       - name: Build Ubuntu Live ISO in Docker
         run: make -C build iso CONTAINER_ENGINE=docker

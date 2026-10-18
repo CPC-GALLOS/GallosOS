@@ -4,6 +4,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -43,6 +45,43 @@ def test_makefile_forwards_build_time_remote_policy_url() -> None:
     output = make_dry_run("REMOTE_POLICY_URL=https://policies.example.org/gallos.toml")
 
     assert '"https://policies.example.org/gallos.toml"' in output
+
+
+def test_makefile_forwards_grub_password_without_expanding_hash() -> None:
+    output = make_dry_run("GALLOS_GRUB_PASSWORD_HASH=grub.pbkdf2.sha512.10000.AA.BB")
+    assert "--env GALLOS_GRUB_PASSWORD_HASH" in output
+    assert "grub.pbkdf2.sha512.10000.AA.BB" not in output
+
+
+def test_bios_core_includes_password_authentication() -> None:
+    script = (REPO_ROOT / "build/scripts/build-iso.sh").read_text()
+    modules = script.split("grub-mkimage", 1)[1].split("# casper-md5check", 1)[0]
+    assert "password_pbkdf2" in modules
+
+
+@pytest.mark.parametrize(
+    "value", ["", "grub.pbkdf2.sha512.bad", "grub.pbkdf2.sha512.1.AA.BB;reboot"]
+)
+def test_reject_malformed_grub_hash_before_build(value: str) -> None:
+    helper = REPO_ROOT / "build/scripts/lib-grub.sh"
+    result = subprocess.run(
+        ["bash", "-c", 'source "$1"; require_grub_password_hash "$2"', "bash", str(helper), value],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert "valid GRUB PBKDF2 hash" in result.stderr
+
+
+def test_accept_valid_grub_hash() -> None:
+    helper = REPO_ROOT / "build/scripts/lib-grub.sh"
+    value = "grub.pbkdf2.sha512.10000." + "AA" * 64 + "." + "BB" * 64
+    result = subprocess.run(
+        ["bash", "-c", 'source "$1"; require_grub_password_hash "$2"', "bash", str(helper), value],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_copy_helper_uses_neutral_profile_when_no_override_is_selected() -> None:

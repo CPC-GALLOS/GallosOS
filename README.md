@@ -37,7 +37,7 @@ requirement. The current open practice baseline does not enforce that policy.
 
 To ensure a rapid, stable release that directly solves the immediate needs of the competitive programming community, the GallosOS MVP is strictly scoped to the following foundational pillars:
 
-1. **Containerized Build Pipeline:** `cd build && make iso` generates a bootable Ubuntu 24.04 `.iso` via Podman/Docker.
+1. **Containerized Build Pipeline:** Export `GALLOS_GRUB_PASSWORD_HASH` as described in [the build guide](./docs/BUILD_SYSTEM.md), then run `cd build && make iso` to generate a bootable Ubuntu 24.04 `.iso` via Podman/Docker.
 2. **Wayland Kiosk & Ephemeral Storage:** Labwc + Waybar desktop running entirely in RAM (OverlayFS `tmpfs`).
 3. **Static Anti-Cheat Firewall:** `nftables` restricted to static judge IPs (Zero-Trust network).
 4. **TOML Config Engine:** `gallosd` loads Organizer policy from local TOML; an authorized Organizer can edit the root-only emergency copy during a contest and reload it with `gallosctl`.

@@ -11,7 +11,7 @@ This document covers the local development workflow for the Python code in this 
 | Python `>= 3.10` | Yes | Matches `requires-python` in `pyproject.toml`. |
 | [`uv`](https://docs.astral.sh/uv/) or `pip` | One required | Python package installer. `uv` is the recommended option; `pip` remains supported. |
 | [`ruff`](https://docs.astral.sh/ruff/) | Yes | Linting (style, complexity, security via `bandit`-equivalent rules) and formatting. |
-| [`pytest`](https://docs.pytest.org/) | Yes | Runs the `daemon/tests/` unit test suite. |
+| [`pytest`](https://docs.pytest.org/) | Yes | Runs the `daemon/tests/` and `build/tests/` unit test suites. |
 | [`jsonschema`](https://python-jsonschema.readthedocs.io/) | Yes | Validates organizer directives during daemon boot and reload against the schema shipped in the Live image. |
 | [`shellcheck`](https://www.shellcheck.net/) | Optional locally | Lints `build/scripts/*.sh`. `scripts/check.sh` skips this step with a warning if `shellcheck` isn't on `PATH`, but it is required in CI and via the pre-commit hook. |
 | [`taplo`](https://taplo.tamasfe.dev/) | Optional locally | Validates TOML files against `schema/directives.schema.json`. If absent, `scripts/check.sh` falls back to `scripts/validate_toml.py`, which also checks organizer directives against the schema when `jsonschema` is installed. |
@@ -73,7 +73,7 @@ Each `daemon/tests/test_*.py` file mirrors the `daemon/src/*.py` module it exerc
 
 1. **Ruff lint** — `ruff check .`
 2. **Ruff format check** — `ruff format --check .`
-3. **Pytest** — `python3 -m pytest daemon/tests/ -v` (including `test_check_commits.py`)
+3. **Pytest** — `python3 -m pytest daemon/tests/ build/tests/ -v` (including `test_check_commits.py`)
 4. **ShellCheck** — `shellcheck build/scripts/*.sh` (skipped with a warning if `shellcheck` isn't installed)
 5. **TOML validation** — `taplo check` if `taplo` is installed, else `python3 scripts/validate_toml.py` (syntax plus directives schema validation with `jsonschema`)
 6. **Conventional Commits validation** — `python3 scripts/check_commits.py` (checks unpushed branch commits against upstream or `HEAD`)
@@ -98,7 +98,7 @@ ruff format .
 ruff format --check .
 
 # Run all daemon tests, or a single file
-python3 -m pytest daemon/tests/ -v
+python3 -m pytest daemon/tests/ build/tests/ -v
 python3 -m pytest daemon/tests/test_state_machine.py -v
 python3 -m pytest daemon/tests/test_check_commits.py -v
 
@@ -151,7 +151,7 @@ This does not run `pytest` — the test suite is intentionally left to `./script
 3. Commit messages validation via `python3 scripts/check_commits.py --ci` (validates all commits on the PR branch or push range)
 4. `ruff check .`
 5. `ruff format --check .`
-6. `pytest daemon/tests/ -v`
+6. `pytest daemon/tests/ build/tests/ -v`
 7. ShellCheck via `ludeeus/action-shellcheck@master`, scanning `build/scripts` and `scripts/check.sh`
 8. TOML syntax validation — an inline Python step using `tomllib`, globbing `**/*.toml` **recursively across the entire repository**
 

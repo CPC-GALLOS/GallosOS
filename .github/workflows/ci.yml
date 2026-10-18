@@ -46,8 +46,8 @@ jobs:
       - name: Run Ruff Formatter Check
         run: ruff format --check .
 
-      - name: Run Daemon Unit Tests
-        run: pytest daemon/tests/ -v
+      - name: Run Daemon and Build Unit Tests
+        run: pytest daemon/tests/ build/tests/ -v
 
       - name: Run ShellCheck
         uses: ludeeus/action-shellcheck@master

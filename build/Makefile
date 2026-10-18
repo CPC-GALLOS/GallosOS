@@ -13,6 +13,7 @@ IMAGE := gallos-builder
 CONFIG ?= profiles/universal.build.toml
 DIRECTIVES_PROFILE ?=
 REMOTE_POLICY_URL ?=
+export GALLOS_GRUB_PASSWORD_HASH
 REPO_ROOT := $(abspath ..)
 
 .PHONY: image iso clean
@@ -22,6 +23,7 @@ image:
 
 iso: image
 	$(CONTAINER_ENGINE) run --rm --privileged \
+		--env GALLOS_GRUB_PASSWORD_HASH \
 		--security-opt label=disable \
 		-v $(REPO_ROOT):/repo \
 		-w /repo/build \

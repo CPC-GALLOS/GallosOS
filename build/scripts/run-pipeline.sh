@@ -15,6 +15,11 @@ PROFILE_NAME="${PROFILE_NAME%.build.toml}"
 PROFILE_NAME="${PROFILE_NAME%.toml}"
 ISO="$OUT_DIR/gallosos-$PROFILE_NAME-amd64.iso"
 
+# Fail before bootstrap rather than discovering missing credentials at Stage 5b.
+# shellcheck source=build/scripts/lib-grub.sh
+source "$SCRIPT_DIR/lib-grub.sh"
+require_grub_password_hash "${GALLOS_GRUB_PASSWORD_HASH:-}"
+
 if [[ -n "$DIRECTIVES_PROFILE" ]]; then
     if [[ "$DIRECTIVES_PROFILE" != /* ]]; then
         DIRECTIVES_PROFILE="/repo/$DIRECTIVES_PROFILE"
