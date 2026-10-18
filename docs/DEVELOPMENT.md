@@ -4,7 +4,24 @@ This document covers the local development workflow for the Python code in this 
 
 ---
 
-## 1. Prerequisites
+## 1. Prerequisites & Environment Setup
+
+GallosOS supports two development workflows:
+
+- **Option A (Zero-install Dev Container / GitHub Codespaces):** Open the repository in VS Code using Dev Containers, GitHub Codespaces, or DevPod. All dependencies (Ubuntu 24.04, Python 3.12, `uv`, `ruff`, `pytest`, `shellcheck`, Docker-in-Docker for building Live ISOs) are pre-configured automatically. See [§1.1 Dev Container / GitHub Codespaces](#11-dev-container--github-codespaces).
+- **Option B (Host-native Setup):** Install the tools listed in the table below on your local Linux or WSL2 system.
+
+### 1.1 Dev Container / GitHub Codespaces
+
+A complete [Development Container](../.devcontainer/) is provided in `.devcontainer/`:
+
+- **VS Code / Cursor:** Open the repository folder. When prompted by the Dev Containers extension, click **"Reopen in Container"** (or run `Dev Containers: Reopen in Container` via the Command Palette `F1`).
+- **GitHub Codespaces:** From the GitHub repository page, click **Code → Codespaces → Create codespace on main**.
+- **CLI / DevPod:** Run `npx @devcontainers/cli up --workspace-folder .`.
+
+The devcontainer automatically runs `.devcontainer/post-create.sh` on first launch, initializing `.venv`, installing dependencies, and registering pre-commit hooks. Docker-in-Docker is pre-enabled so you can test and build Live ISO images (`make -C build iso`) inside the container.
+
+### 1.2 Host-native Prerequisites
 
 | Tool | Required? | Purpose |
 | :--- | :--- | :--- |
@@ -214,10 +231,11 @@ Changing a lint rule or complexity threshold means editing `pyproject.toml`, not
 
 ---
 
-## 8. Editor integration (VS Code)
+## 9. Editor integration (VS Code & Dev Containers)
 
-`.vscode/settings.json` wires up:
+`.vscode/settings.json` and `.devcontainer/devcontainer.json` wire up:
 
 - `charliermarsh.ruff` as the default Python formatter, with format-on-save and `source.fixAll.ruff` / `source.organizeImports.ruff` on save.
-- `python.testing.pytestEnabled: true` with `pytestArgs: ["daemon/tests"]`, so the Testing sidebar discovers and runs the suite directly.
-- `tamasfe.even-better-toml` (recommended in `.vscode/extensions.json`) for live TOML schema validation against `schema/directives.schema.json` while editing `gallos.toml` / `examples/*.gallos.toml`.
+- `python.testing.pytestEnabled: true` with `pytestArgs: ["daemon/tests", "build/tests"]`, so the Testing sidebar discovers and runs the suite directly.
+- `tamasfe.even-better-toml` (recommended in `.vscode/extensions.json` and bundled in `.devcontainer/`) for live TOML schema validation against `schema/directives.schema.json` while editing `gallos.toml` / `examples/*.gallos.toml`.
+- Dev Container automation via `.devcontainer/devcontainer.json` for one-click setup across local VS Code, Cursor, DevPod, and GitHub Codespaces.

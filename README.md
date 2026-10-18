@@ -48,7 +48,11 @@ Advanced venue-management features (fleet telemetry, print spooling, proctoring 
 
 ## 🛠️ Prerequisites & Host Setup
 
-To build, test, and develop GallosOS locally, your host machine requires:
+> [!TIP]
+> **Quickstart with Dev Containers & GitHub Codespaces:**
+> Use the [Dev Container](./.devcontainer/README.md) for an Ubuntu 24.04 workspace with Python 3.12, `uv`, Python QA tools, ShellCheck, Docker-in-Docker for Live ISO builds, and Git hooks. Local use with VS Code, Cursor, or DevPod requires a working container runtime; GitHub Codespaces supplies its own. See the [setup instructions](./.devcontainer/README.md#-quickstart) and [development guide](./docs/DEVELOPMENT.md#11-dev-container--github-codespaces).
+
+For host-native development and testing, install the tools below as needed:
 
 | Category | Tools / Packages | Purpose |
 | :--- | :--- | :--- |
@@ -136,7 +140,7 @@ The repository includes comprehensive context documents and architectural specif
 - **[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md):** Layered filesystem (OverlayFS + SquashFS), Wayland kiosk desktop (Labwc + Waybar), containerized build engine (Podman/Docker), Windows WSL2 + `usbipd-win` workflows, and VM deployment matrices (`.ova`, `.qcow2`).
 - **[`docs/CONFIG_SPEC.md`](./docs/CONFIG_SPEC.md):** Canonical `gallos.toml` directives specification, GallosOS Config Builder web/GUI configurator, 3-tier mode hierarchy ($\text{Contest} \succ \text{Event} \succ \text{Default}$), and `gallos-convert` migration tool.
 - **[`docs/BUILD_SYSTEM.md`](./docs/BUILD_SYSTEM.md):** The Containerized Build Pipeline (`gallos-builder`), `build.toml` configuration format, and custom ISO generation workflows.
-- **[`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md):** How to lint, format, and test `gallosd` (`daemon/`) locally with `./scripts/check.sh`, install the pre-commit hooks, and what the GitHub Actions CI gate checks.
+- **[`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md):** Development workflows, zero-install Dev Containers / GitHub Codespaces setup, local QA with `./scripts/check.sh`, pre-commit hooks, and CI gate checks.
 - **[`docs/WAYLAND_DESKTOP.md`](./docs/WAYLAND_DESKTOP.md):** Wayland kiosk desktop specification (Labwc + Waybar + Foot + Mako), keybindings, ergonomic UI modules, and tamper-resistant dotfile architecture.
 - **[`docs/BOOT_BRANDING.md`](./docs/BOOT_BRANDING.md):** Design (not yet implemented, targets Phase 4) for a custom Plymouth boot splash and GRUB boot menu theme, plus an inventory of remaining stock-Ubuntu branding to remove.
 - **[`docs/ROOT_ACCESS.md`](./docs/ROOT_ACCESS.md):** Local root recovery (`su` during a normal session, or a password-protected tty1 prompt after transition failure). It requires a locally declared password hash.

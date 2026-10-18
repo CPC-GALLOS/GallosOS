@@ -17,7 +17,8 @@
     }
   },
   "python.testing.pytestArgs": [
-    "daemon/tests"
+    "daemon/tests",
+    "build/tests"
   ],
   "python.testing.unittestEnabled": false,
   "python.testing.pytestEnabled": true

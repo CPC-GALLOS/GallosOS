@@ -54,12 +54,12 @@ else
 fi
 
 # 4. Shell Scripts (ShellCheck)
-echo -e "\n${YELLOW}[4/6] Running ShellCheck on build scripts...${NC}"
+echo -e "\n${YELLOW}[4/6] Running ShellCheck on shell scripts...${NC}"
 if command -v shellcheck &>/dev/null; then
-    if shellcheck build/scripts/*.sh; then
-        echo -e "${GREEN}✓ ShellCheck passed on all build scripts.${NC}"
+    if shellcheck build/scripts/*.sh .devcontainer/post-create.sh; then
+        echo -e "${GREEN}✓ ShellCheck passed on all shell scripts.${NC}"
     else
-        echo -e "${RED}✗ ShellCheck found issues in build scripts.${NC}"
+        echo -e "${RED}✗ ShellCheck found issues in shell scripts.${NC}"
         FAILED=1
     fi
 else

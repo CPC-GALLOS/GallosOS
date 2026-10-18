@@ -54,7 +54,7 @@ jobs:
         with:
           scandir: "build/scripts"
           ignore_names: "tomlget.py"
-          additional_files: "scripts/check.sh"
+          additional_files: "scripts/check.sh .devcontainer/post-create.sh"
           severity: warning
         env:
           SHELLCHECK_OPTS: -e SC1091
