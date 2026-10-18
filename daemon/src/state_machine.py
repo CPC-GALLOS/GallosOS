@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .browser_policy import apply_browser_policy
+from .clean_state import reset_contest_scratch
 from .desktop import export_waybar_state, send_desktop_notification, update_wallpaper
 from .firewall import FirewallManager
 from .session_gate import release_kiosk, start_recovery_console, stop_kiosk
@@ -72,6 +73,7 @@ def _populate_from_skel(skel_dir: str, target_dir: str) -> None:
 def perform_clean_state_wipe() -> None:
     """Executes the Clean State Wipe on Contest entry."""
     print("[state_machine] Performing destructive Clean State Wipe of /home/contestant/...")
+    reset_contest_scratch()
     home_dir = "/home/contestant"
     skel_dir = "/etc/skel"
     _wipe_directory_contents(home_dir)

@@ -1,0 +1,12 @@
+[Unit]
+Description=GallosOS Contest volatile scratch reset
+After=local-fs.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/usr/libexec
+ExecStart=/usr/bin/python3 -m gallosd.clean_state_host
+NoNewPrivileges=true
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_DAC_OVERRIDE CAP_FOWNER
+PrivateMounts=no
+TimeoutStartSec=180

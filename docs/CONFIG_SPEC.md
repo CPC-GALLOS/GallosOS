@@ -243,7 +243,7 @@ The following matrix defines the **exact behavior** of every configurable subsys
 | **Virtual TTY (`Ctrl+Alt+F3`)** | ⛔ Always disabled | ⛔ Always disabled | ⛔ Always disabled |
 
 > [!IMPORTANT]
-> **The Clean State Wipe** is the single most critical anti-cheat mechanism. When `gallosd` transitions into `Contest` mode from any other mode, it kills the Wayland session, purges `/home/contestant/` (destroying all browser caches, bash history, bookmarks, and saved files from the previous session), restores the pristine `/etc/skel` skeleton, and restarts the session. This guarantees that no student can pre-load answers, algorithm templates, or saved code before the contest begins.
+> **The Clean State Wipe** prevents prior-session files from carrying into a new Contest. After stopping contestant activity and applying storage policy, `gallosd` waits for `gallos-clean-state.service` to remove contestant-owned files from the Live system's writable volatile filesystems, including shared scratch locations such as `/tmp`, `/var/tmp`, `/dev/shm`, and `/run/lock`. The host helper detaches remaining data volumes without erasing them, preserves system-owned files and overlay backing trees, and refuses ambiguous mount aliases. The daemon then purges `/home/contestant/`, restores `/etc/skel`, and reopens the session. Cleanup failure keeps the kiosk stopped. Source and fixture tests cover this sequence; final ISO acceptance remains required.
 
 The daemon releases the contestant session only after the required firewall, storage, USB, browser-policy, and home-restoration steps succeed. `gallosctl status` reports the committed `mode`, `target_mode`, `transition_status` (`pending`, `ready`, or `error`), and `last_error`. If a required step fails, the kiosk stays stopped and the configured local root recovery prompt appears on tty1. Scheduled changes require no password entry; an organizer needs root authentication to issue manual CLI requests.
 
@@ -265,7 +265,7 @@ The daemon releases the contestant session only after the required firewall, sto
 
 - **Trigger:** Active ISO 8601 time window in `[contest.schedule]`.
 - **Use Case:** Official ICPC regionals, IOI rounds, university invitationals.
-- **Transition In:** Executes the **Clean State Wipe** (kills session → purges home → restores skeleton → restarts fresh).
+- **Transition In:** Executes the **Clean State Wipe** (stops session → applies lockdown → resets volatile scratch → purges home → restores skeleton → releases session).
 - **Network:** Kernel-level Default-DROP firewall. Only judge IPs in `allowed_websites` are reachable.
 - **Audio:** PipeWire is muted and disabled to enforce arena silence.
 - **Visual:** Contest wallpaper applied, countdown timer visible in Waybar.

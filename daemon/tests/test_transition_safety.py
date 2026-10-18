@@ -117,3 +117,29 @@ def test_retrying_same_mode_after_error_reapplies_policy(tmp_path):
     mount.assert_called_once()
     release.assert_called_once()
     assert machine.transition_status == "ready"
+
+
+def test_failed_scratch_reset_keeps_contest_kiosk_stopped(tmp_path):
+    machine = ModeStateMachine({"mode": "Default"}, MagicMock())
+    with (
+        patch("daemon.src.transition_record.RECORD", tmp_path / "transition.json"),
+        patch("daemon.src.state_machine.stop_kiosk"),
+        patch("daemon.src.state_machine.release_kiosk") as release,
+        patch("daemon.src.state_machine.apply_web_egress"),
+        patch("daemon.src.state_machine.unmount_event_data"),
+        patch("daemon.src.state_machine.set_usb_storage_allowed"),
+        patch("daemon.src.state_machine.apply_browser_policy"),
+        patch(
+            "daemon.src.state_machine.reset_contest_scratch",
+            side_effect=RuntimeError("cleanup failed"),
+        ),
+        patch("daemon.src.state_machine._wipe_directory_contents") as home_wipe,
+        patch("daemon.src.state_machine.start_recovery_console"),
+        patch("daemon.src.state_machine.export_waybar_state"),
+    ):
+        machine.transition_to("Contest", 120)
+    assert machine.transition_status == "error"
+    assert "cleanup failed" in machine.last_error
+    assert machine.current_mode != "Contest"
+    home_wipe.assert_not_called()
+    release.assert_not_called()

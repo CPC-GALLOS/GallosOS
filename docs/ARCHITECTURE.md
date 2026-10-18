@@ -231,12 +231,13 @@ end   = "2026-11-14T15:00:00-06:00"
 
 A critical vulnerability in multi-mode systems is cache retention. If a student uses `Event` mode to browse ChatGPT, save algorithms to their desktop, or inject templates, simply changing the firewall when `Contest` mode hits is insufficient—their browser cache and saved files would still exist!
 
-To guarantee absolute integrity, whenever `gallosd` transitions the system **into** `Contest` mode, it executes a **Clean State Wipe**:
+Before opening a new `Contest` session, `gallosd` executes a **Clean State Wipe**:
 
 1. **Kills the Wayland Session:** Instantly logs out the `contestant` user, closing all open windows, IDEs, and browsers.
-2. **Purges the Home Directory:** Executes `rm -rf /home/contestant/* /home/contestant/.*` to completely destroy browser caches, bash history, downloaded files, and saved templates.
-3. **Restores Skeleton:** Redeploys a pristine filesystem from `/etc/skel`.
-4. **Restarts Session:** Logs the user back in to a completely fresh, air-gapped desktop with the Contest firewall and red branding applied.
+2. **Applies Contest Policy:** Enforces the firewall, proxy, browser policy, event-data suspension, and external USB denial.
+3. **Resets Volatile Scratch:** Starts `gallos-clean-state.service` in the host mount namespace. It detaches other data filesystems without erasing them and removes contestant-owned data from the writable Live overlay and volatile mounts. It uses directory descriptors without following symlinks, skips nested mount subtrees, and preserves system-owned entries and overlay lower/upper/work trees. Installed persistent roots and ambiguous volatile mount aliases are rejected before cleanup.
+4. **Purges Home and Restores Skeleton:** The daemon removes home contents with Python filesystem operations, restores `/etc/skel`, and assigns ownership to `contestant`.
+5. **Releases Session:** Restarts the kiosk only after every enforcement and cleanup step succeeds. A daemon restart already in Contest reapplies policy without deleting ongoing solutions. New cleanup behavior requires final-image session acceptance in addition to regression tests.
 
 ### 6.4 Universal Baselines (Always-On Security)
 
