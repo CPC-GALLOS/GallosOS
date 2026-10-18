@@ -76,6 +76,12 @@ make qemu-test   # Headless smoke test of an existing ISO
 
 The root Makefile delegates ISO builds to `build/Makefile` and QEMU runs to the existing boot-test script. These tasks require their respective container or QEMU dependencies; they are not prerequisites for `make help` or unit tests. See the [developer task reference](./docs/DEVELOPMENT.md#root-task-runner) for options, formatting, and cleanup commands.
 
+### Contributing and reporting problems
+
+Use the [bug report](./.github/ISSUE_TEMPLATE/bug_report.yml) or [hardware / firmware compatibility report](./.github/ISSUE_TEMPLATE/hardware_report.yml) form when opening an issue. Include the commit or ISO version, reproduction steps, and evidence; distinguish VM results from physical hardware tests. Blank issues remain available for other topics, including tournament profile requests.
+
+Pull requests use a [short checklist](./.github/PULL_REQUEST_TEMPLATE.md) covering `make check`, Conventional Commits, independently reviewable commits, and documentation consistency. See [the contributor guidelines](./AGENTS.md) for the repository rules.
+
 ### Installing Prerequisites
 
 #### Fedora / RHEL
@@ -265,7 +271,9 @@ GallosOS/
 ├── pyproject.toml             # Ruff & Pytest configuration for daemon/
 ├── .pre-commit-config.yaml    # Local git hooks (Conventional Commits, Ruff, ShellCheck, hygiene)
 ├── .github/
-│   └── workflows/ci.yml       # GitHub Actions: PR title & commit checks, lint, format, tests, shellcheck, TOML
+│   ├── PULL_REQUEST_TEMPLATE.md # Change summary, validation evidence, and contribution checklist
+│   ├── ISSUE_TEMPLATE/        # Bug and hardware / firmware compatibility report forms
+│   └── workflows/            # Code quality and ISO boot verification
 ├── build/                     # Containerized ISO build pipeline (Podman / Docker)
 │   ├── profiles/              # Declarative build manifests (*.build.toml)
 │   │   ├── README.md          # Build profile catalog and Track 2 customization guide

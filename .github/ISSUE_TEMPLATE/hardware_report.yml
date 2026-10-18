@@ -1,0 +1,89 @@
+name: Hardware or firmware compatibility report
+description: Record observed Live ISO behavior on physical hardware or a virtual machine.
+title: "[Compatibility]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report only what you observed. VM results describe that VM, not physical hardware support. Choose NOT TESTED for checks you did not run and BLOCKED when a prerequisite prevented testing.
+  - type: input
+    id: image
+    attributes:
+      label: ISO version and checksum
+      description: Provide the ISO filename, release or source commit, and SHA256. State if the checksum is unavailable.
+    validations:
+      required: true
+  - type: dropdown
+    id: test-environment
+    attributes:
+      label: Test environment
+      options:
+        - Physical hardware
+        - Virtual machine
+    validations:
+      required: true
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware or virtual machine details
+      description: For physical hardware, include manufacturer/model, CPU, RAM, GPU, and relevant peripherals. For a VM, include hypervisor/version, host OS, virtual CPU, RAM, devices, and firmware image/version. Do not include serial numbers or other personal identifiers.
+    validations:
+      required: true
+  - type: textarea
+    id: boot-configuration
+    attributes:
+      label: Firmware and boot configuration
+      description: Include firmware version/settings, boot medium, boot arguments, and any relevant QEMU command. State whether Secure Boot was enabled and how its enforcement was checked.
+    validations:
+      required: true
+  - type: dropdown
+    id: uefi
+    attributes:
+      label: UEFI boot result
+      options:
+        - NOT TESTED
+        - PASS
+        - FAIL
+        - BLOCKED
+      default: 0
+    validations:
+      required: true
+  - type: dropdown
+    id: secure-boot
+    attributes:
+      label: Secure Boot enforcement result
+      description: Reaching the desktop alone does not establish enforcement. Describe the verification in the evidence field.
+      options:
+        - NOT TESTED
+        - PASS
+        - FAIL
+        - BLOCKED
+      default: 0
+    validations:
+      required: true
+  - type: dropdown
+    id: legacy-bios
+    attributes:
+      label: Legacy BIOS boot result
+      options:
+        - NOT TESTED
+        - PASS
+        - FAIL
+        - BLOCKED
+      default: 0
+    validations:
+      required: true
+  - type: textarea
+    id: desktop-and-devices
+    attributes:
+      label: Desktop and device results
+      description: Report observed display, keyboard/layout, network, USB, audio, and suspend behavior as relevant. Mark each item PASS, FAIL, BLOCKED, or NOT TESTED, with reproduction steps for failures.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and reproduction steps
+      description: Attach boot logs, screenshots, and exact test commands. Explain failed or blocked checks and how you verified successful ones. Remove credentials and personal identifiers before sharing.
+    validations:
+      required: true

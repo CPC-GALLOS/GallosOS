@@ -1,0 +1,59 @@
+name: Bug report
+description: Report a reproducible problem in the daemon, build pipeline, desktop, or developer tools.
+title: "[Bug]: "
+body:
+  - type: input
+    id: version
+    attributes:
+      label: GallosOS version or commit
+      description: Provide the commit SHA or release. For a Live OS problem, also identify the ISO filename and SHA256 if available.
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Where did you reproduce the problem?
+      options:
+        - Host development environment
+        - Dev Container or GitHub Codespaces
+        - Virtual machine
+        - Physical Live OS workstation
+        - Other or unsure
+    validations:
+      required: true
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Environment and configuration
+      description: Include the host OS, relevant tool versions, container runtime or hypervisor, build profile, and Organizer directives as applicable. For runtime issues, specify Contest, Event, or Default mode.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Give the exact commands or actions and any minimal configuration needed to reproduce the problem.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include error messages and whether the problem occurs consistently.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs, screenshots, and checks
+      description: Attach evidence and list checks already run with their results. Distinguish repository, VM, and physical hardware evidence; mark blocked or untested checks explicitly. Remove passwords, hashes used as credentials, tokens, and personal data from shared logs and configuration.
