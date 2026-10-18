@@ -16,6 +16,7 @@ dev = [
 target-version = "py310"
 line-length = 100
 src = ["daemon/src", "daemon/tests"]
+exclude = [".git", "__pycache__", "build", "runtime-validation", "security-audit"]
 
 [tool.ruff.lint]
 select = [
