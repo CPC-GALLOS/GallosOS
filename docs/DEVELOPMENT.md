@@ -269,3 +269,11 @@ Changing a lint rule or complexity threshold means editing `pyproject.toml`, not
 - `python.testing.pytestEnabled: true` with `pytestArgs: ["daemon/tests", "build/tests"]`, so the Testing sidebar discovers and runs the suite directly.
 - `tamasfe.even-better-toml` (recommended in `.vscode/extensions.json` and bundled in `.devcontainer/`) for live TOML schema validation against `schema/directives.schema.json` while editing `gallos.toml` / `examples/*.gallos.toml`.
 - Dev Container automation via `.devcontainer/devcontainer.json` for one-click setup across local VS Code, Cursor, DevPod, and GitHub Codespaces.
+
+### Editor and Git file conventions
+
+The root `.editorconfig` sets UTF-8 text, LF line endings, a final newline, and trailing-whitespace trimming. Python and shell files use four spaces; TOML, JSON, YAML, and Markdown use two. Makefiles use tabs for recipes, and Dockerfiles / Containerfiles use four spaces. These settings guide edits without replacing Ruff, ShellCheck, or pre-commit validation.
+
+Editor support varies: VS Code needs the [EditorConfig extension](https://marketplace.visualstudio.com/items?itemName=EditorConfig.EditorConfig), recommended in `.vscode/extensions.json` and included in the devcontainer configuration. See [EditorConfig's editor support list](https://editorconfig.org/#download) for other editors.
+
+The root `.gitattributes` uses `text=auto eol=lf` for text and explicitly marks disk images, compressed layers, archives, fonts, raster assets, and PDFs as binary. Generated images remain excluded by `.gitignore`; binary attributes do not make them suitable for committing. No custom diff drivers or repository-wide renormalization are required for this change. If existing tracked CRLF files need migration later, review that normalization in a separate commit.

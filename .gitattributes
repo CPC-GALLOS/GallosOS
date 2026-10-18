@@ -1,0 +1,33 @@
+# Normalize text on check-in and use LF in working trees on every platform.
+* text=auto eol=lf
+
+# Disk images and compressed Live OS layers remain binary and ignored by default.
+*.iso binary
+*.squashfs binary
+*.gsm binary
+*.hsl binary
+*.hsm binary
+*.ova binary
+*.qcow2 binary
+*.vmdk binary
+*.vdi binary
+*.img binary
+*.raw binary
+
+# Archives, documentation exports, fonts, and raster assets.
+*.tar binary
+*.gz binary
+*.xz binary
+*.zst binary
+*.zip binary
+*.pdf binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
