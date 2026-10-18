@@ -56,7 +56,7 @@ fi
 # 4. Shell Scripts (ShellCheck)
 echo -e "\n${YELLOW}[4/6] Running ShellCheck on shell scripts...${NC}"
 if command -v shellcheck &>/dev/null; then
-    if shellcheck build/scripts/*.sh .devcontainer/post-create.sh; then
+    if shellcheck build/scripts/*.sh scripts/*.sh .devcontainer/*.sh; then
         echo -e "${GREEN}✓ ShellCheck passed on all shell scripts.${NC}"
     else
         echo -e "${RED}✗ ShellCheck found issues in shell scripts.${NC}"

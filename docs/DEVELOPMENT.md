@@ -25,6 +25,7 @@ The devcontainer automatically runs `.devcontainer/post-create.sh` on first laun
 
 | Tool | Required? | Purpose |
 | :--- | :--- | :--- |
+| GNU Make | For root task shortcuts | Lists tasks with `make` and delegates to the existing scripts. Included in the devcontainer's build tools. |
 | Python `>= 3.10` | Yes | Matches `requires-python` in `pyproject.toml`. |
 | [`uv`](https://docs.astral.sh/uv/) or `pip` | One required | Python package installer. `uv` is the recommended option; `pip` remains supported. |
 | [`ruff`](https://docs.astral.sh/ruff/) | Yes | Linting (style, complexity, security via `bandit`-equivalent rules) and formatting. |
@@ -91,13 +92,42 @@ Each `daemon/tests/test_*.py` file mirrors the `daemon/src/*.py` module it exerc
 1. **Ruff lint** — `ruff check .`
 2. **Ruff format check** — `ruff format --check .`
 3. **Pytest** — `python3 -m pytest daemon/tests/ build/tests/ -v` (including `test_check_commits.py`)
-4. **ShellCheck** — `shellcheck build/scripts/*.sh` (skipped with a warning if `shellcheck` isn't installed)
+4. **ShellCheck** — `shellcheck build/scripts/*.sh scripts/*.sh .devcontainer/*.sh` (skipped with a warning if `shellcheck` isn't installed)
 5. **TOML validation** — `taplo check` if `taplo` is installed, else `python3 scripts/validate_toml.py` (syntax plus directives schema validation with `jsonschema`)
 6. **Conventional Commits validation** — `python3 scripts/check_commits.py` (checks unpushed branch commits against upstream or `HEAD`)
 
 ```sh
 ./scripts/check.sh
 ```
+
+### Root task runner
+
+Run `make` or `make help` from the repository root to list tasks. The root Makefile wraps the existing tools; `make check` calls `./scripts/check.sh`, which remains the full QA entry point.
+
+| Command | Behavior |
+| :--- | :--- |
+| `make check` | Run the full QA suite. |
+| `make test` | Run `daemon/tests/` and `build/tests/`; append pytest options with `PYTEST_ARGS="-k storage"`. |
+| `make lint` | Run Ruff lint and ShellCheck on build, helper, and devcontainer shell scripts; requires both tools. |
+| `make format` | Apply Ruff Python formatting. |
+| `make fix` | Apply Ruff's safe lint fixes. |
+| `make validate` | Run `scripts/validate_toml.py`; install `jsonschema` for organizer directives schema validation. |
+| `make iso` | Delegate to `make -C build iso`, forwarding existing build variables. |
+| `make qemu-test` | Run the existing QEMU script with `--smoke` against `build/output/gallosos-universal-amd64.iso`. |
+| `make clean` | Remove root `.pytest_cache` / `.ruff_cache` and `__pycache__` directories under `daemon/`, `scripts/`, and `build/tests/`. Preserve `.venv`, reference trees, and build output. |
+| `make clean-build` | Delegate to `make -C build clean`, removing `build/output/` using the build pipeline's existing cleanup behavior. |
+
+Activate your development environment before invoking Python tasks. `PYTHON` overrides the interpreter used by `make test` and `make validate`; `make check` uses the commands in `scripts/check.sh` through the active `PATH`.
+
+```sh
+make test PYTEST_ARGS="-k storage"
+make iso DIRECTIVES_PROFILE=examples/club.gallos.toml
+make qemu-test ISO="build/output/custom image.iso" QEMU_ARGS="--uefi --smoke"
+make qemu-test QEMU_ARGS="--secure-boot --smoke"
+make qemu-test QEMU_ARGS="--uefi"  # Interactive graphical boot
+```
+
+ISO builds still require a container engine and a valid `GALLOS_GRUB_PASSWORD_HASH` supplied through the environment (see [build instructions](./BUILD_SYSTEM.md)). QEMU tasks require a built ISO, QEMU, and OVMF for UEFI; they do not build the image or install host dependencies. Firmware and guest-boot smoke results do not establish physical hardware or desktop acceptance. QEMU is not bundled in the devcontainer; use a suitably equipped testing host for these tasks.
 
 ---
 
@@ -150,7 +180,7 @@ With the `pip` environment, use `python -m pip install pre-commit` instead of th
 
 - **On `git commit` (pre-commit stage):**
   - `ruff` (with `--fix`) and `ruff-format`
-  - `shellcheck`, scoped to `build/scripts/*.sh`
+  - `shellcheck`, scoped to `build/scripts/*.sh`, `scripts/*.sh`, and `.devcontainer/*.sh`
   - Standard `pre-commit-hooks`: `trailing-whitespace`, `end-of-file-fixer`, `check-yaml`, `check-toml`, `check-added-large-files`
 - **On `commit-msg` stage:**
   - `compilerla/conventional-pre-commit` verifies that the commit message conforms to [Conventional Commits 1.0.0](https://www.conventionalcommits.org/). If the message is non-conforming, the commit is rejected immediately with actionable guidance.

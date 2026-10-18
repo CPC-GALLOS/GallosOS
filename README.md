@@ -61,6 +61,21 @@ For host-native development and testing, install the tools below as needed:
 | **Disk & Image Utilities** | `parted`, `mtools`, `dosfstools`, `e2fsprogs`, `xorriso` | Generating synthetic USB test images and extracting `toram` boot images. |
 | **Python & QA Suite** | `python3` (>=3.10), `uv` (recommended) or `pip`, `ruff`, `pytest`, `shellcheck` | Running `./scripts/check.sh` and local unit test suites. |
 
+### Developer commands
+
+Run `make` from the repository root to list the available tasks:
+
+```sh
+make check       # Full QA suite (same as ./scripts/check.sh)
+make test        # Daemon and build unit tests
+make lint        # Ruff and ShellCheck
+make validate    # TOML syntax and organizer directives schemas
+make iso         # Containerized ISO build (requires GALLOS_GRUB_PASSWORD_HASH)
+make qemu-test   # Headless smoke test of an existing ISO
+```
+
+The root Makefile delegates ISO builds to `build/Makefile` and QEMU runs to the existing boot-test script. These tasks require their respective container or QEMU dependencies; they are not prerequisites for `make help` or unit tests. See the [developer task reference](./docs/DEVELOPMENT.md#root-task-runner) for options, formatting, and cleanup commands.
+
 ### Installing Prerequisites
 
 #### Fedora / RHEL
