@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from ipaddress import IPv4Address
 from pathlib import Path
 
 PROXY_CONFIG = Path("/run/gallos/squid.conf")
@@ -24,11 +25,17 @@ def effective_websites(mode: str, config: dict) -> list[str]:
 
 
 def validate_website_list(sites: list[str]) -> list[str]:
-    """Require literal DNS names; wildcard/IP/URL tokens are unsafe in proxy ACLs."""
+    """Require literal DNS names or IPv4 addresses for proxy ACLs."""
     clean = []
     for site in sites:
         name = site.strip().lower()
-        if not _HOST.fullmatch(name) or all(part.isdigit() for part in name.split(".")):
+        try:
+            IPv4Address(name)
+        except ValueError:
+            valid_target = bool(_HOST.fullmatch(name))
+        else:
+            valid_target = True
+        if not valid_target:
             raise ValueError(f"Invalid restricted website hostname: {site}")
         clean.append(name)
     if not clean:
@@ -62,7 +69,7 @@ http_access deny all
 def apply_web_egress(mode: str, config: dict) -> None:
     """Apply the restricted proxy lifecycle for the active mode."""
     sites = effective_websites(mode, config)
-    if mode == "Contest" or not sites or sites == ["*"]:
+    if not sites or sites == ["*"]:
         subprocess.run(["systemctl", "stop", "gallos-web-proxy.service"], check=True, timeout=20)
         return
     content = build_squid_config(sites)

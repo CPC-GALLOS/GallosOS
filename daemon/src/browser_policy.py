@@ -91,7 +91,8 @@ def _create_policy_payloads(
     }
     if mode == "Contest":
         chromium_payload["DefaultSearchProviderEnabled"] = False
-        chromium_payload["ProxyMode"] = "direct"
+        chromium_payload["ProxyMode"] = "fixed_servers"
+        chromium_payload["ProxyServer"] = "http=127.0.0.1:3128;https=127.0.0.1:3128"
     else:
         chromium_payload["ProxyMode"] = "fixed_servers"
         chromium_payload["ProxyServer"] = "http=127.0.0.1:3128;https=127.0.0.1:3128"
@@ -106,15 +107,12 @@ def _create_policy_payloads(
             "PasswordManagerEnabled": False,
         }
     }
-    if mode != "Contest":
-        firefox_payload["policies"]["Proxy"] = {
-            "Mode": "manual",
-            "HTTPProxy": "127.0.0.1:3128",
-            "SSLProxy": "127.0.0.1:3128",
-            "Locked": True,
-        }
-    else:
-        firefox_payload["policies"]["Proxy"] = {"Mode": "none", "Locked": True}
+    firefox_payload["policies"]["Proxy"] = {
+        "Mode": "manual",
+        "HTTPProxy": "127.0.0.1:3128",
+        "SSLProxy": "127.0.0.1:3128",
+        "Locked": True,
+    }
     return chromium_payload, firefox_payload
 
 

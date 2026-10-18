@@ -16,12 +16,14 @@ def test_proxy_allows_exact_judges_and_no_general_tunnel():
     assert "http_access deny CONNECT !SSL_ports" in config
 
 
-@pytest.mark.parametrize(
-    "site", ["*.codeforces.com", "https://codeforces.com", "127.0.0.1", "bad site"]
-)
+@pytest.mark.parametrize("site", ["*.codeforces.com", "https://codeforces.com", "bad site"])
 def test_proxy_rejects_ambiguous_or_non_domain_targets(site):
     with pytest.raises(ValueError):
         validate_website_list([site])
+
+
+def test_proxy_accepts_explicit_ipv4_targets():
+    assert validate_website_list(["10.0.0.1"]) == ["10.0.0.1"]
 
 
 def test_event_inherits_default_sites_unless_explicitly_overridden():

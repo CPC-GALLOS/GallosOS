@@ -18,7 +18,10 @@ def test_resolve_domain_to_ipv4_hostname():
 
 def test_firewall_apply_default_mode():
     mgr = FirewallManager()
-    with patch("subprocess.run") as mock_run:
+    with (
+        patch("subprocess.run") as mock_run,
+        patch("pwd.getpwnam", return_value=MagicMock(pw_uid=13)),
+    ):
         mock_run.return_value = MagicMock(returncode=0)
         mgr.apply_mode_firewall("Default", {})
         assert mock_run.called
@@ -34,7 +37,10 @@ def test_firewall_apply_contest_mode():
         "contest": {"allowed_websites": ["192.168.50.10"]},
         "global": {"venue_controller_ip": "192.168.50.1", "local_dns_ip": "192.168.1.1"},
     }
-    with patch("subprocess.run") as mock_run:
+    with (
+        patch("subprocess.run") as mock_run,
+        patch("pwd.getpwnam", return_value=MagicMock(pw_uid=13)),
+    ):
         mock_run.return_value = MagicMock(returncode=0)
         mgr.apply_mode_firewall("Contest", config)
         assert mock_run.called
@@ -52,7 +58,10 @@ def test_contest_dns_is_limited_to_the_configured_resolver():
     config = {
         "global": {"local_dns_ip": "192.168.1.1"},
     }
-    with patch("subprocess.run", return_value=MagicMock(returncode=0)) as mock_run:
+    with (
+        patch("subprocess.run", return_value=MagicMock(returncode=0)) as mock_run,
+        patch("pwd.getpwnam", return_value=MagicMock(pw_uid=13)),
+    ):
         mgr.apply_mode_firewall("Contest", config)
 
     rules = mock_run.call_args.kwargs["input"]
@@ -64,7 +73,10 @@ def test_contest_dns_is_limited_to_the_configured_resolver():
 
 def test_contest_output_rechecks_existing_flows_against_allowlists():
     mgr = FirewallManager()
-    with patch("subprocess.run", return_value=MagicMock(returncode=0)) as mock_run:
+    with (
+        patch("subprocess.run", return_value=MagicMock(returncode=0)) as mock_run,
+        patch("pwd.getpwnam", return_value=MagicMock(pw_uid=13)),
+    ):
         mgr.apply_mode_firewall("Contest", {})
 
     rules = mock_run.call_args.kwargs["input"]
@@ -96,7 +108,10 @@ def test_training_default_limits_egress_to_proxy_identity():
 
 def test_contest_filters_ipv6_as_well_as_ipv4():
     mgr = FirewallManager()
-    with patch("subprocess.run", return_value=MagicMock(returncode=0)) as mock_run:
+    with (
+        patch("subprocess.run", return_value=MagicMock(returncode=0)) as mock_run,
+        patch("pwd.getpwnam", return_value=MagicMock(pw_uid=13)),
+    ):
         mgr.apply_mode_firewall("Contest", {})
 
     rules = mock_run.call_args.kwargs["input"]

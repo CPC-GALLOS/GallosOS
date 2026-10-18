@@ -100,7 +100,7 @@ class FirewallManager:
             contest_cfg = config.get("contest", {})
             self._allowed_websites = contest_cfg.get("allowed_websites", [])
             mode_sites = effective_websites(mode, config)
-            self._restricted_web = mode != "Contest" and bool(mode_sites) and mode_sites != ["*"]
+            self._restricted_web = bool(mode_sites) and mode_sites != ["*"]
             global_cfg = config.get("global", {})
             self._venue_controller_ip = str(
                 ipaddress.IPv4Address(
@@ -111,7 +111,7 @@ class FirewallManager:
                 ipaddress.IPv4Address(global_cfg.get("local_dns_ip", DEFAULT_LOCAL_DNS_IP))
             )
 
-            # Judge IP resolution is relevant only to Contest's IP firewall.
+            # Judge IP resolution is used by the restricted proxy's egress.
             new_ips = set()
             if mode == "Contest":
                 for site in self._allowed_websites:
@@ -142,6 +142,7 @@ class FirewallManager:
 
         if self._current_mode == "Contest":
             # Strict Zero-Trust Lockdown
+            proxy_uid = pwd.getpwnam("proxy").pw_uid
             nft_rules = f"""#!/usr/sbin/nft -f
 flush ruleset
 
@@ -182,8 +183,8 @@ table inet gallos_filter {{
         # 6. NTP to Venue Controller
         udp dport 123 ip daddr @allowed_venue_controller_ip accept
 
-        # 7. HTTP/HTTPS exclusively to Whitelisted Judge IPs
-        tcp dport {{ 80, 443 }} ip daddr @allowed_judge_ips accept
+        # 7. Restricted proxy egress to whitelisted Judge IPs
+        meta skuid {proxy_uid} tcp dport {{ 80, 443 }} ip daddr @allowed_judge_ips accept
 
         # 8. Venue Controller API
         tcp dport 443 ip daddr @allowed_venue_controller_ip accept

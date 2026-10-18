@@ -10,7 +10,10 @@ from daemon.src.state_machine import ModeStateMachine
 
 def test_firewall_failure_does_not_commit_mode():
     manager = FirewallManager()
-    with patch("subprocess.run", return_value=MagicMock(returncode=1, stderr="bad rules")):
+    with (
+        patch("subprocess.run", return_value=MagicMock(returncode=1, stderr="bad rules")),
+        patch("pwd.getpwnam", return_value=MagicMock(pw_uid=13)),
+    ):
         with pytest.raises(RuntimeError, match="bad rules"):
             manager.apply_mode_firewall("Contest", {})
     assert manager._current_mode == "Default"

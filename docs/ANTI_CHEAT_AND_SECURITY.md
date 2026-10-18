@@ -159,8 +159,10 @@ table inet gallos_filter {
         #    is an unmonitored outbound channel regardless of judge whitelisting.
         udp dport 123 ip daddr @allowed_venue_controller_ip accept
 
-        # 7. Allow HTTP/HTTPS exclusively to Whitelisted Judge IPs
-        tcp dport { 80, 443 } ip daddr @allowed_judge_ips accept
+        # 7. Allow only the restricted proxy to reach Whitelisted Judge IPs.
+        #    Contest browsers and HTTP(S) clients are locked to localhost:3128;
+        #    direct workstation egress is not permitted.
+        meta skuid proxy tcp dport { 80, 443 } ip daddr @allowed_judge_ips accept
 
         # 7a. Venue Controller printing: CUPS/IPP (631), static IP only —
         #     no mDNS (5353) unless enable_mdns_discovery = true (see rule 3)
@@ -220,8 +222,8 @@ This ensures that even if `omegaup.com` is whitelisted in the firewall, contesta
 - **Self-hosted LAN judges (BOCA, DOMjudge, CMS — the typical ICPC/IOI onsite case):** These run on a dedicated machine on the venue LAN with a fixed IP. Rather than resolving the domain at every boot, `gallosd` resolves it **once at configure-time and writes a static `/etc/hosts` entry** pinning the domain to that IP, which is also what populates `allowed_judge_ips`. [Precedent: this directly follows `maratona-firewall`'s real `config-ip-boca.sh` script, which hardcodes the resolved judge IP into `/etc/hosts` at configure-time and never re-resolves it live — simpler than a periodic-repin daemon, and correct for this case because a self-hosted LAN judge's IP does not change during the contest.] The organizer can also supply the IP directly, skipping resolution entirely.
 - **CDN-fronted remote judges (Codeforces, AtCoder, omegaUp, used in `Event`/`Default` practice profiles):** These sit behind shared CDN infrastructure with edge IPs that rotate and are frequently shared with unrelated tenants — the static-pin approach above does not fit here. `gallosd` periodically (every 30–60 seconds) re-resolves each whitelisted domain via the allowed local DNS server and diffs the result into `allowed_judge_ips` (`nft add element` / `nft delete element`), keeping the set current as CDN IPs rotate.
 
-> [!WARNING]
-> **Residual limitation:** Contest still uses IP-based judge filtering. Shared CDN addresses can expose unrelated hosts, so official Contest profiles should prefer a dedicated LAN judge. Named-host Default/Event training uses a local explicit proxy to check requested hostnames and blocks direct workstation egress; it is not a content filter and does not make third-party judges free of AI features or proxy-like functionality.
+> [!NOTE]
+> **CDN handling:** Contest HTTP(S) traffic uses the local restricted proxy, while the firewall limits proxy egress to resolved judge IPs. This blocks direct contestant-to-CDN connections. The proxy checks the HTTP destination or CONNECT authority; it does not inspect TLS SNI or the encrypted HTTP Host inside a tunnel. Alternate-tenant routing on a shared edge remains an unverified limitation, so prefer dedicated LAN judges for strict Contest deployments. This is not a content filter and does not make third-party judges free of AI features or proxy-like functionality.
 >
 > **IDEA FOR LATER, not adopted:** `icpc-environment/icpc-env` closes this exact gap for real — it forces all contestant traffic through a local Squid instance with full TLS interception (`ssl_bump bump all`, a self-signed CA installed system-wide, UID-locked to the contestant user) backed by an nginx reverse proxy doing per-path filtering on the decrypted traffic (`files/squid/squid.conf.j2`, `files/nginx.conf.j2`). This would give real hostname/path-level filtering instead of IP allowlisting, at the cost of trusting a MITM proxy in the TCB and installing a CA cert everywhere. Flagged as a documented option for a future design decision, not implemented here.
 >
