@@ -1,8 +1,8 @@
 # Branding Assets (`build/assets/branding/`)
 
-This directory holds the static, build-time source assets for GallosOS's boot-time branding — the Plymouth boot splash and the GRUB boot menu background. Both are consumed by the containerized build pipeline (`build/scripts/`) and baked directly into the ISO; neither can be updated remotely at runtime (see `docs/CONFIG_SPEC.md` § "Architectural Caveat (Boot Splash)").
+This directory is reserved for planned build-time Plymouth and GRUB branding assets. Once implemented, the pipeline will bake them into the ISO; runtime policy refresh will not regenerate boot assets.
 
-**Status: scaffolding only.** This folder is a placeholder ahead of ROADMAP Phase 4 ("Specialized Contest Subsystems & Branding"). No build script currently reads from it. The full design — what goes in each subfolder, how the pipeline consumes it, and open decisions still to make — is written up in [`docs/BOOT_BRANDING.md`](../../../docs/BOOT_BRANDING.md). Read that before implementing Phase 4's branding engine.
+**Status: scaffolding only.** This folder is a placeholder for ROADMAP Phase 4 ("Contestant Workstation Features"). No build script currently reads from it. The asset contract and open decisions are described in [`docs/BOOT_BRANDING.md`](../../../docs/BOOT_BRANDING.md).
 
 ## Layout
 

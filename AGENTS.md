@@ -21,7 +21,7 @@ While solving their shortcomings:
 
 - Building on **Ubuntu 24.04 LTS** (Canonical global package mirrors + GitHub CDN and Google Drive official mirror for releases, widespread driver support).
 - Fully containerized builds using **Podman / Docker** (no host pollution; works on Linux, macOS, and Windows WSL2).
-- Zero-leak **Anti-Cheat integrity shield** (kernel packet filtering, AI plugin purging, telemetry stripping).
+- **Organizer-configured contest security** (kernel packet filtering, AI plugin restrictions, telemetry controls), with enforcement claims limited to verified behavior.
 - **White-label branding engine** for universities and event organizers.
 - Native **Wayland Kiosk** (Labwc + Waybar) desktop with process-level security isolation.
 - Parallel **multi-USB mass flashing tool** (`gallos-flash`).
@@ -89,7 +89,7 @@ When assisting in this repository, follow these core tenets:
    All documentation, architectural design documents, code comments, schema descriptions, diagrams, and commit messages MUST be written strictly in clear, professional English.
 
 2. **Accurate Project Status & Non-Misleading Claims:**
-   GallosOS's MVP (Phase 1–3 of `ROADMAP.md` — build pipeline, `gallosd`, Wayland kiosk shell) is implemented; later phases (organizer tooling, specialized subsystems, Venue Controller) remain in the architectural design and specification phase. Regardless of implementation status, never state or imply that GallosOS has undergone empirical hardware benchmarking, physical write speed tests, or real-world laboratory trials. Frame all comparative analyses strictly as **conceptual and architectural evaluations** derived from binary inspection and source analysis of the reference distributions and production contest images.
+   GallosOS's MVP (Phase 1–3 of `ROADMAP.md` — build pipeline, `gallosd`, Wayland kiosk shell) has an implementation, but stabilization and runtime acceptance remain in progress. Physical hardware and graphical contestant-session behavior remain acceptance gates before Phase 4. Later-phase features include planned work and selected implemented functionality; check the current roadmap and source before describing a feature's status. Distinguish source implementation, static/unit checks, booted-image verification, graphical acceptance, and physical hardware validation. Never infer security enforcement or release readiness from passing unit tests alone, or describe security as "zero-leak." Do not claim empirical hardware benchmarking, physical write speed tests, or real-world laboratory trials without corresponding evidence. Frame comparative analyses strictly as **conceptual and architectural evaluations** derived from binary inspection and source analysis of the reference distributions and production contest images.
 
 3. **Factual Grounding, Real Links & Zero Hallucination Policy:**
    - **Zero Hallucination:** Every technical claim, package name, version number, compiler flag, kernel parameter, and architectural feature MUST be grounded in reality and cross-referenced with local reference trees (`HuronOS/`, `maratona-linux/`, `icpc-env/`, `contestant-vm/`) or official upstream sources.
@@ -106,10 +106,11 @@ When assisting in this repository, follow these core tenets:
    - `Event`: Training camp / warm-up, persistent workspace between classes, hides previous data in contest.
    - `Default`: General fallback mode when no scheduled window is active.
 
-6. **Anti-Cheat by Default:**
-   Ensure all proposed scripts, configs, and IDE setups strictly disable and block:
-   - GitHub Copilot, JetBrains AI Assistant, Cursor, Supermaven, Cody, Claude/OpenAI endpoints (via DNS blocklists like `ai.robots.txt`).
-   - Telemetry reporting in VSCodium, Chromium, and Firefox.
+6. **Neutral Default & Organizer-Configured Restrictions:**
+   The shipped ISO uses `examples/neutral.gallos.toml`: GallosOS branding, open practice, unrestricted websites, USB storage allowed, and Contest/Event modes disabled. Official Contest lockdown requires an Organizer-supplied policy. CPC-GALLOS branding is opt-in through `examples/club.gallos.toml`; restricted public-judge training uses `examples/training.gallos.toml`.
+   - Keep Contest anti-cheat restrictions and training allowlists scoped to the applicable Organizer policy; preserve the neutral fallback.
+   - For restricted profiles, account for AI assistants and services such as GitHub Copilot, JetBrains AI Assistant, Cursor, Supermaven, Cody, and Claude/OpenAI endpoints. Do not treat a DNS blocklist alone as proof of enforcement. The broader anti-AI search and website policy remains deferred in `ROADMAP.md`.
+   - Preserve telemetry controls in VSCodium, Chromium, and Firefox, and verify the installed application's effective configuration before claiming enforcement.
 
 7. **Containerized Reproducibility:**
    Never assume host-installed packages. Prefer Podman/Docker recipes or self-contained scripts capable of running inside containers or WSL2 with `usbipd-win`.
@@ -163,4 +164,4 @@ Agents should ensure instructions and tooling support:
 - Include practical code snippets, TOML blocks, and shell commands.
 - Keep documentation up-to-date whenever system specifications evolve.
 - **Commit messages MUST strictly adhere to [Conventional Commits](https://www.conventionalcommits.org/).**
-- Run `./scripts/check.sh` before proposing changes as complete — it runs Ruff lint/format, the `daemon/tests/` `pytest` suite, `shellcheck` on `build/scripts/*.sh`, TOML validation, and Conventional Commits verification in one shot (see `docs/DEVELOPMENT.md`). Run `pre-commit install --install-hooks` once per clone so Ruff, ShellCheck, and Conventional Commits validation also run automatically on every commit.
+- Run `./scripts/check.sh` before proposing changes as complete — it runs Ruff lint/format, the `daemon/tests/` and `build/tests/` `pytest` suites, ShellCheck on `build/scripts/*.sh`, `scripts/*.sh`, and `.devcontainer/*.sh`, TOML validation, and Conventional Commits verification in one shot (see `docs/DEVELOPMENT.md`). Report skipped or unavailable checks explicitly; these checks do not replace booted-image, graphical, or physical hardware acceptance. Run `pre-commit install --install-hooks` once per clone so Ruff, ShellCheck, and Conventional Commits validation also run automatically on every commit.

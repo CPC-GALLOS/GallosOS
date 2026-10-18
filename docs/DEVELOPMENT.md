@@ -1,6 +1,6 @@
 # Development, Linting & Testing (`gallosd`)
 
-This document covers the local development workflow for the Python code in this repository — currently `gallosd` (`daemon/`), the early Phase 3 runtime configuration daemon. It does **not** cover the containerized ISO build pipeline (`build/scripts/*.sh`, `build.toml`) beyond the ShellCheck step those scripts share with this same quality gate — see [`docs/BUILD_SYSTEM.md`](./BUILD_SYSTEM.md) for everything else about that pipeline.
+This document covers contributor setup, root task orchestration, and repository QA for the Python daemon and build helpers. It describes implemented developer tooling; booted-image, graphical, and hardware acceptance are tracked separately in [`ROADMAP.md`](../ROADMAP.md#release-acceptance). See [`BUILD_SYSTEM.md`](./BUILD_SYSTEM.md) for ISO pipeline internals.
 
 ---
 
@@ -8,7 +8,7 @@ This document covers the local development workflow for the Python code in this 
 
 GallosOS supports two development workflows:
 
-- **Option A (Zero-install Dev Container / GitHub Codespaces):** Open the repository in VS Code using Dev Containers, GitHub Codespaces, or DevPod. All dependencies (Ubuntu 24.04, Python 3.12, `uv`, `ruff`, `pytest`, `shellcheck`, Docker-in-Docker for building Live ISOs) are pre-configured automatically. See [§1.1 Dev Container / GitHub Codespaces](#11-dev-container--github-codespaces).
+- **Option A (Dev Container / GitHub Codespaces):** Use the provided Ubuntu 24.04/Python 3.12 workspace with `uv`, QA tools, and Docker-in-Docker. Local use requires a working container runtime; Codespaces supplies one. See [§1.1 Dev Container / GitHub Codespaces](#11-dev-container--github-codespaces).
 - **Option B (Host-native Setup):** Install the tools listed in the table below on your local Linux or WSL2 system.
 
 ### 1.1 Dev Container / GitHub Codespaces
@@ -199,7 +199,7 @@ This does not run `pytest` — the test suite is intentionally left to `./script
 4. `ruff check .`
 5. `ruff format --check .`
 6. `pytest daemon/tests/ build/tests/ -v`
-7. ShellCheck via `ludeeus/action-shellcheck@master`, scanning `build/scripts` and `scripts/check.sh`
+7. ShellCheck via `ludeeus/action-shellcheck@master`, scanning `build/scripts` plus `scripts/check.sh` and `.devcontainer/post-create.sh`
 8. TOML syntax validation — an inline Python step using `tomllib`, globbing `**/*.toml` **recursively across the entire repository**
 
 **Note the TOML-check asymmetry:** CI's TOML syntax step checks every `*.toml` file in the repo, while the local fallback (`scripts/validate_toml.py`, used by `./scripts/check.sh` when `taplo` isn't installed) checks target patterns (`pyproject.toml`, `.taplo.toml`, `examples/*.gallos.toml`, `build/profiles/*.build.toml`). A TOML file outside those patterns can pass locally and still be caught by CI. The daemon validates the selected organizer directives at boot and reload against the packaged schema; an invalid edit leaves the active in-memory policy unchanged when reload is requested.

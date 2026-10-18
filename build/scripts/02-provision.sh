@@ -393,7 +393,7 @@ margin=12
 padding=10
 EOF
 
-# Keyboard layout switcher helper
+# Partial keyboard helper: records a name and notifies, but does not apply XKB.
 cat > "$ROOTFS/usr/bin/gallos-layout-toggle" <<'EOF'
 #!/bin/bash
 LAYOUT_FILE="/tmp/gallos_layout"

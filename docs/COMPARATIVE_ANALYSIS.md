@@ -5,6 +5,9 @@ This document provides a comparative analysis between **GallosOS** (evaluated as
 > [!NOTE]
 > **Methodology & Status Disclosure:**
 > All reference systems and production contest images analyzed below were examined directly via binary inspection, disk image mounting (`.iso`, `.img.gz`, `.ova`/`.vmdk`), and official source code analysis. Comparisons with GallosOS describe its **target architectural design and modular specification**, not empirical physical hardware benchmarks.
+> Every GallosOS row, “advantage,” and design comparison in this document is aspirational unless the implementation is independently identified in [`ROADMAP.md`](../ROADMAP.md) and its release-acceptance evidence. Do not use this document alone as evidence that a listed package, service, tool, or integration exists in the current build.
+
+The target catalog includes future optional software and venue services. It does not enlarge the selected six-family release core or mark a feature implemented. See [`ROADMAP.md`](../ROADMAP.md) for implementation scope and separate release acceptance.
 
 ---
 
@@ -23,7 +26,7 @@ This document provides a comparative analysis between **GallosOS** (evaluated as
 | **Anti-Cheat & Integrity** | Domain IP mapping (`AllowedWebsites`) | `maratona-firewall` (`iptables`) | **nftables Kernel Drop + AI Extension Purge** |
 | **Network & Enterprise Wi-Fi** | ConnMan (`cmst`) — no GUI 802.1X EAP prompt; fails on `RIUAA`/`eduroam` | NetworkManager (`nm-applet`) with GUI EAP | **NetworkManager + Waybar UI + Declarative WPA-Enterprise (`gallos.toml`)** |
 | **Kernel & Modern Silicon** | Custom Linux 6.0 (AUFS) — crashes on modern Intel (Arrow Lake) / NVIDIA (Ada); requires fbdev + CPU software rendering fallback | Ubuntu 22.04 LTS (Kernel 5.15 / 6.5 HWE) | **Ubuntu 24.04 LTS (Kernel 6.8+ / 6.11 HWE) + Native DRM/KMS + MOK NVIDIA Module** |
-| **Fleet Management** | Remote `.hdf` polling (`hsync`) | None (local workstation) | **Remote TOML Ingestion (HTTP/LAN) + Optional Prometheus** |
+| **Fleet Management** | Remote `.hdf` polling (`hsync`) | None (local workstation) | **Build-trusted HTTPS policy refresh; optional venue telemetry planned** |
 | **IDE & Tooling Suite** | VS Code, CLion, IntelliJ (`.hsm`) | VS Code, CLion, IDEA (PPA) | **VSCodium + JetBrains CE (`.gsm`) + CPH/Companion** |
 | **Offline IDE Extensions** | Bundled 5 offline extensions (`vsc-cpptools`, `vsc-clangd`, `vsc-vscodevim`, `vsc-intellij-idea-keybindings`, `vsc-cpp-compile-run`); adding Python/Java/CPH required manual VSIX layer injection & permission hacks | Pre-bundled `.vsix` packages via PPA | **Native `.gsm` Offline Bundles (CPH, Python Jedi, Red Hat Java JDT LS)** |
 | **Mass USB Flashing & Updates** | Single `install.sh` (extlinux) + manual layer hacks | Manual `dd` / Etcher | **Parallel Flasher (`gallos-flash`) + In-Place Delta Updater (`gallos-inject`)** |
@@ -568,7 +571,7 @@ These projects offer well-tested software lists, user permission configs, and pa
    - Serves as the canonical reference for exact compiler versions, flags, and editor plugins whenever targeting IOI and national olympiad profiles (`examples/ioi-cms.gallos.toml`).
 
 4. **[`icpcsysops/devdocs`](https://github.com/icpcsysops/devdocs) (Production Precedent for Offline Docs):**
-   - A fork of upstream [`freeCodeCamp/devdocs`](https://github.com/freeCodeCamp/devdocs) maintained by the same ICPC Systems Operations team behind `icpcsysops/ansible` (§9), actively pushed as recently as **2026-08-20**.
+   - A fork of upstream [`freeCodeCamp/devdocs`](https://github.com/freeCodeCamp/devdocs) is linked as a reference. Check that repository for its current status and contents before relying on it.
    - Real production precedent for running **DevDocs** as the offline documentation backend at ICPC World Finals/NAC scale — a direct reference for wiring GallosOS's own `Offline DevDocs daemon (127.0.0.1:9292)` (§1/§2 matrices) and its theme customization, rather than starting from vanilla upstream `devdocs`.
 
 ---
@@ -606,7 +609,7 @@ GallosOS's lightweight Wayland desktop (**Labwc + Waybar**) is the project's **s
 ```text
 Step 1: Technical Bootstrapping (Immediate)
   ↳ Fork and adapt maratona-linux/maratona-casper for contest-specific Casper live-boot hooks.
-  ↳ Low technical risk, actively maintained, and battle-tested in LATAM.
+  ↳ Existing Casper integration is present in this repository; check upstream compatibility before adopting future changes.
 
 Step 2: Upstream Community Engagement (Parallel)
   ↳ Open dialogue with the icpc-environment/icpc-env maintainers.

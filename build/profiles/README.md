@@ -28,17 +28,19 @@ The reasons are architectural:
 ### 1. The Single Universal Base ISO Architecture (The MVP Release Image)
 For the GallosOS Minimum Viable Product (MVP), **only one official `.iso` is compiled and distributed**. Its embedded fallback is `examples/neutral.gallos.toml`: open practice with GallosOS identity. A strict official contest needs an Organizer policy with the correct judge and schedule. The underlying operating system stack is shared across club sessions, training, and contests.
 
-All contest-specific behaviors (allowed judge IPs, IDE choices, countdown clocks, USB lockdown policies) are applied dynamically at boot by [`gallosd`](../../daemon/) reading a `gallos.toml` file. **Organizers do not compile custom ISOs for every competition — the single universal ISO runs them all.**
+[`gallosd`](../../daemon/) reads `gallos.toml` for implemented scheduling, network, and USB restrictions. This shared base avoids an image recipe per event, but it does not implement every catalog feature: dynamic countdown/menu integration, optional IDE provisioning, and other workstation controls remain roadmap items.
 
 ### 2. The Universal Reference Baseline
-[`universal.build.toml`](./universal.build.toml) is the canonical, maintainer-tested recipe. It validates:
+[`universal.build.toml`](./universal.build.toml) is the canonical recipe. Its source provisions:
 - Containerized bootstrapping via `debootstrap` or verified `ubuntu-base` tarballs.
 - Hybrid UEFI (Canonical signed shim + GRUB) and Legacy PC-BIOS booting.
 - Live system OverlayFS layering and `casper` live-boot hooks.
 - Base Wayland kiosk desktop packages.
 
+It also declares the selected six toolchain families and core applications. Image acceptance is tracked separately in [`ROADMAP.md`](../../ROADMAP.md#release-acceptance); a recipe declaration is not proof of compiler, desktop, or physical hardware behavior.
+
 ### 3. Modular Layering (`.gsm`) in Phase 6
-Rather than creating separate, monolithic base OS builds for different programming environments (e.g. a separate 4 GB ISO for IOI and a separate 4 GB ISO for ICPC), GallosOS packages specialized toolchains as modular Gallos Software Modules (`.gsm` SquashFS layers). These will be pre-bundled or dropped into `/gallos/modules/` without recompiling the base OS.
+The planned expansion mechanism packages specialized software as `.gsm` SquashFS layers. Casper's layer-mounting mechanism exists, but this repository has no packaged `.gsm` bundles and ISO copying from `[modules].bundle` remains unimplemented. Core toolchains are provisioned directly into the base; optional module delivery is Phase 6 work.
 
 ---
 
@@ -46,7 +48,7 @@ Rather than creating separate, monolithic base OS builds for different programmi
 
 You only need to create a new profile in `build/profiles/` if you are compiling a bespoke base image (Track 2 deployment):
 
-1. **Targeting an Alternate `base_os`:** e.g., building against `ubuntu-22.04-minimal` for legacy hardware or `ubuntu-26.04-minimal` for bleeding-edge silicon (see [`docs/ARCHITECTURE.md` § 3.1](../../docs/ARCHITECTURE.md)).
+1. **Future Alternate `base_os` Support:** Additional bases require implementation changes; the current bootstrap accepts only `ubuntu-24.04-minimal`. A custom profile alone cannot enable a different release (see [`docs/ARCHITECTURE.md` § 3.1](../../docs/ARCHITECTURE.md)).
 2. **Resource-Constrained Environments (Tier 0):** Creating a stripped-down profile (e.g. console-only, minimal RAM footprint) for older 1–2 GB RAM lab workstations.
 3. **Hardware-Specific Driver Ingestion:** Baking in proprietary GPU drivers (such as NVIDIA DKMS packages) or custom kernel modules directly into the base squashfs layer.
 

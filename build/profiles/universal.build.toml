@@ -68,15 +68,14 @@ preinstall_apt = [
 ]
 
 [modules]
-# No .gsm modules exist in this repo yet — intentionally empty for Phase 1's
-# first increment.
+# No packaged .gsm modules exist yet. Base provisioning supplies the selected
+# core; optional module bundles and ISO copying remain Phase 6 work.
 bundle = []
 
 [security]
 # Static MVP posture baked at build time (docs/ANTI_CHEAT_AND_SECURITY.md §3).
-# Real per-event/per-mode rendering from gallos.toml is Phase 3 (gallosd)
-# work — these are illustrative build-time-only defaults for this walking
-# skeleton, not a live judge whitelist.
+# Runtime per-mode rendering is implemented by gallosd (Phase 3). These are
+# build-time defaults; Organizer policy determines the effective live rules.
 disable_ipv6 = true
 judge_ips = ["192.168.50.10"]
 venue_controller_ip = "192.168.50.1"

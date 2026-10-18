@@ -2,7 +2,9 @@
 
 This document defines the architectural hardware baseline, bootloader targets, and firmware security requirements for GallosOS.
 
-To ensure maximum compatibility across diverse university lab environments and competitor laptops, GallosOS is engineered to support a wide spectrum of hardware—from legacy BIOS workstations to modern UEFI SecureBoot laptops.
+Hardware targets are requirements, not a certified machine matrix. See [`ROADMAP.md`](../ROADMAP.md#release-acceptance) for separate image, graphical, and physical acceptance gates; a VM result does not certify a physical workstation.
+
+GallosOS targets a wide range of environments, from legacy BIOS workstations to modern UEFI Secure Boot laptops. Actual compatibility depends on image, firmware, and physical-machine acceptance.
 
 ---
 
@@ -26,172 +28,116 @@ GallosOS avoids requiring Secure Boot to be disabled by using:
 
 1. **Canonical's Signed `shim` Bootloader:** Microsoft-trusted shim loads the GRUB bootloader.
 2. **Canonical's Signed Linux Kernel:** We use the unmodified, upstream Ubuntu LTS kernel.
-3. **In-Tree Kernel Modules by Default:** By adopting standard `overlayfs` (for the Live filesystem) and `nftables` (for the Anti-Cheat firewall) instead of third-party patches, the signed kernel never complains about tainted or unsigned modules **on the default image**. The one documented, explicit-opt-in exception is the proprietary GPU driver module described in § 1.3 below — everything else stays in-tree.
+3. **In-Tree Kernel Modules in the Current Recipe:** The current recipe uses the Ubuntu kernel and does not include the planned out-of-tree NVIDIA module. Secure Boot validates signed boot components; it does not guarantee that every runtime file or policy is authentic.
 
 **Trust boundary:** This conventional Secure Boot chain validates EFI executables and the kernel. It does not authenticate the mutable `gallos.toml`, the initrd, or SquashFS content. Firmware keys and revocation lists differ across machines, so organizers must test the actual venue hardware.
 
-### 1.3 Optional Proprietary GPU Drivers & MOK-Signed Kernel Taint
+### 1.3 Planned Proprietary GPU Drivers & MOK Signing
 
-Some venues run discrete-GPU-only workstations — an Intel or AMD CPU with no integrated graphics paired with a dedicated NVIDIA card — where the open-source Nouveau driver (the in-tree, no-MOK-needed default; see `docs/COMPARATIVE_ANALYSIS.md` § "Hardware Graveyard Test" for its existing legacy-hardware test coverage) may not deliver full performance for graphics-heavy work, video playback, or a modern GPU's initial silicon support. GallosOS documents an explicit, opt-in path to the proprietary NVIDIA driver for these cases via the `drivers/nvidia-proprietary` `.gsm` module (see `docs/ARCHITECTURE.md` § 4, item 2).
+An optional proprietary NVIDIA driver bundle is a Phase 4 roadmap item, not part of the current ISO or module catalog. Hardware using Nouveau or a proprietary driver has not been certified across a physical machine matrix.
 
-- **This is not part of the default image.** The unmodified-kernel, in-tree-modules guarantee in § 1.2 holds unless an organizer explicitly enables this module in `build.toml`/`gallos.toml`.
-- **Kernel taint is unavoidable for this module:** the proprietary NVIDIA driver is an out-of-tree, closed-source DKMS module — loading it taints the kernel regardless of signing.
-- **SecureBoot stays enforced via MOK, not disabled:** rather than requiring organizers to disable SecureBoot venue-wide (the huronOS-style fallback GallosOS otherwise avoids entirely), the module is signed with a GallosOS-controlled Machine Owner Key (MOK — see `docs/BUILD_SYSTEM.md` § 4 for how the build pipeline keeps this key stable across releases). The organizer enrolls that MOK **once per physical machine** via `mokutil --import` and the `MokManager` reboot prompt.
-- **This enrollment is not lost on the next ephemeral boot.** MOK trust is stored in the machine's UEFI NVRAM — firmware-level storage on the motherboard, entirely separate from GallosOS's tmpfs-overlay root filesystem or which USB stick is inserted. A live-USB reboot wipes the OS overlay, not the firmware's key store, so a machine enrolled once continues loading the signed module on every future GallosOS boot (any USB, any release built with the same MOK) without re-enrollment.
-- **No additional contest-integrity surface:** this module is graphics-only (kernel-level display driver), so it does not interact with the Contest-mode network lockdown or Anti-Cheat threat model described in `docs/ANTI_CHEAT_AND_SECURITY.md`.
+- The current daemon does not select this module through `gallos.toml`; build-time module packaging and copying are also not implemented.
+- If the project implements an out-of-tree DKMS driver, signing and Secure Boot enrollment will need a stable-key design and per-machine testing. Signing does not remove kernel taint, and MOK persistence must be verified on target firmware.
+- See [`ROADMAP.md`](../ROADMAP.md#phase-4-contestant-workstation-features-beta-3) and [`BUILD_SYSTEM.md`](./BUILD_SYSTEM.md#4-mok-signing-key-persistence-optional-proprietary-kernel-modules) for status and the proposed build workflow.
 
-### 1.4 Architectural Baseline: Why 32-bit (x86 / i386) is Definitively Out of Scope
+### 1.4 Architecture Scope: 32-bit x86
 
-GallosOS is strictly engineered for 64-bit architectures (`x86_64` / `amd64`). Development for 32-bit x86 targets is permanently out of scope due to fundamental contest parity, ABI consistency, and upstream maintenance realities:
+The current build target is `amd64`; 32-bit x86 images are outside the supported scope. This is a GallosOS project decision, not a claim that every judge platform uses the same architecture or that local execution can guarantee parity with a judge.
 
-1. **Strict Contest Judge Parity (64-bit Reference):**
-   - Every official competitive programming judging platform—including the ICPC World Finals, DOMjudge, BOCA, CMS (IOI), Codeforces, AtCoder, CSES, and omegaUp (OMI)—executes solutions exclusively on 64-bit `x86_64` Linux kernels within sandboxed 64-bit runtime containers.
-   - Providing a 32-bit workstation environment violates the core mission of GallosOS: guaranteeing that contestant code executes identically on their local machine and on the judge server.
+The LP64 and ILP32 data models differ, including the width of `long` and pointers. Architecture can also affect available instructions, resource limits, and execution timings. Organizers should follow the judge's published compiler and runtime requirements; local tests do not establish identical judge behavior.
 
-2. **Fatal ABI & Data Model Discrepancies (LP64 vs ILP32):**
-   - 64-bit Linux employs the **LP64** data model (`sizeof(int) = 4`, `sizeof(long) = 8`, `sizeof(long long) = 8`, `sizeof(void*) = 8`, `sizeof(size_t) = 8`).
-   - 32-bit x86 Linux employs the **ILP32** data model (`sizeof(int) = 4`, `sizeof(long) = 4`, `sizeof(long long) = 8`, `sizeof(void*) = 4`, `sizeof(size_t) = 4`).
-   - In competitive programming, relying on `long` on 32-bit machines creates catastrophic bugs: code assuming 64-bit range overflows at $2 \times 10^9$ instead of $9 \times 10^{18}$, producing silent wrong-answer (WA) penalties during contests.
-   - **Instruction & Timing Distortion:** 64-bit integer arithmetic (`long long`, `__int128_t`) on 32-bit x86 requires multi-instruction register splitting (`edx:eax` emulation). Local execution timings and algorithmic constant-factor benchmarking are completely warped compared to native 64-bit execution on judge CPUs.
-   - **Address Space Bottleneck:** 32-bit architectures restrict per-process virtual address space to 2–3 GB, preventing accurate simulation of judge memory limits (e.g. the 2 GB sandbox ceiling at ICPC World Finals) alongside modern IDEs.
+## 1.5 Intel Macs (Unvalidated Hardware)
 
-3. **Upstream Deprecation & Kernel Ecosystem:**
-   - Canonical ceased 32-bit desktop ISO releases after Ubuntu 18.04 LTS. Ubuntu 24.04 LTS does not build 32-bit kernels or support full 32-bit base installations. Supporting 32-bit would forfeit the upstream LTS kernel, modern HWE driver stacks, and Canonical's signed SecureBoot shim infrastructure.
+Some venues may consider 64-bit Intel Macs as Live USB hosts. They fall within the `amd64` architecture target, but the project has no empirical acceptance matrix for Intel Mac models.
 
-4. **Edge-Case Recommendation for Legacy Hardware Salvage:**
-   - For organizers or educators dealing with extreme edge cases—such as salvaging obsolete 32-bit scrap PCs (vintage Intel Atom or Pentium netbooks) for basic student terminals—GallosOS recommends dedicated ultra-lightweight distributions engineered specifically for resource-constrained 32-bit hardware:
-     - **Alpine Linux** (`x86` / i686 target, `musl` libc, ultra-minimal RAM footprint).
-     - **Void Linux** (`i686` target, available with `glibc` or `musl`, `runit` init).
-   - GallosOS will not dilute its security architecture, SecureBoot chain, or toolchain fidelity to accommodate obsolete 32-bit machines.
-
-### 1.5 Intel Mac Labs in Mexico
-
-Mexican university and competitive-programming labs may still contain Intel-based Macs, especially as previously purchased lab equipment remains in service. These machines must be included in venue compatibility planning rather than treated as ordinary PC hardware or excluded in favor of newer Apple Silicon systems.
-
-- **Architecture:** 64-bit Intel Macs are within GallosOS's `amd64` target and are potential Live USB hosts. 32-bit Intel Macs remain out of scope under § 1.4.
+- **Architecture:** 64-bit Intel Macs are potential `amd64` hosts. 32-bit Intel Macs remain outside the supported scope under § 1.4.
 - **Boot setup:** Organizers must confirm that the specific Mac can boot external EFI media. On T2-equipped Intel Macs, Startup Security Utility may need to permit external/removable-media boot. This is a per-machine firmware setting and must be checked before deployment.
 - **Hardware validation:** Test the exact Mac model and year for display output, keyboard, trackpad, Wi-Fi, suspend behavior, and USB-C/Thunderbolt adapters. Apple-specific peripherals and older Broadcom wireless chips can require a wired connection or a supported USB Ethernet/Wi-Fi adapter.
-- **Operational recommendation:** Keep a USB keyboard and a wired network or compatible USB network adapter available at Mexican venues using Intel Mac labs. Prefer a direct USB boot test on every model family before contest day; QEMU validation does not establish physical Mac compatibility.
-- **Security and data safety:** Booting the Live USB is intended to leave the internal macOS installation untouched, but organizers must not change Startup Security settings or repartition internal storage without the machine owner’s authorization and a tested recovery process.
+- **Operational recommendation:** Keep a USB keyboard and a wired network or compatible USB network adapter available at venues using Intel Mac hardware. Prefer a direct USB boot test on every model family before contest day; QEMU validation does not establish physical Mac compatibility.
+- **Security and data safety:** Booting the Live USB is intended to leave the internal macOS installation untouched, but organizers must not change Startup Security settings or repartition internal storage without the machine owner's authorization and a tested recovery process.
 
-GallosOS currently has no empirical validation matrix covering every Intel Mac generation. Intel Mac labs are therefore a supported deployment consideration.
+Treat each model as unvalidated until it passes direct boot and contestant-workflow checks.
 
-### 1.6 Future Architecture Trajectory: ARM64 (AArch64) & Hardware Prioritization
+### 1.6 Future Architecture Trajectory: ARM64 (AArch64)
 
-While GallosOS's canonical distribution targets `x86_64` (AMD64), modern university environments and BYOD (Bring Your Own Device) training events—such as Training Camp México (TCMX), state olympiad camps, and university programming clubs—increasingly encounter student-owned ARM64 laptops.
+The canonical build targets `x86_64` (`amd64`). ARM64 is a Phase 7 exploration target, not a supported build. The project has not collected hardware-demand data or validated ARM64 laptops.
 
-When engineering future multi-architecture support, GallosOS establishes a strict hardware prioritization based on actual contestant demographics rather than generic embedded boards:
+Possible future evaluation areas include:
 
-1. **Priority 1: Apple Silicon MacBooks (M1 / M2 / M3 / M4 via Asahi Linux Ecosystem):**
-   - **Rationale:** Apple Silicon MacBooks represent the single largest demographic of ARM-based laptops brought by computer science students and competitors to BYOD workshops and university training camps.
-   - **Technical Baseline:** Live-boot support requires integrating with the Asahi Linux bootloader chain (`m1n1` stage 1/2 bootloader, U-Boot / GRUB EFI payload, Apple-specific Device Tree bindings, and customized kernel graphics drivers).
+1. **Apple Silicon:** Device-specific boot, graphics, and input support would need evaluation through the Asahi Linux ecosystem.
+2. **Qualcomm Snapdragon laptops:** Model-specific boot, graphics, firmware, and driver support would need testing; standard UEFI behavior should not be assumed for every device.
+3. **Generic ARM single-board computers:** Outside the current Phase 7 laptop exploration scope.
 
-2. **Priority 2: Qualcomm Snapdragon X Elite / Plus Laptops (Windows on ARM / Surface):**
-   - **Rationale:** The emergence of modern ARM64 Windows laptops (such as the Microsoft Surface Laptop 7, Surface Pro 11, and OEM Snapdragon systems) introduces standard UEFI firmware booting into the student ecosystem.
-   - **Technical Baseline:** Mainline Linux kernel 6.11+ and standard AArch64 UEFI SecureBoot boot chains.
-
-3. **Explicitly Deprioritized: Generic ARM Single Board Computers (Raspberry Pi, Orange Pi, Rockchip):**
-   - **Rationale:** While popular in maker and IoT hobbies, headless or low-powered ARM SBCs are virtually never deployed as contestant workstations during competitive programming events. GallosOS will not allocate build infrastructure or validation effort to SBC targets before laptop targets are production-grade.
-
-4. **Judge Parity Considerations on ARM64:**
-   - ARM64 operates under the **LP64** data model, matching `x86_64` pointer and integer widths (`sizeof(long) = 8`, `sizeof(void*) = 8`), which avoids the catastrophic type-size pitfalls of 32-bit systems.
-   - However, organizers and contestants must maintain awareness of architecture-specific nuances:
-     - **Intrinsic & Instruction Differences:** x86-specific bit-manipulation intrinsics or inline assembly are non-portable to ARM NEON. Local CPU cycle benchmarking may diverge from x86_64 judge CPUs.
-     - **Memory Model Semantics:** ARM64 employs a weakly ordered memory model compared to x86 Total Store Ordering (TSO), which can reveal hidden concurrency discrepancies in multi-threaded problem solutions or local test runners.
-     - **Official Reference Status:** All major competitive programming bodies maintain `x86_64` as the authoritative judging standard.
-
----
+Architecture can affect available instructions, memory behavior, and execution timings. Follow each contest's published judge architecture and compiler configuration; GallosOS makes no universal claim about judge hardware.
 
 ## 2. Hardware Requirements Matrix
 
-Because GallosOS uses an immutable SquashFS + OverlayFS architecture, its memory requirements depend strictly on the boot mode chosen by the organizer.
+The values below are provisional planning targets, not empirically established minimums or a certified hardware matrix. Device, workload, and image acceptance results belong in [`ROADMAP.md`](../ROADMAP.md#release-acceptance).
 
-### 2.1 Standard Boot (Read-Only USB + Ephemeral RAM)
+### 2.1 Standard Live Boot
 
-In this mode, the core OS resides compressed on the USB drive (mounted read-only). All system changes, logs, and contestant files are written exclusively to ephemeral RAM (`tmpfs`). **The USB drive is never written to during operation.**
+- **Architecture:** The current ISO build targets `amd64` / `x86_64`.
+- **Memory:** 4 GB is a provisional planning floor and 8 GB a planning recommendation for heavier IDE workloads. Neither threshold has been established by a GallosOS hardware benchmark. Actual memory use depends on the desktop, toolchain, contestant program, and writable `tmpfs` activity; EarlyOOM reduces risk but does not provide a memory limit.
+- **USB capacity:** 16 GB or larger is a planning target. Confirm that the selected image and any partition layout fit the device. Read speed and sustained behavior vary by drive and host; test the intended combination.
+- **Write behavior:** The SquashFS lower layer is read-only and volatile root changes use a `tmpfs` upper layer. Optional `event-data` is separate persistent storage and is written outside Contest when mounted. GallosOS does not claim that the boot device is never written.
 
-- **Minimum CPU:** 64-bit AMD64 / x86_64 processor (Intel Core 2 Duo / AMD Athlon 64 X2 or newer; 32-bit x86 is deliberately unsupported per § 1.4).
-- **Minimum RAM:** 4 GB (Recommended: 8 GB for heavy IDEs like IntelliJ or CLion, as all session data and modified files live in RAM).
-  - **Documented rationale for keeping 4 GB (a deliberate divergence from huronOS):** huronOS's own docs (`docs/start/requirements.md`) recommend 8 GB minimum from direct field experience ("with 4 GiB you'll likely run out of memory with a bad programmed DP"). GallosOS keeps 4 GB as the floor because the *contestant's own program* is bounded independently of the OS: the 2024 ICPC World Finals Technical Notes state the judging sandbox "will allow allocation of up to 2GB of memory for your program," and individual problems commonly impose much tighter per-test memory limits (e.g. 256 MB is a typical single-problem constraint). A contest-legal solution cannot itself exhaust a 4 GB machine the way an unbounded local experiment (an unsubmitted `int dp[100000][100000];` during practice, which huronOS's warning is really about) can. 4 GB remains the floor for lighter IDEs (VSCodium, Geany); the existing 8 GB *recommendation* still stands for IntelliJ/CLion-heavy setups.
-- **Storage:** 16 GB+ USB Flash Drive.
-  - **Quality & Read Speed Warning:** Organizers **must** use recognized, high-quality brands (e.g., SanDisk, Kingston, Samsung). Cheap promotional USB drives suffer from severe read bottlenecks and thermal throttling, causing the OS to freeze completely when loading heavy IDEs like IntelliJ or CLion into RAM.
-  - **USB-C Recommendation:** Whenever possible, use USB-C / USB 3.2 Gen 1 drives. USB-C ports on modern laptops generally offer superior, sustained read bandwidth and avoid legacy USB 2.0 internal hub bottlenecks, drastically reducing IDE loading times.
+### 2.2 `toram` Boot
 
-### 2.2 `toram` Boot (RAM-Resident Disconnected Execution)
+Casper's `toram` path is present. Historical QEMU notes report RAM-copy behavior, but the next release-candidate check still needs to identify the image and capture evidence. A 16 GB machine is a planning target, not a measured minimum; available memory must cover the compressed image, runtime, applications, and writable `tmpfs` use.
 
-GallosOS supports the `toram` boot parameter. During early boot, the entire SquashFS OS image is copied directly into system RAM. The USB drive can then be physically unplugged.
+Do not unplug the USB based on the boot option alone. First verify on the exact image that policy files, optional `event-data`, and other required resources are no longer being read from the device and that the intended workflow survives removal.
 
-- **Minimum CPU:** 64-bit AMD64 / x86_64 processor.
-- **Minimum RAM:** 16 GB. (The OS payload of ~4.5 GB consumes RAM immediately, leaving ~11.5 GB for the desktop, compilers, and IDEs).
-- **Design Target:** Eliminates USB NAND read bottlenecks after boot by executing all binary payloads directly from system memory.
+### 2.3 GPU and Display Adapter
 
-### 2.3 GPU / Display Adapter
-
-- **Default (no `drivers/nvidia-proprietary` module):** any GPU with in-tree kernel support renders via Nouveau (NVIDIA) or the standard `amdgpu`/`i915`/`xe` drivers (AMD/Intel) — no additional configuration required.
-- **Modern Silicon & Driver Acceleration vs Legacy `fbdev` Anti-Patterns:**
-  - In predecessor contest distributions (such as huronOS alpha 0.4, which was pinned to a custom Linux 6.0 kernel), booting on modern hardware (e.g. Intel Arrow Lake / Lunar Lake `8086:7d67` or NVIDIA RTX 40-series Ada Lovelace GPUs) resulted in DRM initialization crashes or black screens. This forced organizers in production deployments (such as the UAA ICPC Gran Premio laboratories, documented in [`CPC-GALLOS/icpc-gpm-uaa-huronos`](https://github.com/CPC-GALLOS/icpc-gpm-uaa-huronos)) to blacklist DRM drivers, fall back to the unaccelerated EFI Framebuffer (`/dev/fb0`), inject missing Debian `fbdev_drv.so` modules, and force CPU-bound software rendering (`LIBGL_ALWAYS_SOFTWARE=1` via Mesa LLVMpipe).
-  - GallosOS completely avoids this performance bottleneck by building on **Ubuntu 24.04 LTS (Kernel 6.8+ / 6.11 HWE)** and native **Wayland (Labwc)**, delivering native hardware DRM/KMS acceleration out of the box across all modern Intel, AMD, and NVIDIA silicon.
-- **Discrete-GPU-only machines (no integrated graphics):** a CPU with no iGPU has no fallback if its only GPU's driver fails to load — unlike a hybrid-graphics laptop, which degrades to onboard graphics. Organizers deploying such machines (e.g. an Intel CPU with no iGPU paired with a dedicated NVIDIA card) should verify the display path before contest day, whether relying on Nouveau or opting into § 1.3's proprietary driver module.
-- **Proprietary driver module (opt-in):** see § 1.3 for the MOK-signing/SecureBoot mechanics. No specific driver-version-to-GPU-generation compatibility matrix is published here yet — that requires empirical validation per hardware generation, which has not been performed.
+The image uses the Ubuntu kernel and its available in-tree driver packages. That does not certify every Intel, AMD, or NVIDIA device, firmware revision, display output, or accelerated rendering path. Validate the exact machine and the graphical contestant session before deployment. The proprietary NVIDIA driver and MOK workflow remain planned Phase 4 work; see § 1.3.
 
 ---
 
-## 3. Peripheral & Network Compatibility
+## 3. Peripheral and Network Compatibility
 
-- **Displays:** Wayland natively supports fractional scaling and multi-monitor setups.
-- **Keyboards:** The `gallos.toml` directive automatically provisions the correct keyboard layouts (`latam`, `us`, `es`, `br-abnt2`, `dvorak`), which contestants can toggle instantly via `Super + Space` (or `Alt + Shift`) and the Waybar status bar.
+- **Displays:** Labwc and Waybar are provisioned for the base session. Fractional scaling, multi-monitor behavior, suspend/resume, and display hot-plug have not been accepted across a physical device matrix.
+- **Keyboards:** Configured layout application and a Waybar switcher remain Phase 4 work. The current `Super + Space` / `Alt + Shift` helper records a name from `us`, `latam`, `es`, or `br` and sends a notification; it does not change the active layout.
 
-### 3.1 Networking & The Broadcom (`b43` / `wl`) BYOD Dilemma
+### 3.1 Broadcom and Other Wi-Fi Devices
 
-In BYOD (Bring Your Own Device) competitive programming events (such as university training camps or club meetings), legacy laptops with Broadcom Wi-Fi chips (e.g., BCM4311, BCM4318, BCM4322, BCM4331, BCM4360) present a classic Linux distribution challenge:
+The project has no accepted Wi-Fi hardware matrix. The current recipe does not explicitly select `firmware-b43-openfwwf` or an interactive network applet, so this document does not claim support for particular Broadcom chipsets. Check the firmware and driver required by the exact adapter; keep a wired or separately validated USB network adapter available where network access is required.
 
-1. **The Redistribution Limitation:**
-   - While modern Broadcom chips (`brcmfmac`) have legally redistributable firmware included in standard `linux-firmware`, legacy Broadcom cards (`b43` / `wl`) require proprietary microcode that Broadcom's EULA forbids redistributing in public Linux ISO images.
-2. **GallosOS Pragmatic Approach for BYOD:**
-   - **Open-Source Firmware Inclusion (`openfwwf`):** GallosOS pre-bundles `firmware-b43-openfwwf` (Open Source Firmware for IEEE 802.11 Devices), providing legal out-of-the-box support for basic 802.11b/g Broadcom chips (BCM4306, BCM4311, BCM4318, BCM4320).
-   - **Modern Broadcom Support (`brcmfmac`):** Modern 802.11ac/ax chips (BCM4350, BCM4356, etc.) operate out of the box via standard in-tree `linux-firmware`.
-   - **Help Desk Operational Fallback (Recommended):** For BYOD events with legacy laptops bearing unsupported Broadcom hardware, organizers should keep a small pool of standard USB Ethernet adapters or USB Wi-Fi dongles (e.g., MediaTek `mt76` / Realtek `rtw88` chipsets, which use in-tree redistributable firmware) at the technical support desk.
+### 3.2 Enterprise and Campus Wi-Fi (IEEE 802.1X / WPA-Enterprise)
 
-### 3.2 Enterprise & Campus Wi-Fi in BYOD Contexts (IEEE 802.1X / WPA-Enterprise)
+GallosOS currently installs NetworkManager, but the selected desktop does not include the described graphical network applet and `gallos.toml` has no consumed `wifi_profiles` setting. Interactive EAP setup and declarative profile provisioning are future requirements, not current BYOD support. Validate credentials, certificate handling, reconnect behavior, and the contestant workflow on an accepted image before advertising this capability.
 
-While official championship laboratories (such as ICPC World Finals or Onsite Regionals) typically mandate wired Ethernet (LAN) for fixed workstations, **BYOD (Bring Your Own Device) environments** — including university training camps (e.g. Training Camp México / TCMX), weekly club practice, and campus invitationals — rely almost exclusively on student laptops connecting via campus wireless networks (such as university 802.1X SSIDs like UAA's `RIUAA` or worldwide `eduroam`).
-
-1. **The Legacy ConnMan BYOD Failure Mode:**
-   - Predecessor distributions relying on ConnMan (`cmst`) fail on enterprise wireless networks because ConnMan's tray applet cannot present interactive EAP credential dialogs (PEAP, MSCHAPv2, TTLS), resulting in runtime connection errors (*"IEEE8021x secured services have to be manually configured"*). As documented during live student deployments in [`CPC-GALLOS/icpc-gpm-uaa-huronos`](https://github.com/CPC-GALLOS/icpc-gpm-uaa-huronos), this created severe friction for BYOD contestants unless organizers manually wrote root-level INI files in `/var/lib/connman/*.config` via the CLI or fell back to mobile phone hotspots.
-2. **GallosOS Enterprise Architecture for BYOD & Labs:**
-   - **Interactive GUI Support:** GallosOS adopts **NetworkManager**, providing native graphical credential prompts for PEAP, MSCHAPv2, TTLS, and TLS client certificates directly from the Wayland desktop applet on any contestant's personal laptop.
-   - **Declarative Pre-Provisioning (`gallos.toml`):** Organizers hosting BYOD camps can declare campus Wi-Fi profiles directly inside `gallos.toml` (`[network.wifi_profiles]`), enabling automated, zero-touch wireless authentication across hundreds of student machines without requiring contestants to configure enterprise security settings manually.
+The predecessor ConnMan issue documented in [`CPC-GALLOS/icpc-gpm-uaa-huronos`](https://github.com/CPC-GALLOS/icpc-gpm-uaa-huronos) is historical context; it does not demonstrate that GallosOS supports the same networks.
 
 ---
 
-## 4. Mass Flashing Hardware (`gallos-flash`)
+## 4. Planned Mass Flashing Hardware (`gallos-flash`)
 
-When preparing for a contest, organizers often need to flash 50+ USB drives simultaneously using the `gallos-flash` utility. Writing a 4.5 GB OS image to multiple drives concurrently requires significant electrical power and I/O bandwidth.
+`gallos-flash` is planned Phase 5 organizer tooling and is not implemented. The project has no measured concurrent-write throughput or supported-device matrix. The following are general planning considerations for a future flashing station, not GallosOS performance claims or mandatory hardware specifications.
 
-To avoid catastrophic write failures or extremely slow flashing times (e.g., 4+ hours), follow these hardware guidelines for your "flashing station":
+Before large-scale use, test the actual host, hub, and USB drives together and verify every written image. Power and throughput depend on the hub topology, host controller, drive model, and number of simultaneous writes.
 
-1. **Externally Powered USB Hubs (Mandatory):** Never use a cheap, unpowered USB hub to flash multiple drives. The combined power draw of writing to 10 USBs simultaneously will exceed a standard motherboard port's power limit, causing drives to disconnect randomly during the flash. Always use an **Active USB 3.0+ Hub with a dedicated AC power adapter** (Recommended brands: Anker, Sabrent, TP-Link).
-2. **Dedicated PCIe Expansion Cards (Desktops):** If you are using a desktop PC as a flashing station, the best approach is to install a dedicated PCIe to USB 3.2 expansion card (Recommended brands: StarTech, Inateck, Orico). Unlike external hubs that share a single port's bandwidth, PCIe cards connect directly to the CPU's PCIe lanes, avoiding the shared-bandwidth bottleneck so each port can approach full write speed independently (actual throughput still depends on the USB drives themselves).
-3. **Thunderbolt / USB-C Hub Topology (Laptops):** If flashing from a laptop, plug your powered USB hub into a **Thunderbolt 3/4 or USB-C** port rather than a traditional rectangular USB-A port. Thunderbolt ports have massive bandwidth (up to 40 Gbps) compared to standard USB-A (5 Gbps), preventing the hub from becoming a severe data bottleneck when flashing 10+ drives at once.
+1. Consider a powered hub when its port power budget and the selected drives require it.
+2. Check which ports share a host controller; more physical ports do not guarantee independent bandwidth.
+3. Measure end-to-end write and verification time with the intended drive models before planning a deployment schedule.
 
----
+## 5. Exploratory CPU Timing Considerations (Not Implemented)
 
-## 5. CPU Execution Determinism & Thermal Throttling Prevention
+The current build and runtime do not configure CPU governors, disable boost, offline sibling threads, pin workloads, or provide the named `run*` wrappers. The project has not benchmarked these ideas on target hardware; they are exploratory considerations, not active policy or guaranteed timing improvements.
 
-In competitive programming, contestants rely on accurate local execution timings when benchmarking complex algorithms against maximum test cases ($N = 10^5, 2 \times 10^5$). On modern multi-core laptops, dynamic frequency scaling (Intel Turbo Boost, AMD Core Performance Boost) and thermal throttling introduce non-deterministic execution spikes, causing identical code to take 0.8s on one run and 2.1s on another.
+Frequency scaling, thermal limits, power profiles, and scheduler behavior can affect local benchmark results. Any future change should measure its effect on representative hardware and account for battery, temperature, and sustained load.
 
-Inspired by proven production practices from the **ICPC World Finals Systems Operations team** ([`icpcsysops/ansible`](./COMPARATIVE_ANALYSIS.md#9-specialized-analysis-icpc-world-finals--nac-sysops-fleet-orchestration-icpcsysopsansible)), GallosOS incorporates declarative hardware stabilization mechanisms:
+The examples below are possible mechanisms to evaluate; they are not implemented through `gallosd` or a `[system.hardware]` configuration section:
 
-### 5.1 Dynamic Boost Disabling & Fixed Performance Governor
+### 5.1 Possible Frequency and Boost Controls
 
-During `Contest` mode (or declaratively via `[system.hardware]`), `gallosd` configures kernel CPU frequency interfaces:
+On supported hardware, a future tool could evaluate kernel CPU frequency interfaces such as:
 
 - **Intel Processors (`intel_pstate`):**
 
   ```bash
-  # Disable dynamic overclocking / boost spikes
+  # Disable Intel Turbo Boost
   echo 1 > /sys/devices/system/cpu/intel_pstate/no_turbo
-  # Pin performance bounds to base non-overclocked clock
+  # Example performance-limit controls; verify semantics for the active driver
   echo 100 > /sys/devices/system/cpu/intel_pstate/min_perf_pct
   echo 100 > /sys/devices/system/cpu/intel_pstate/max_perf_pct
   ```
@@ -204,18 +150,13 @@ During `Contest` mode (or declaratively via `[system.hardware]`), `gallosd` conf
   ```
 
 - **Frequency Governor:**
-  Sets `/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor` to `performance`, preventing powersave downclocking transitions during interactive idle pauses between compile runs.
+  A future implementation could evaluate setting `/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor` to `performance`. Effects on temperature, battery use, and sustained performance would need measurement.
 
-### 5.2 HyperThreading Sibling Thread Isolation & CPU Pinning
+### 5.2 Possible CPU Affinity Evaluation
 
-On laptops where concurrent background threads or thermal budgets impact single-threaded algorithmic performance:
+On selected hardware, a future evaluation could measure the effect of:
 
 1. **Virtual Sibling Thread Deactivation:**
-   Optionally offlines logical HyperThreading pairs (`echo 0 > /sys/devices/system/cpu/cpu<N>/online`), ensuring contestant processes execute strictly on dedicated physical cores with full L1/L2 cache allocation.
+   A future implementation could evaluate offlining selected logical CPUs (`echo 0 > /sys/devices/system/cpu/cpu<N>/online`). This changes scheduler placement and resource contention; it does not guarantee uncontended cache or faster execution.
 2. **Process Affinity Pinning (`taskset`):**
-   GallosOS run-wrapper utilities (`runc`, `runcpp`, `runpython3`, `runjava`, `runkotlin`) support pinning execution to specific isolated physical CPU cores via `taskset -c <core>`, eliminating context switching and scheduler migration jitter.
-
----
-
-> [!NOTE]
-> **Legal Disclaimer:** The hardware brands listed in this document (e.g., SanDisk, Kingston, Samsung, Anker, Sabrent, TP-Link, StarTech, Inateck, Orico) are provided strictly as technical examples of historically reliable equipment for mass-deployment IO scenarios. The GallosOS project is an independent open-source initiative and has no commercial affiliation, partnership, sponsorship, or endorsement agreement with any of these manufacturers.
+   A future wrapper could optionally pin a test process to selected CPUs with `taskset -c <core>`. GallosOS does not currently provide the named run wrappers, and affinity pinning would not eliminate all scheduler or thermal variation.

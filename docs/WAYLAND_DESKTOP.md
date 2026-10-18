@@ -1,8 +1,23 @@
 # GallosOS Wayland Kiosk Desktop Specification
 
-This document defines the architectural rationale, component selection, dotfile structure, security guarantees, and user experience specifications for the **GallosOS Wayland Kiosk Session**.
+This document defines the architectural rationale, component selection, dotfile structure, security requirements, and intended user experience for the **GallosOS Wayland Kiosk Session**.
 
 For the broader system architecture, see [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md). For configuration schema and runtime directives, see [`docs/CONFIG_SPEC.md`](./CONFIG_SPEC.md).
+
+## Implementation status
+
+The specification includes future Phase 4 behavior. Checkboxes in [`ROADMAP.md`](../ROADMAP.md) track implementation, with image/graphical acceptance recorded separately.
+
+| Area | Current source behavior | Remaining work |
+| :--- | :--- | :--- |
+| Base session | Labwc, Waybar, Foot, Mako, and launcher configuration are generated. | Accept the actual contestant session on a built image. |
+| App menu | The configured action invokes `wmenu-run`. | Implement the specified mode-aware application allowlist. |
+| Mode and countdown | Waybar displays static `MODE: DEFAULT` and standby text; the daemon separately exports state. | Connect the displayed controls to runtime state. |
+| Clock | The generated format is `HH:MM`. | Implement the precision/relaxed/hidden cycle below. |
+| Keyboard | Shortcuts invoke a helper that cycles `us`, `latam`, `es`, `br` in `/tmp/gallos_layout` and sends a notification. | Apply actual compositor/XKB changes, consume configured layouts, and add a Waybar indicator/control. |
+| Low memory and audio | EarlyOOM broadcasts are configured; mode-aware audio is specified. | Implement the desktop notification bridge and effective audio policy. |
+
+The target controls below are not claims of completed implementation or graphical acceptance.
 
 ---
 
@@ -10,7 +25,7 @@ For the broader system architecture, see [`docs/ARCHITECTURE.md`](./ARCHITECTURE
 
 Traditional competitive programming live distributions (including HuronOS and legacy ICPC environments) have historically relied on X11 desktop environments (such as Solus Budgie, XFCE, or Openbox). While familiar, X11 presents critical architectural vulnerabilities:
 
-1. **The X11 Security Flaw (Zero Window Isolation):** Under X11, any running application can listen to global keystrokes across all windows (sniffing contestant code, passwords, and clipboard data) and take unprivileged screenshots of other applications.
+1. **X11's Shared Client Access:** Traditional X11 sessions allow broader inter-client access to input and window contents than Wayland's compositor-mediated client model. Wayland narrows that access but does not create a complete anti-cheat boundary or replace process isolation and policy enforcement.
 2. **Bloat of Full Desktop Environments:** Mainstream desktop environments (GNOME, KDE Plasma, Budgie) pull extensive dependency trees and background daemons (indexing services, system settings daemons, tracker miners), increasing ISO size, RAM consumption, and flashing times.
 3. **Exploitable Setting Panels:** Desktops with rich GUI control centers expose network management and display settings that contestants can tamper with during a competition.
 
@@ -27,16 +42,16 @@ graph TD
 
     subgraph "Desktop Shell & UI (Low Memory Footprint)"
         Waybar[Waybar Status Bar]
-        Menu[Whitelisted Application Menu]
+        Menu[Application Launcher]
         Mako[Mako Notification Server]
         Swaybg[swaybg Wallpaper Daemon]
     end
 
-    subgraph "Client Applications (Sandboxed by Kernel)"
+    subgraph "Client Applications (Unprivileged Session Processes)"
         Foot[Foot Wayland Terminal]
         IDEs[IDEs: VSCodium, JetBrains, Geany]
-        Browser[Hardened Browser: Chromium / Firefox]
-        Docs[Offline Docs Viewer]
+        Browser[Selected Browser: Firefox]
+        Docs[Offline Docs Viewer (Planned)]
     end
 
     Labwc --> WLRoots
@@ -56,14 +71,14 @@ graph TD
 
 | Component | Software | Role & Rationale |
 | :--- | :--- | :--- |
-| **Compositor** | **Labwc** | Stacking Wayland compositor inspired by Openbox. Extremely lightweight, native per-window memory isolation, easily configured via XML/environment files. |
-| **Status Bar** | **Waybar** | Highly customizable, CSS-styled status bar hosting whitelisted application menus, contest countdowns, keyboard switchers, and the stress-free clock. |
-| **Terminal** | **Foot** | Ultra-lightweight, Wayland-native terminal emulator with minimal startup latency and low memory footprint (<10 MB RAM architectural estimate). |
-| **Notifications** | **Mako** | Low-distraction Wayland notification daemon for EarlyOOM warnings and administrative broadcasts. |
+| **Compositor** | **Labwc** | Stacking Wayland compositor inspired by Openbox. Wayland client access is compositor-mediated; this is not kernel process isolation. |
+| **Status Bar** | **Waybar** | CSS-styled bar. Current configuration shows static mode/countdown text and a minute-resolution clock; dynamic controls remain planned. |
+| **Terminal** | **Foot** | Wayland-native terminal emulator. Resource use has not been empirically benchmarked for GallosOS. |
+| **Notifications** | **Mako** | Wayland notification daemon. EarlyOOM and administrative-message integrations remain planned. |
 | **Wallpaper** | **swaybg** | Minimal Wayland wallpaper utility rendering contest-specific or university-branded backgrounds. |
 | **Seat Management** | **seatd** | Minimal, rootless seat management daemon providing unprivileged DRM/KMS and input device access. |
 | **Display Control** | **wlr-randr** | Minimal command-line tool for Wayland display resolution and scaling management. |
-| **App Launcher** | **wmenu** | Ultra-fast Wayland menu triggered from Waybar for whitelisted applications. |
+| **App Launcher** | **wmenu** | Wayland launcher invoked from Waybar. Organizer-policy allowlisting is not implemented in the current launcher. |
 
 ### 2.1 GPU Backend Note (Proprietary Driver Compatibility)
 
@@ -97,13 +112,15 @@ All keybindings are centralized within `/etc/xdg/labwc/rc.xml` and enforced auth
 
 | Hotkey | Action | Description |
 | :--- | :--- | :--- |
-| **`Super + Space`** | Keyboard Layout Toggle | Cycles through configured keyboard layouts (`latam` $\to$ `us` $\to$ `es` $\to$ `br`). |
-| **`Alt + Shift`** | Keyboard Layout Toggle | Legacy fallback shortcut for keyboard layout switching. |
+| **`Super + Space`** | Keyboard helper | Invokes the partial helper; actual layout switching remains planned. |
+| **`Alt + Shift`** | Keyboard helper | Invokes the same partial helper as a fallback shortcut. |
 | **`Super + Return`** | Launch Foot Terminal | Opens a new Foot terminal instance. |
 | **`Alt + Tab`** | Window Switcher | Switches focus between open contestant application windows. |
 | **`Super + Q` / `Alt + F4`** | Close Window | Closes the active client window. |
 
 Both keyboard layout shortcuts invoke the session helper at `/usr/bin/gallos-layout-toggle`.
+
+The helper currently writes a layout name and reports it through `notify-send`; it does not apply that layout. Do not use the notification as evidence of active keyboard state.
 
 ### 4.2 Security Restrictions
 
@@ -114,7 +131,7 @@ Both keyboard layout shortcuts invoke the session helper at `/usr/bin/gallos-lay
 
 ## 5. Waybar Ergonomics & Custom Modules
 
-The status bar (`Waybar`) is customized specifically for competitive programming comfort and operational control:
+The following target design for `Waybar` is Phase 4 work. The current generated configuration is summarized above; the diagram is a proposed layout.
 
 ```text
 +---------------------------------------------------------------------------------------------------+
@@ -122,26 +139,26 @@ The status bar (`Waybar`) is customized specifically for competitive programming
 +---------------------------------------------------------------------------------------------------+
 ```
 
-1. **Whitelisted Application Menu:**
+1. **Whitelisted Application Menu (Planned):**
    - A clean dropdown launcher anchored to the left of the bar.
    - Exposes strictly authorized contest applications (IDEs, Terminal, Docs, Browser) according to the active mode (`Contest`, `Event`, or `Default`).
-2. **Dynamic Contest Countdown:**
+2. **Dynamic Contest Countdown (Planned):**
    - Local script polling `gallosd` state. Displays remaining time (e.g. `Time Left: 02:45:10`) and flashes amber when under 15 minutes remain.
-3. **Interactive Stress-Free Clock:**
+3. **Interactive Stress-Free Clock (Planned):**
    - Clicking directly on the clock widget cycles between:
      $$\text{Full Precision (HH:MM:SS)} \longrightarrow \text{Relaxed (HH:MM)} \longrightarrow \text{Focus Mode (Hidden)}$$
 4. **Keyboard Layout Indicator & Switcher:**
-   - Visual badge (`LATAM`, `US`, `ES`, `BR`) showing current active layout. Clicking the badge cycles to the next layout.
-5. **EarlyOOM Low-Memory Indicator:**
-   - Visual indicator alerting contestants when RAM usage approaches critical limits before processes are terminated.
-6. **Anti-Accident Power Button Lock:**
-   - In `Contest` mode, the graphical shutdown/reboot button on the Waybar is strictly disabled to prevent contestants from accidentally powering off their machine during the competition.
+   - **Planned:** A badge showing the actual compositor layout, with a click action that applies the next Organizer-configured layout. No keyboard module is currently included in the generated bar.
+5. **EarlyOOM Low-Memory Indicator (Planned):**
+   - Add a visible status indicator; the current Waybar has no such module.
+6. **Mode-Aware Power Controls (Planned):**
+   - Apply specified shutdown/reboot controls by mode; these controls are not integrated with daemon state.
 
 ---
 
 ## 6. Unified Visual Styling & Typography
 
-GallosOS enforces a clean, distraction-free dark aesthetic across both native Wayland and XWayland applications:
+The target desktop style is a neutral dark theme across the selected Wayland and XWayland applications. Installed-package availability and graphical rendering still require image acceptance:
 
 - **Status Bar Icon Font:** Ubuntu 24.04's `fonts-font-awesome` package provides the `FontAwesome` family (Font Awesome 4.7). Waybar uses glyphs from that version for `` Wi-Fi, `` Ethernet, `` Offline, and `` Clock. The build refreshes the font cache after provisioning; rendering still needs graphical-session verification.
 - **UI & Contest Platform Font:** `Inter` (matches modern contest platforms like MOJ that specify `font-family: "Inter"` without bundling webfonts), with `Liberation Sans` and `DejaVu Sans` as universal offline fallbacks.
@@ -154,11 +171,11 @@ GallosOS enforces a clean, distraction-free dark aesthetic across both native Wa
 
 ## 7. Audio Subsystem (PipeWire & WirePlumber)
 
-GallosOS uses **PipeWire** paired with the **WirePlumber** session manager as its low-overhead Wayland audio and video server.
+The schema describes a PipeWire-based audio policy. The current build/runtime does not install or apply an effective per-mode audio policy.
 
 ### 7.1 Contest vs. Practice Audio Policy
 
-To avoid acoustic disruptions in competition arenas while enabling rich multimedia support during training camps, audio availability is governed by mode state:
+The intended audio policy below is not yet wired to effective session controls. Phase 4 must implement and verify it before `allow_audio` can be described as enforcing mute/disable behavior.
 
 - **Contest Mode (Disabled / Muted by Default):**
   - Live competitive programming contests (such as ICPC and IOI) are held in strict low-noise environments.

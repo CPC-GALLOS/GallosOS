@@ -2,40 +2,41 @@
 
 This document defines the configuration schema, mode hierarchy, delivery methods, visual tooling, and legacy migration path for **GallosOS** contest and training profiles.
 
+Schema validity describes accepted configuration shape, not implementation of every directive. Printing, auditing, full branding, layout application, audio controls, and Organizer tools include planned capabilities. See [`ROADMAP.md`](../ROADMAP.md) for implementation checkboxes, selected core versus optional software, and separate release-acceptance results.
+
 ---
 
 ## 1. Versatility: Adapting to Every Competitive Programming Context
 
-GallosOS is designed to seamlessly adapt to **any competitive programming scenario**.
+GallosOS's target profiles cover practice, training camps, and contest use. The neutral profile is the default; Organizer restrictions and release acceptance are separate.
 
 > [!IMPORTANT]
-> **The GallosOS root filesystem is always immutable, and the OS itself never writes to the USB.** All OS-internal writes during a session — logs, caches, session state — live in RAM (`tmpfs`), never on flash. This preserves USB drive longevity (it's high-frequency write *churn* that wears flash, not occasional writes) and guarantees a pristine clean state on every `Contest`-mode entry, which is the one context where persistence is never permitted regardless of what the drive supports. Outside `Contest` mode, source code persistence has three options: **optional manual export to an external workspace**, **end-of-session USB export**, or an **opt-in `event-data` partition** on the contestant's own drive for continuity across `Event`/`Default`-mode sessions (see `docs/ARCHITECTURE.md` §4 "Storage & Filesystem Architecture," item 5) — the last of these is a deliberate, low-frequency-write exception for the contestant's own hardware, not a contradiction of the immutability guarantee above.
+> The Live root's SquashFS lower layer is read-only, and its writable OverlayFS layer uses RAM-backed `tmpfs`. An optional `event-data` partition can persist files outside Contest, so GallosOS does not claim that the whole workstation never writes to USB. Contest entry requests a cleanup and storage-unmount transition; release-image acceptance is required before claiming that every prior contestant file is removed. Manual export tools and Organizer-approved external workspaces remain user/policy choices; a built-in end-of-session USB exporter is not implemented.
 
 ### Context 1 — Weekly Club Sessions & Classes (Default / Event Mode)
 
-- **Source Code Persistence:** Session work is manually saved to an **optional external workspace** (GitHub / GitLab / Google Drive / OneDrive / Nextcloud), configured once by the student on their account. The organizer whitelists these cloud services per the event profile.
-- **Online IDEs:** Students may use browser-based IDEs (VS Code for the Web, Gitpod, Replit) if the organizer allows them — the browser is still governed by GallosOS's bookmark/whitelist policy.
+- **Source Code Persistence:** Contestants can manually save work to an external workspace when network and Organizer policy allow it; an optional `event-data` partition is available outside Contest.
+- **Online IDEs:** Browser-based IDEs require network access and Organizer approval. Bookmarks are launch links, not access controls; restricted profiles depend on network policy.
 - **Controlled Browsing:** The open club profile permits the web. The anti-AI website and search-results policy, including web-relay bypass review, is planned separately and is not enforced by this profile yet.
 - **Offline Tools:** The ISO build targets GCC, Clang, OpenJDK, Python/PyPy, Rust, Kotlin, Geany, and VSCodium. Their installed versions are recorded in the image.
 
 ### Context 2 — Multi-Day Training Camps & Warm-Ups (Event + Contest Transitions)
 
-- **Automated Time-Window Transitions:** $\text{Class (Event)} \to \text{Contest Simulation (Contest)} \to \text{Upsolving (Event)}$
-- **External Workspace Access Between Sessions:** During Event windows between contests, students manually save their upsolving notes to a whitelisted external workspace.
-- **Contest Isolation:** During Contest windows, external workspace access is suspended; only the judge domain is reachable.
-- **Post-Contest Export:** USB mass storage unlocks at contest close, allowing contestants to manually save their code for the subsequent Event (upsolving) window.
+- **Scheduled Transitions:** The runtime evaluates configured absolute Event/Contest windows and relative Contest durations. It does not check clock synchronization or select a relative fallback automatically.
+- **External Workspace Access Between Sessions:** Network access follows the active Organizer policy; external service access is not implied by an Event mode name.
+- **Contest Isolation:** Contest mode requests the configured network/device restrictions and a clean session transition. Whole-workstation enforcement remains an acceptance gate.
+- **Post-Contest Export:** Policy is reapplied when leaving Contest. Manual export workflows remain subject to end-to-end acceptance; no automatic exporter is included.
 
 ### Context 3 — Official Sanctioned Tournaments (Strict Contest Mode)
 
-- **Zero-Leak Anti-Cheat Kernel Firewall:** Only the designated judge domain is reachable (BOCA, DOMjudge, PC^2, Codeforces). All cloud storage, online IDEs, AI assistants, and general web access are hard-blocked.
-- **USB Mass-Storage Disabled:** No external code injection via flash drives.
-- **Fresh Ephemeral Scratch Space:** RAM-backed `tmpfs` — every team starts from an identical, pristine state regardless of prior usage.
+- **Organizer-Configured Restrictions:** A restricted policy can limit network egress and external USB storage. Do not describe a policy as a complete anti-cheat guarantee; verify installed application behavior and live enforcement.
+- **Contest Storage Transition:** The daemon requests external-storage denial, unmounts `event-data`, and runs cleanup before releasing the session. Candidate-image acceptance remains open.
 
 ---
 
 ## 2. Configuration Delivery Methods
 
-GallosOS is designed to be **infrastructure-agnostic**: it operates across the full spectrum of network infrastructure that a venue may provide — from completely offline rooms to university-managed networks to full Venue Controller setups (see [§10 of `ARCHITECTURE.md`](./ARCHITECTURE.md#10-deployment-infrastructure-spectrum)).
+GallosOS is intended to be infrastructure-agnostic across a spectrum from offline rooms to institution-managed networks. The Venue Controller tier is optional and remains planned; see [§10 of `ARCHITECTURE.md`](./ARCHITECTURE.md#10-deployment-infrastructure-spectrum).
 
 ### Current Runtime: Local Policy and Build-Trusted HTTPS Updates
 
@@ -67,7 +68,7 @@ To prevent configuration pollution and keep deployment modular, GallosOS enforce
 | :--- | :--- | :--- | :--- | :--- |
 | **`build.toml`** | `*.build.toml` (e.g., `universal.build.toml`) | **Container Build Recipe (HOW & BASE):** Used exclusively during ISO compilation. Defines what core Ubuntu packages, kernels, and optimizations are permanently baked into the base OS before the USB is even flashed. | Developers & System Admins (`gallos-builder`) | `base_os = "ubuntu-24.04-minimal"`, `preinstall_apt = ["python3"]`, `strip_docs = true`. |
 | **`gallos.toml`** | `*.gallos.toml` (e.g., `icpc-onsite.gallos.toml`) | **Global Contest Policy (WHAT & WHEN):** Identical for all 50–200 machines in the arena. Governs the rules, schedules, and security constraints of the event. | Contest Organizers & Jury | Schedule windows, `allowed_websites` (judge IPs), available IDEs, firewall rules, printing mode. |
-| **`machine.toml`** | `*.machine.toml` (e.g., `seat-14.machine.toml`) | **Local Station Identity (WHO & WHERE):** Unique to each individual USB / physical PC. Defines the physical seat and assigned team metadata. | Flashing station (`gallos-flash`) / Venue Controller | `pc_name = "PC-14"`, `room = "Lab-A"`, `team_name = "Team-42"`, `seat_label = "Desk 03"`. |
+| **`machine.toml`** | `*.machine.toml` (e.g., `seat-14.machine.toml`) | **Local Station Identity (WHO & WHERE):** Optional per-workstation metadata for hostname, room, and team. | Organizer-prepared local file; automated `gallos-flash` generation is planned | `pc_name = "PC-14"`, `room = "Lab-A"`, `team_name = "Team-42"`, `seat_label = "Desk 03"`. |
 | **`examples/*.gallos.toml`** | `.gallos.toml` | Runtime policy examples for the neutral ISO, club practice, training, and Organizer contests. | Organizers | `neutral.gallos.toml`, `club.gallos.toml`, `training.gallos.toml`, `icpc-onsite.gallos.toml`. |
 
 > [!TIP]
@@ -92,7 +93,7 @@ To prevent configuration pollution and keep deployment modular, GallosOS enforce
 
 ## 4. End-to-End Ecosystem Tooling
 
-GallosOS is designed as a complete, integrated toolkit covering every phase of contest management:
+The architecture describes a longer-term Organizer toolkit. The Config Builder, `gallos-convert`, `gallos-flash`, `gallos-inject`, and PXE support shown below are planned, not available deployment commands. `gallosd` and policy-scoped firewall behavior are implemented; see [`ROADMAP.md`](../ROADMAP.md) for exact status.
 
 ```mermaid
 graph LR
@@ -110,8 +111,8 @@ graph LR
 
     subgraph "3. Runtime & Live Event"
         Daemon["gallosd (Mode Controller)"]
-        Firewall["nftables (Anti-Cheat Default DROP)"]
-        OOM["EarlyOOM + systembus-notify"]
+        Firewall["Policy-scoped nftables rules"]
+        OOM["EarlyOOM; desktop notification bridge planned"]
     end
 
     Studio --> Flasher
@@ -223,27 +224,27 @@ gantt
 
 ### Mode Semantics & Behavior Matrix
 
-The following matrix defines the **exact behavior** of every configurable subsystem across all three modes. Universal Baselines (marked ⛔ Always) are immutable and cannot be overridden by `gallos.toml`.
+The matrix separates current runtime behavior from planned controls. A schema field describes accepted configuration; it does not make the corresponding UI or service available.
 
 | Subsystem | `Default` Mode | `Event` Mode | `Contest` Mode |
 | :--- | :--- | :--- | :--- |
 | **Network Firewall** | Open for `[*]`; named hosts use the restricted proxy | Inherits Default unless overridden | 🔒 Default-DROP, judge-only IPs |
-| **Audio (PipeWire)** | ✅ Enabled | ✅ Enabled | 🔇 Muted & disabled |
-| **Wallpaper** | Default branding | Default or event branding | 🔴 Contest branding |
-| **Regular Clock (Time of Day)** | ⌚ Visible (with Stress Toggle) | ⌚ Visible (with Stress Toggle) | ⌚ Visible (with Stress Toggle) |
-| **Countdown Timer** | Hidden | Hidden | ⏱️ Active (with Stress Toggle) |
-| **External Workspace Access** | Allowed if configured | Allowed between sessions | ❌ Suspended |
-| **Bookmarks** | Open or curated | Configurable per event | 🔒 Judge portal only |
-| **Software Modules (.gsm)** | All available | Configurable subset | Configurable subset |
-| **Contestant Files** | Persistent across sessions | Persistent between classes | 🧹 **Clean State Wipe on entry** |
-| **USB Mass Storage** | Configurable (`allow_usb_storage`) | Configurable (`allow_usb_storage`) | 🔒 Always blocked |
+| **Audio** | No mode-aware enforcement | No mode-aware enforcement | No mode-aware enforcement |
+| **Wallpaper** | Daemon applies configured mode wallpaper | Daemon applies configured mode wallpaper | Daemon applies configured mode wallpaper |
+| **Regular Clock** | Static `HH:MM` display | Static `HH:MM` display | Static `HH:MM` display |
+| **Countdown Timer** | Static placeholder | Static placeholder | Static placeholder; live countdown planned |
+| **External Workspace Access** | Depends on network policy and available services | Depends on network policy and available services | Restricted network policy; no blanket claim beyond configured rules |
+| **Bookmarks** | Launch links; not an access control | Launch links; not an access control | Launch links; browser/network policy enforces any restrictions |
+| **Software Modules (.gsm)** | Casper can mount discovered layers; profile module packaging is not wired | Same | Same |
+| **Contestant Files** | Volatile root-layer changes; optional `event-data` persists outside Contest | Same | Cleanup and `event-data` unmount are requested on entry; image acceptance remains open |
+| **External USB Mass Storage** | Configurable (`allow_usb_storage`, default `true`) | Configurable (`allow_usb_storage`, default `true`) | Denied by the Contest transition |
 | **AI Plugin Purging** | Planned | Planned | Planned; judge-only network is the current control |
-| **OOM Protection** | ⛔ Always active | ⛔ Always active | ⛔ Always active |
-| **Wayland Kiosk Lock** | ⛔ Always locked | ⛔ Always locked | ⛔ Always locked |
-| **Virtual TTY (`Ctrl+Alt+F3`)** | ⛔ Always disabled | ⛔ Always disabled | ⛔ Always disabled |
+| **EarlyOOM** | Service enabled with process preferences; no complete process immunity | Same | Same |
+| **Mode-Aware Kiosk Controls** | Static launcher; mode-aware app allowlist planned | Same | Same |
+| **Virtual Terminal Switching** | Restricted by build configuration; verify on image | Same | Same |
 
 > [!IMPORTANT]
-> **The Clean State Wipe** prevents prior-session files from carrying into a new Contest. After stopping contestant activity and applying storage policy, `gallosd` waits for `gallos-clean-state.service` to remove contestant-owned files from the Live system's writable volatile filesystems, including shared scratch locations such as `/tmp`, `/var/tmp`, `/dev/shm`, and `/run/lock`. The host helper detaches remaining data volumes without erasing them, preserves system-owned files and overlay backing trees, and refuses ambiguous mount aliases. The daemon then purges `/home/contestant/`, restores `/etc/skel`, and reopens the session. Cleanup failure keeps the kiosk stopped. Source and fixture tests cover this sequence; final ISO acceptance remains required.
+> On Contest entry, `gallosd` requests storage policy, volatile-filesystem cleanup, and restoration of `/home/contestant/` before releasing the session. Cleanup failure keeps the kiosk stopped. Source and fixture tests cover this sequence; the release image still needs acceptance before claiming that prior contestant state is fully removed.
 
 The daemon releases the contestant session only after the required firewall, storage, USB, browser-policy, and home-restoration steps succeed. `gallosctl status` reports the committed `mode`, `target_mode`, `transition_status` (`pending`, `ready`, or `error`), and `last_error`. If a required step fails, the kiosk stays stopped and the configured local root recovery prompt appears on tty1. Scheduled changes require no password entry; an organizer needs root authentication to issue manual CLI requests.
 
@@ -254,14 +255,14 @@ The daemon releases the contestant session only after the required firewall, sto
 - **Trigger:** Active when neither a Contest nor Event time window is scheduled.
 - **Use Case:** Regular competitive programming club sessions, everyday training, general university lab usage, initial setup, and post-event cleanup.
 - **Network:** The neutral and club profiles allow general browsing. A named Default allowlist restricts HTTP/HTTPS access through the local proxy and blocks direct workstation egress. The separate anti-AI search and domain policy is not implemented yet.
-- **Files:** Persistent. Students can save files, browse freely, and configure their environment.
+- **Files:** The writable root layer is volatile. An optional `event-data` workspace can persist files outside Contest; persistence across a reboot depends on that partition.
 
 #### 2. `Event` Mode (Medium Priority)
 
 - **Trigger:** Active ISO 8601 time window in `[event.schedule]` (e.g., training camp, lecture, warm-up).
 - **Use Case:** Multi-day camps where students attend lectures in the morning and practice in the afternoon.
 - **Network:** Inherits Default's website list unless `event.allowed_websites` overrides it; `[*]` means open access. Named lists use the local proxy and direct-egress firewall.
-- **Files:** Persistent between classes within the same Event window, but **hidden and inaccessible** during any overlapping Contest window. This prevents students from referencing lecture notes during a simulated contest.
+- **Files:** The optional `event-data` workspace is mounted outside Contest and unmounted for Contest entry. Final-image acceptance must verify the session cannot access it during Contest.
 
 #### 3. `Contest` Mode (Highest Priority — Strict Lockdown)
 
@@ -269,9 +270,9 @@ The daemon releases the contestant session only after the required firewall, sto
 - **Use Case:** Official ICPC regionals, IOI rounds, university invitationals.
 - **Transition In:** Executes the **Clean State Wipe** (stops session → applies lockdown → resets volatile scratch → purges home → restores skeleton → releases session).
 - **Network:** Kernel-level Default-DROP firewall. Only judge IPs in `allowed_websites` are reachable.
-- **Audio:** PipeWire is muted and disabled to enforce arena silence.
-- **Visual:** Contest wallpaper applied, countdown timer visible in Waybar.
-- **Transition Out:** When the contest window ends, `gallosd` automatically unlocks the network and transitions back to `Event` or `Default`, allowing contestants to export their code via USB or the internet.
+- **Audio and Countdown:** Mode-aware audio controls and a live countdown are not implemented.
+- **Visual:** The daemon applies configured wallpaper changes; runtime mode/countdown display remains planned.
+- **Transition Out:** When the Contest trigger ends, `gallosd` reapplies the target Event/Default policy. USB and network access follow that policy; automatic unlock or export is not guaranteed.
 
 ---
 
@@ -279,7 +280,7 @@ The daemon releases the contestant session only after the required firewall, sto
 
 ### 7.1 `software` Module Categories
 
-Every `software` entry follows `<category>/<package>`, validated against `schema/directives.schema.json`'s `software_list` pattern. Categories: `internet` (browsers, translation tools), `langs` (compilers/runtimes), `programming` (IDEs/editors), `tools` (terminal/utility apps), `docs` (offline reference material), and `drivers` (opt-in hardware drivers not baked into the base image by default — currently `drivers/nvidia-proprietary`; see `docs/HARDWARE_COMPATIBILITY.md` § 1.3 for the SecureBoot/MOK implications of enabling it).
+Every `software` entry follows `<category>/<package>`, validated against `schema/directives.schema.json`'s `software_list` pattern. Categories are identifiers for the planned module catalog: `internet` (browsers, translation tools), `langs` (compilers/runtimes), `programming` (IDEs/editors), `tools` (terminal/utility apps), `docs` (offline reference material), and `drivers` (proposed optional hardware drivers, including the not-yet-built `drivers/nvidia-proprietary`). The current daemon does not use this field to install or select modules.
 
 The schema validates these identifiers, but the current daemon does not mount
 or switch `.gsm` modules from `software`. Use the built image's
@@ -467,9 +468,11 @@ The following table specifies how `gallos-convert` maps legacy HuronOS directive
 | `[Contest-Times]` lines | `[[contest.schedule]]` | `BeginTime EndTime` → `{start = ..., end = ...}` |
 
 > [!NOTE]
-> **No Binary Migration Required:** When `gallos-convert` performs "name remapping" on the `AvailableSoftware` configuration flags, it safely maps legacy HuronOS software requests directly to modern GallosOS `.gsm` modules. **You do not need to copy your old `.hsm` files to the GallosOS USB.** GallosOS provides its own updated software stack natively.
+> **Migration tooling is planned, not available.** `gallos-convert` has not been implemented, and these mappings are design references only. No automatic software remapping or `.hsm`-to-`.gsm` migration currently occurs; an old HuronOS layer is not a GallosOS module.
 
 ### Package Name Remapping Table (HuronOS → GallosOS)
+
+The table proposes future converter output. It does not certify that the named packages, extensions, or modules are included in the current ISO or available as `.gsm` bundles.
 
 | HuronOS Package | GallosOS Equivalent | Notes |
 | :--- | :--- | :--- |

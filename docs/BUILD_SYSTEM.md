@@ -1,6 +1,6 @@
 # Containerized Build Pipeline (`build.toml`)
 
-GallosOS is designed to be **100% reproducible and infrastructure-agnostic**. To achieve this, the entire ISO generation process is isolated inside a **Podman/Docker Container Build System** (`gallos-builder`).
+GallosOS uses a **Podman/Docker container build system** (`gallos-builder`) to limit host-side dependencies and provide a repeatable build environment. Containerization does not guarantee bit-for-bit reproducibility across hosts or runs. GallosOS is designed for infrastructure-agnostic deployment, but each venue integration remains separately scoped and validated.
 
 The ISO assembler uses Ubuntu's packaged signed shim, GRUB, and kernel and writes both BIOS and EFI boot entries. It fails if the kernel or GRUB cannot be verified against Canonical's bundled certificate. It places `md5sum.txt` inside the ISO for Casper's media check and writes boot package versions and SHA-256 hashes alongside the ISO. Build verification is separate from physical-machine compatibility.
 
@@ -24,7 +24,7 @@ bash build/scripts/test-iso-qemu.sh --secure-boot --toram
 bash build/scripts/test-secure-boot-rejection.sh build/output/gallosos-universal-amd64.iso
 ```
 
-This approach completely eliminates host OS pollution and allows developers to build GallosOS on Linux, macOS, or Windows (via WSL2) without installing tools like `debootstrap`, `mksquashfs`, or `xorriso` on their local machines.
+The build runs `debootstrap`, `mksquashfs`, and `xorriso` inside the builder container, avoiding installation of those build tools on the host. Host container-runtime and virtualization setup are still required for building and testing.
 
 ---
 
@@ -35,15 +35,15 @@ GallosOS separates concerns across three distinct TOML configuration files using
 | Config File | Compound Extension | Phase | Description | Web UI? |
 | :--- | :--- | :--- | :--- | :--- |
 | **`build.toml`** | `*.build.toml` (e.g. `universal.build.toml`) | **Build-Time** | Used by the `gallos-builder` container to generate a custom ISO (strip blobs, inject apt packages). | ❌ No |
-| **`gallos.toml`** | `*.gallos.toml` (e.g. `icpc-onsite.gallos.toml`) | **Run-Time** | The global contest rules, branding, and mode logic (`Contest`/`Event`/`Default`). | ✅ **Yes (Config Builder)** |
-| **`machine.toml`** | `*.machine.toml` (e.g. `pc-14.machine.toml`) | **Run-Time** | The physical identity of the specific workstation (Seat ID, Static IP). | ❌ No (Local Script) |
+| **`gallos.toml`** | `*.gallos.toml` (e.g. `icpc-onsite.gallos.toml`) | **Run-Time** | Organizer policy and mode logic (`Contest`/`Event`/`Default`). | Planned Config Builder |
+| **`machine.toml`** | `*.machine.toml` (e.g. `pc-14.machine.toml`) | **Run-Time** | Optional local workstation identity metadata. | No; prepare the local file manually |
 
 ### 1.1 The Single Universal Base ISO Principle
 
 A critical design choice in GallosOS is the decoupling of the **immutable operating system base** from **contest-specific runtime rules**:
 
-- **One Base Image for All Contests:** Organizers do not compile distinct ISOs for ICPC vs. IOI vs. Codeforces. A single universal Live ISO image built from [`build/profiles/universal.build.toml`](../build/profiles/universal.build.toml) contains the core kernel, systemd runtime, Wayland compositor (`labwc`), `waybar`, and base utilities.
-- **Dynamic Runtime Personalization:** All tournament-specific variations (whitelisted judge IPs, IDE choices, countdown clocks, USB lockdown policies) are governed by runtime directives in [`examples/*.gallos.toml`](../examples/README.md) loaded dynamically by `gallosd`.
+- **Selected Universal Base:** The current `universal.build.toml` profile is the implemented build target for the selected release core. Per-event mode behavior can be configured without adding the planned optional module catalog.
+- **Runtime Policy:** Supported network, browser, storage, mode, and machine-identity directives are loaded by `gallosd`. A policy field does not imply a UI control: mode-aware launcher/IDE selection, live countdowns, and printing remain planned work.
 - **Directory Roles:** Build manifests live in [`build/profiles/`](../build/profiles/README.md) (used by system builders), whereas runtime competition blueprints live in [`examples/`](../examples/README.md) (used by contest organizers).
 
 The official universal ISO bundles `examples/neutral.gallos.toml` as its fallback and has no remote policy source. Organizers building a bespoke ISO can select a different runtime fallback independently of the build manifest with `DIRECTIVES_PROFILE`, for example `make -C build iso CONFIG=profiles/my-custom.build.toml DIRECTIVES_PROFILE=examples/maratona-sbc.gallos.toml`. To enable online policy updates, optionally pass a build-trusted HTTPS URL with `REMOTE_POLICY_URL=https://example.org/path/gallos.toml`. The ISO embeds this URL separately from the policy file; the selected local profile is used offline and remains the startup fallback. Policies on `/etc` or the approved boot medium take precedence over remote updates. See [`CONFIG_SPEC.md` §2](./CONFIG_SPEC.md#2-configuration-delivery-methods) for polling and cache behavior.
@@ -106,9 +106,9 @@ blocked_tcp_ports = [22, 853]
 allow_usb_storage = false
 ```
 
-### 2.1 `base_os` Version Tiers
+### 2.1 Current `base_os` Support
 
-`base_os` is not hardcoded to `ubuntu-24.04-minimal` — it is the pipeline's default and the only version the upstream GallosOS maintainer builds and tests against. See `docs/ARCHITECTURE.md` § 3.1 for the full maintainer-tested-vs-community-supported tier table (`ubuntu-22.04-minimal`, `ubuntu-26.04-minimal`, and interim non-LTS releases are architecturally supported but not upstream-validated). Pair a non-default `base_os` with a matching `kernel = "linux-generic-hwe-<version>"` when targeting newer hardware than the chosen release ships by default.
+The current bootstrap script accepts `ubuntu-24.04-minimal` and rejects other `base_os` values. Alternate Ubuntu releases and compatible kernel/HWE pairings require implementation and validation; setting another string in a manifest does not add support. See [`ARCHITECTURE.md` §3.1](./ARCHITECTURE.md#31-base_os-version-tiers-buildtoml).
 
 ### 2.2 `bootstrap_method` and `apt_mirror` (Stage 1 source)
 
@@ -182,11 +182,11 @@ acceptance.
 
 ### Stage 3: Security Lockdown & Resource Hardening (`chroot`)
 
-Enforces the static Zero-Trust contest security posture defined in `[security]`:
+Configures build inputs used by policy-scoped security mechanisms. The neutral profile remains open practice; the firewall does not represent a universal Zero-Trust or zero-leak guarantee.
 
 1. Installs and enables `nftables` with an `inet` family default-DROP firewall for restricted modes, whitelisting judge IPs in Contest and dropping telemetry DNS.
 2. Disables IPv6 via `/etc/sysctl.d/99-gallos-noipv6.conf` and kernel bootcmd parameters.
-3. Locks down USB mass-storage via modern Polkit JavaScript rules (`/etc/polkit-1/rules.d/99-gallos-usb-block.rules`) and Udev fallback rules.
+3. Prepares host-service USB-storage enforcement and Polkit rules according to the build policy. The build removes any coldplug-time class-08 Udev denial; the runtime helper adds an interface rule after boot-medium discovery.
 4. Configures and enables the `earlyoom` daemon with `-n` D-Bus notification support.
 5. Locks down virtual terminal switching (TTY1–6) via `logind.conf.d`, masking `autovt@.service`, and loading a stripped console keymap.
 6. Hardens contestant privileges by purging `sudo` and locking the `root` account.
@@ -214,6 +214,8 @@ The pipeline's orchestration scripts (`build/scripts/*.sh`) are expected to pass
 
 ## 4. MOK Signing Key Persistence (Optional Proprietary Kernel Modules)
 
+**Status: planned Phase 4 driver support.** The module and persistent MOK-signing workflow below are design requirements; the current signed Ubuntu boot chain does not implement them.
+
 The `drivers/nvidia-proprietary` `.gsm` module (see `docs/HARDWARE_COMPATIBILITY.md` § 1.3) carries a DKMS-built, out-of-tree kernel module, which requires a Machine Owner Key (MOK) signature to load under SecureBoot. Because organizers enroll that MOK **once per physical machine** (a venue-setup step, not a per-boot one), the signing key itself must stay stable across ISO rebuilds — a rotated key would silently invalidate every previously-enrolled machine's trust.
 
 - `gallos-builder` generates the MOK signing keypair once (outside of any single `make iso` invocation) and persists it as a pipeline secret, reusing it to sign the `nvidia-dkms` module on every subsequent build.
@@ -222,7 +224,9 @@ The `drivers/nvidia-proprietary` `.gsm` module (see `docs/HARDWARE_COMPATIBILITY
 
 ---
 
-## 5. In-Place USB Delta Updates & Layer Injection (`gallos-inject`)
+## 5. In-Place USB Delta Updates and Layer Injection (`gallos-inject`)
+
+**Status: planned Phase 5 Organizer tooling.** The following tiers and CLI examples specify intended behavior; `gallos-inject` and `gallos-flash` are not implemented commands in this repository.
 
 While `gallos-flash` is engineered for the initial mass provisioning of raw USB drives across large workstation fleets, organizers frequently need to make minor contest adjustments (e.g. updating contest schedules, changing whitelisted URLs, swapping event wallpapers, adding an offline IDE extension, or adjusting GPU kernel flags) on **already-flashed USB drives**.
 
@@ -288,29 +292,25 @@ gallos-inject --all-drives --config icpc-date3.gallos.toml --wallpaper gpm-wallp
 
 ---
 
-## 6. Release Artifact Distribution & Mirror Architecture
+## 6. Planned Release Artifact Distribution & Mirror Architecture
 
-Official GallosOS release images and organizer utilities are deployed across a dual-channel distribution topology engineered for high availability and zero-bottleneck global downloads:
+Phase 6 plans release publication and artifact hosting. No official release-download mirrors or Organizer CLI binaries are currently published by this repository. Any future channels should document artifact identity, signatures, and region-specific availability without promising download performance.
 
-### 6.1 GitHub Releases & File Size Boundaries
+### 6.1 GitHub Release Considerations
 
-* **GitHub Release Asset Limit (2 GB):** GitHub enforces a hard limit of 2,000 MB (2 GB) per single uploaded file asset.
-* **Competitive Programming ISO Footprint:** A comprehensive contest image containing full compiler toolchains (GCC 14, Clang 18, OpenJDK 21, Python 3.12, Rust), offline IDE suites (VSCodium, JetBrains IntelliJ/CLion CE), and offline DevDocs bundles typically exceeds 2.5–4.5 GB in size.
+* **Release asset limits:** Check the hosting provider's current limits when implementing artifact publication.
+* **Artifact size:** Measure the actual release image before selecting a split or mirror strategy. Optional software that is not part of the selected core should not be included in estimates as if it were shipped.
 
-### 6.2 Dual-Channel Distribution Strategy
+### 6.2 Candidate Distribution Strategy
 
 ```mermaid
 flowchart TD
-    BuildPipeline["Containerized Build Pipeline<br>(GitHub Actions CI/CD / Local Podman)"] --> Artifacts["Generated Build Artifacts<br>• Full Monolithic ISO (3.5–5 GB)<br>• Split ISO Parts (2 GB chunks)<br>• CLI Binaries (gallos-flash, gallos-inject)<br>• Checksums & Signatures (SHA256SUMS, .sig)"]
+    BuildPipeline["Release pipeline (planned)<br>(CI / Local Podman)"] --> Artifacts["Candidate artifacts<br>• ISO<br>• Checksums and signatures<br>• Organizer utilities (planned)"]
 
-    Artifacts -->|<= 2 GB Assets / Split Parts| GH_Releases["Primary Channel: GitHub Releases CDN<br>• SHA256SUMS & GPG Signatures<br>• CLI Binaries (gallos-flash, gallos-inject, gallos-convert)<br>• Minimal Base ISOs & Split Multi-Part Archives"]
-    Artifacts -->|Full Monolithic ISO| GDrive_Mirror["Official Mirror: Google Drive (cpc.gallos@gmail.com)<br>• Single-File Full Monolithic ISO Downloads<br>• High-Speed Regional Mirrors for Mexico & LATAM"]
+    Artifacts --> GH_Releases["Candidate: GitHub Releases<br>• Release artifacts and checksums"]
+    Artifacts --> GDrive_Mirror["Optional secondary mirror<br>(hosting decision pending)"]
 ```
 
-1. **Primary Release Channel (GitHub Releases CDN):**
-   * **Scope:** Hosts release tags, changelogs, cryptographic checksums (`SHA256SUMS`), GPG signature files (`.sig`), standalone CLI binaries (`gallos-flash`, `gallos-inject`, `gallos-convert`), and minimal base ISOs.
-   * **Multi-Part Delivery for Large Images:** Monolithic images distributed through GitHub Releases are pre-split into multi-part 2,000 MB chunks (e.g., `gallos-os-24.04-amd64.iso.001`, `gallos-os-24.04-amd64.iso.002`) alongside an automated concatenation helper script (`cat gallos-os-*.iso.* > gallos-os.iso`).
+1. **Candidate GitHub Release Channel:** Define a release manifest, exact image checksums, and signing process in Phase 6. Check current hosting limits and download requirements when implementation begins; no artifacts are published here yet.
 
-2. **Official Monolithic Mirror (Google Drive via `cpc.gallos@gmail.com`):**
-   * **Scope:** Managed directly by the CPC-GALLOS organization (`cpc.gallos@gmail.com`) to host full-sized, single-file monolithic `.iso` images without file splitting.
-   * **Advantage:** Provides a single-click, direct download path for tournament organizers and university lab administrators across Mexico and Latin America, eliminating multi-part reassembly steps prior to flashing.
+2. **Optional Secondary Mirror:** Hosting, ownership, artifact layout, and availability guarantees have not been selected. The previously proposed Google Drive mirror is not an active release channel.

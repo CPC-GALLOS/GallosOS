@@ -212,7 +212,7 @@ class ModeStateMachine:
         update_wallpaper("Contest")
         send_desktop_notification(
             "Contest Mode Activated",
-            "Strict Zero-Trust security engaged. USB locked.",
+            "Configured Contest policy applied; session cleanup completed.",
             urgency="critical",
         )
 

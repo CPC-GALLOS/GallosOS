@@ -1,182 +1,155 @@
 # GallosOS Development Roadmap & Feature Tracker
 
-This document translates the complete architectural and security specifications across all design documents (`ARCHITECTURE.md`, `CONFIG_SPEC.md`, `ANTI_CHEAT_AND_SECURITY.md`, `HARDWARE_COMPATIBILITY.md`, `COMPARATIVE_ANALYSIS.md`, and `PROVENANCE.md`) into a concrete, actionable engineering roadmap.
+This roadmap groups the implementation work described in `docs/` into seven phases. Phase numbers identify areas of delivery; individual capabilities may land ahead of their phase. Specifications include both current behavior and future designs, so their presence alone does not mark an item complete.
 
-> **MVP Scope Definition:** The Minimum Viable Product (MVP) consists strictly of **Phase 1 through Phase 3**. Completing Phase 3 yields a fully functional, highly secure, drop-in replacement for HuronOS ready for local deployments. Phase 4 onwards represent polish, tooling, and post-GA telemetry.
+## Implementation and release status
 
----
+- `[x]` means implementation is complete in the repository for the stated scope.
+- `[ ]` means implementation is incomplete or planned. A partial helper or configuration field does not complete the feature that consumes it.
+- Implementation completion does not establish booted-image, graphical, or physical hardware acceptance. Those results belong in [Release acceptance](#release-acceptance).
 
-## Phase 1: Bootstrapping, Casper & Core Filesystem Engine (Alpha)
+The MVP implementation scope is Phase 1 through Phase 3: the build and boot foundation, security mechanisms, and runtime configuration engine. Stabilization and acceptance remain in progress. Physical hardware and the base graphical contestant session remain acceptance gates before Phase 4; implementing the MVP does not by itself make an image ready for venue deployment. Phases 4–7 add workstation capabilities, Organizer tools, software expansion, release engineering, and venue services.
 
-*Goal: Build a containerized build pipeline producing a bootable Ubuntu 24.04 LTS Live ISO/USB supporting both UEFI SecureBoot and Legacy BIOS with Wayland.*
-
-- [x] **OCI Build Container:** Create the `Containerfile` / `Dockerfile` (Podman/Docker) to bootstrap an `ubuntu:24.04` minimal rootfs without host pollution.
-- [x] **Dual Bootloader Chain:** Configure hybrid bootloaders supporting:
-  - UEFI Boot via GRUB (unsigned binary in initial walking skeleton; signed Canonical shim/GRUB chain in subsequent increment).
-  - Legacy PC-BIOS (CSM) via `grub-pc` and MBR boot sector.
-- [x] **Casper Live Boot Engine:** Configure `casper` boot parameters and hooks:
-  - [x] Basic home seeding and overlay assembly hook (`vendor/inherited/maratona-casper/55gallos-live`).
-  - [x] Mount SquashFS modules (`.gsm`) into union layers using in-tree **OverlayFS** (build-time patch to casper's own `setup_overlay()`, `vendor/inherited/maratona-casper/casper-gsm-overlay.sh` — casper-bottom hooks run after the overlay is already assembled, so this can't be a hook). QEMU-verified: `mount` shows `lowerdir=/test.gsm:/filesystem.squashfs`, correctly composes with `toram`.
-  - [x] Automatically mount the 2-partition Live USB layout (`GALLOS_BOOT`, optional `event-data`) by filesystem label. GALLOS_BOOT exposure via `55gallos-live`'s `/boot/gallos` symlink (QEMU-verified: real `gallos.toml` content readable post-boot). `event-data` label-mount is owned by `gallosd` (`daemon/src/storage.py`), not casper, since mounting it is mode-aware (never during Contest) and that precedence already lives in `ModeStateMachine` — QEMU-verified the mount itself succeeds, but see the note below: it's currently only visible inside the daemon's own sandboxed mount namespace, not to the desktop session, which is a separate follow-up.
-  - [x] Support the `toram` boot parameter (copy entire OS to RAM) — stock upstream Ubuntu `casper` behavior, not GallosOS-authored; QEMU-verified (`copy_live_to()`'s tmpfs RAM copy triggers correctly with `toram` on the cmdline).
-  - [x] Expose Organizer configuration from the approved GALLOS_BOOT medium at `/boot/gallos/`; runtime policy is loaded from trusted local TOML sources. Arbitrary-device config scanning and boot-argument policy selection are not supported.
-- [x] **SquashFS Packaging Scripts:** Write `build-squashfs.sh` to package system layers with `mksquashfs -comp zstd`.
-- [x] **Hybrid ISO Stitched Image:** Write `build-iso.sh` using `xorriso` / `grub-mkrescue` to generate hybrid bootable `.iso` images.
-- [x] **Wayland Kiosk Desktop Shell:** Assemble the lightweight desktop environment:
-  - `labwc` Wayland compositor configured with per-client security isolation.
-  - `Waybar` status bar configured with an integrated dropdown application launcher, countdowns, network status, and layout switchers.
+The selected release core consists of GCC (C/C++), Clang (C/C++), OpenJDK 21 (Java), Python/PyPy, Rust, and Kotlin, with Geany, terminal editors, Firefox, and VSCodium. The neutral ISO uses GallosOS branding, open practice, unrestricted websites, USB storage allowed, and Contest/Event modes disabled. `club.gallos.toml` supplies optional CPC-GALLOS identity; `training.gallos.toml` supplies a public-judge allowlist. Official Contest lockdown requires an Organizer policy. Additional languages, browsers, and IDEs in Phase 6 are future expansion options, not additional initial-release requirements.
 
 ---
 
-## Phase 2: Security Lockdown, Anti-Cheat Shield & Resource Hardening (Beta 1)
+## Phase 1: Build & Development Foundation (Alpha)
 
-*Goal: Enforce strict Zero-Trust contest integrity, network air-gapping, and out-of-memory protections.*
+*Goal: Provide the containerized build pipeline, live filesystem, basic desktop provisioning, core packages, and contributor environment.*
 
-- [x] **Anti-Cheat Enforcement (`nftables`):**
-  - [x] Implement default DROP policy (Zero-Trust) in an `inet` table for restricted modes
-  - [x] Disable IPv6 network-wide (kernel `ipv6.disable=1` + `/etc/sysctl.d/99-gallos-noipv6.conf`) — huronOS precedent, avoids a dual-stack firewall bypass
-  - [x] Static IP / CIDR whitelisting for Judge Servers (`[security]` build-time posture; dynamic `gallos.toml` runtime rendering in Phase 3)
-  - [x] Port-locking (block outbound 22, 853, and telemetry DNS list; STUN / hole-punching heuristics deferred to daemon phase)
-- [x] **Peripheral & USB Lockdown:**
-  - Deny USB mass-storage via modern `polkit`/`udisks2` JavaScript rules (`99-gallos-usb-block.rules` for the `contestant` user) with dynamic `udev` unbind rules (`99-contest-usb-block.rules`) as a fallback. Allow mice, keyboards, and HID in both cases.
-- [x] **TTY & Privilege Hardening:**
-  - Disable virtual terminal switching (TTY1–6) via `logind.conf.d/99-gallos-novt.conf`, masked `autovt@.service`, and kernel keymap remapping (`gallos-novt-keymap.service`).
-  - Configure the `contestant` user as unprivileged without `sudo` (purged) or administrative rights, and locked `root` account.
-- [x] **EarlyOOM Guard (`earlyoom -n` + `systembus-notify`):**
-  - Configure `earlyoom -n` (D-Bus broadcast) and enable `earlyoom.service` (`systembus-notify` desktop bridge and `oom_score_adj` protection of `gallosd`/browsers deferred to Phase 3 when those processes exist).
-
----
-
-## Phase 3: Daemon, Mode State Machine & Dynamic Directives (Beta 2)
-
-*Goal: Implement the real-time configuration engine, multi-mode scheduling, and network sync.*
-
-- [x] **`gallosd` Core Engine:**
-  - Develop a persistent `systemd.service` (Python) capable of maintaining state and open sockets for real-time broadcasts.
-  - Implement strict TOML parsing and runtime schema validation against `schema/directives.schema.json` via Python `jsonschema`; `taplo` supports organizer editing and local linting.
-  - Install the daemon as the canonical `gallosd.service` systemd unit and the controller as `/usr/bin/gallosctl`.
-- [x] **Trusted Local Config Ingestion:**
-  - Load Organizer TOML from approved local sources and the bundled baseline. A root-only `/etc/gallos/gallos.toml` override supports last-minute Contest corrections through `gallosctl reload`.
-  - Reject kernel boot arguments, network URLs, DHCP options, and arbitrary attached disks as policy sources.
-- [x] **3-Tier Precedence State Machine:**
-  - Implement dynamic scheduling engine: $\text{Contest} \succ \text{Event} \succ \text{Default}$.
-  - Transition wallpapers, network firewall rules, and application visibility automatically when contest time-windows start or expire.
-- [x] **Dynamic Hot-Reload Hooks:**
-  - Instantaneous wallpaper switching on mode transitions.
-  - Dynamic `nftables` rule updates on the fly without rebooting.
-- [x] **Post-Contest Workspace Support:**
-  - Re-enable USB mass-storage drivers and provide visual prompts for manual code extraction.
-- [x] **Machine Identity & Team Assignment:**
-  - Assign workstation hostnames via DHCP MAC reservations or per-USB `machine.toml` directives.
-
-> **Known issues found during Phase 1's QEMU boot verification** (this was the first time `gallosd` was actually booted end-to-end via `test-iso-qemu.sh` rather than only unit-tested — `daemon/tests/` mocks every `subprocess`/filesystem call, so none of these were previously exercised):
-> - **Fixed in this pass:** `gallosd.service` crash-looped on every boot (`ProtectSystem=strict` + `ReadWritePaths=` requires listed paths to pre-exist; `/etc/chromium/policies/managed`, `/etc/firefox/policies`, and `/media/event-data` didn't — fixed by pre-creating them in `build/scripts/03-harden.sh`); `main.py` failed with `ImportError: attempted relative import with no known parent package` when invoked as a plain script (fixed by installing under a valid module name `gallosd` and invoking via `python3 -m gallosd.main`, see `daemon/gallosd.service` and `build/scripts/02-provision.sh`); `ModeStateMachine` never called `mount_event_data()`/`_switch_open_mode()` on a boot straight into Default mode, since `current_mode` started pre-equal to the first evaluated target (fixed with a `_BOOT_SENTINEL_MODE` in `daemon/src/state_machine.py`); `_is_schedule_active()` assumed `contest.schedule`/`event.schedule` were single `{start_time, end_time}` dicts, but `schema/directives.schema.json`'s `time_window` (and every `examples/*.toml`) defines `schedule` as an array of `{start, end}` objects — every real profile's `[[contest.schedule]]` crashed the main loop on every iteration (fixed in `daemon/src/state_machine.py`; the pre-existing test in `daemon/tests/test_state_machine.py` was asserting against the wrong shape too, also fixed).
-> - **MVP stabilization in progress:** event-data mount operations use a separate host-namespace systemd service; transition errors keep the contestant kiosk stopped and expose a local root recovery prompt when configured; the ISO builder uses Ubuntu's signed EFI boot chain. A complete Live-image QEMU run verified local root login, a busy-mount transition failure with the recovery console active, manual retry into Contest, return to Default, and preserved event data. Physical hardware and graphical contestant-session behavior remain acceptance gates before Phase 4.
-
-The distribution target is one neutral GallosOS ISO that boots into open practice without an Organizer profile. `club.gallos.toml` supplies CPC-GALLOS identity; `training.gallos.toml` supplies a reviewed public-judge allowlist. Official Contest lockdown still needs an Organizer profile. The six-family toolchain, default browser set, Geany, VSCodium, and restricted training proxy require a successful built-image and graphical acceptance run before they can be marked delivered. The anti-AI search and website policy will be designed later, including a web-relay review of Google Translate website translation, CroxyProxy, and Startpage Anonymous View before those services are allowed in a restricted profile.
+- [x] **OCI Build Container:** Bootstrap the Ubuntu 24.04 rootfs in Podman/Docker without installing the build toolchain on the host.
+- [x] **Dual Bootloader Chain:** Generate hybrid images with Ubuntu's signed shim/GRUB/kernel chain for UEFI and a GRUB PC-BIOS boot image and hybrid MBR for Legacy BIOS.
+- [x] **Casper Live Boot Engine:**
+  - [x] Seed the contestant home and expose the approved `GALLOS_BOOT` medium through `/boot/gallos/` using `vendor/inherited/maratona-casper/55gallos-live`.
+  - [x] Mount discovered `.gsm` SquashFS layers through the build-time patch to casper's `setup_overlay()` in `vendor/inherited/maratona-casper/casper-gsm-overlay.sh`.
+  - [x] Retain upstream casper's `toram` path. Historical QEMU notes reported RAM-copy behavior and composition with a test module; release-candidate verification is tracked separately.
+  - [x] Restrict boot-medium configuration discovery to approved local paths. Mode-aware `event-data` mounts belong to Phase 3's host service, rather than casper or the daemon's private mount namespace.
+- [x] **SquashFS and Hybrid ISO Packaging:** Package the base rootfs using `mksquashfs -comp zstd` and generate the ISO with the scripts under `build/scripts/`.
+- [x] **Basic Wayland Session Provisioning:** Install and configure Labwc, Waybar, Foot, Mako, and the application launcher. This covers session assembly; complete dynamic desktop controls remain in Phase 4.
+- [x] **Selected Core Package Provisioning:** Declare the six toolchain families in `build/profiles/universal.build.toml`, provision Firefox and VSCodium in `02-provision.sh`, and record installed versions in `/usr/share/gallos/toolchains.tsv`. Compiler execution, browser workflows, and IDE use still require image acceptance.
+- [x] **Developer Environment and Root Tasks:** Provide the devcontainer, root Makefile, Python environment instructions, EditorConfig, Git file attributes, pre-commit hooks, and contribution templates. See [`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md).
+- [x] **Repository QA and ISO Boot Workflow:** Define Ruff, pytest, ShellCheck, TOML, and Conventional Commits checks, plus BIOS/UEFI/Secure Boot/`toram` and modified-kernel rejection steps in `.github/workflows/iso-boot.yml`. Workflow implementation does not establish a successful run for a particular release image.
 
 ---
 
-## Phase 4: Specialized Contest Subsystems & Branding (Beta 3)
+## Phase 2: Security Enforcement & Resource Protection (Beta 1)
 
-*Goal: Deliver printing, proctoring, white-labeling, and offline reference capabilities.*
+*Goal: Implement policy-scoped network and device restrictions, privilege controls, and resource protection while preserving the neutral practice baseline.*
 
+- [x] **Restricted-Mode Network Enforcement:**
+  - Render `nftables` filtering for restricted policies, including Judge Server IP/CIDR allowlists and restricted outbound traffic.
+  - Disable IPv6 through the kernel boot parameter and sysctl fallback.
+  - Use the local proxy for named-host Default/Event training allowlists and block direct workstation egress under those policies. Keep neutral Default browsing open.
+- [x] **Peripheral and USB Policy Helpers:** Apply contestant `polkit`/`udisks2` restrictions and host-service storage enforcement. Preserve the live medium and HID interfaces while restricting other storage according to policy. Physical and live-image enforcement remain acceptance items.
+- [x] **TTY and Privilege Hardening:** Disable ordinary VT switching, remove `sudo`, and keep the built root password locked by default.
+- [x] **Organizer Root Recovery and GRUB Authentication:** Support an explicitly configured local recovery password through `gallos-root-access.service` and require a build-supplied GRUB PBKDF2 credential for menu editing and the GRUB command line. Normal boot does not require that GRUB password. See [`docs/ROOT_ACCESS.md`](./docs/ROOT_ACCESS.md).
+- [x] **EarlyOOM Guard:** Enable `earlyoom -n`, configure process avoidance/preference patterns, and set `OOMScoreAdjust=-900` on `gallosd.service`. These reduce risk; they do not guarantee process immunity. The desktop notification bridge remains a Phase 4 item.
+- [ ] **Restricted-Profile Anti-AI Website and Search Policy:** Design and implement effective handling of AI endpoints, embedded search answers, and web relays, including Google Translate website translation, CroxyProxy, and Startpage Anonymous View. Preserve the neutral fallback. Domain lists alone do not establish enforcement.
+
+---
+
+## Phase 3: Runtime Configuration, Modes & Storage (Beta 2)
+
+*Goal: Implement the daemon, trusted configuration, mode scheduling, workspace transitions, and machine identity.*
+
+- [x] **`gallosd` Core Engine:** Run the Python daemon as `gallosd.service`, parse TOML, validate runtime directives against `schema/directives.schema.json`, and install `/usr/bin/gallosctl`. Read-only diagnostics are available to unprivileged users; mutating IPC commands require root.
+- [x] **Trusted Local Configuration:** Load the root-only `/etc/gallos/gallos.toml` override, approved boot-medium policies, and the ISO baseline in priority order. Reject policy selection through kernel arguments, DHCP options, arbitrary runtime URLs, or unrelated attached disks.
+- [x] **Build-Trusted Remote Organizer Policy Updates:** A custom ISO can embed one HTTPS source URL through `REMOTE_POLICY_URL`. Fetch on startup and every five minutes, validate responses, and replace only the bundled baseline. Keep explicit local policies above remote updates and retain the current-boot last-known-good response under `/run/gallos`. The official neutral ISO has no remote source. This implemented capability is grouped here rather than under the future Venue Controller. See [`docs/CONFIG_SPEC.md`](./docs/CONFIG_SPEC.md#2-configuration-delivery-methods).
+- [x] **3-Tier Mode Scheduling:** Evaluate configured Contest/Event absolute windows and monotonic automatic/manual Contest durations, then invoke policy operations at mode transitions. The runtime does not inspect NTP synchronization state.
+- [ ] **Clock-Confidence Handling:** Detect whether the system clock is synchronized, define safe behavior when absolute schedule time is untrusted, and expose clock confidence to the Organizer. The current scheduler evaluates absolute windows without this check.
+- [x] **Hot Reload and Transition Hooks:** Reload valid Organizer policy without rebooting and request firewall, browser policy, wallpaper, and desktop state updates. Graphical display of that state still needs the Phase 4 UI integration below.
+- [x] **Host Event Storage and Clean State Transitions:** Use `gallos-event-storage.service` to mount optional `event-data` in the host namespace outside Contest. Stop contestant activity and invoke host cleanup helpers before a fresh Contest; fail closed on policy or cleanup errors. Keep the kiosk stopped and expose the configured local root recovery console when a transition fails.
+- [x] **Post-Contest Storage Restoration:** Reapply open-mode USB policy and restore the optional Event workspace when leaving Contest. Visible export guidance and end-to-end contestant workflows remain acceptance work.
+- [x] **Machine Identity:** Load per-workstation `machine.toml` data and apply hostname/team identity. DHCP reservations and Venue Controller assignment depend on venue infrastructure and are not supplied by this feature.
+
+Historical stabilization notes report a signed Live-image QEMU run covering host-visible event storage, configured root login, busy-mount failure recovery, manual retry into Contest, return to Default, and preserved Event data. Earlier daemon-private mount handling was replaced by the host service. These reports describe earlier runs; acceptance of a release candidate requires the image identity and corresponding evidence below.
+
+---
+
+## Phase 4: Contestant Workstation Features (Beta 3)
+
+*Goal: Complete desktop controls, printing, branding, and offline references after the base-session acceptance gates.*
+
+- [ ] **Dynamic Desktop Controls:** Connect the visible mode badge and countdown to daemon state, complete mode-aware application-menu behavior, and implement the specified clock-confidence and low-memory indicators. The generated bar currently includes placeholder mode/countdown text; its presence is not completed runtime integration.
+- [ ] **Keyboard Layout Switcher:** Apply Organizer-configured XKB layouts in the compositor and expose the active layout and switching control in Waybar. The current `gallos-layout-toggle` helper only cycles a file and sends a notification; its shortcuts do not change the actual layout.
+- [ ] **EarlyOOM Desktop Notifications:** Install and start a contestant-session bridge such as `systembus-notify`, and integrate effective low-memory notifications with Mako. `earlyoom -n` alone does not complete this feature.
+- [ ] **Mode-Aware Audio:** Connect the specified `allow_audio` policy to effective PipeWire/WirePlumber session controls; a configuration field alone does not apply mute or disable behavior.
 - [ ] **`gallos-print` CUPS Subsystem:**
-  - Develop the `gallos-print` CLI for contestants (`gallos-print solution.cpp`), inspecting and adapting the proven `printfile` (`a2ps` / `enscript`) pipeline pattern from `icpcsysops/ansible` and SWERC Lyon.
-  - Support standard browser/judge GUI printing (`Ctrl + P` in Chromium / Firefox) through the default virtual CUPS queue.
-  - Implement screenshot/window capture printouts via `grim` (`gallos-print --screenshot`).
-  - Build `gallos-cups-filter` to inject syntax highlighting, line numbering, team metadata headers, timestamps, and page numbers.
-  - Enforce printer whitelisting in `gallos.toml` to prevent unauthorized network print jobs.
-- [ ] **Rapid White-Labeling & Branding Engine:**
-  - Offline Plymouth boot splash generator from `boot_splash_logo_url`.
-  - Custom CSS/GTK theme and wallpaper injector for Labwc and Waybar with optional `show_powered_by_gallos` watermark.
-  - Custom GRUB boot menu background + colors (MVP: single-entry background/menu-color theming; a full `theme.txt` with per-entry icons is a later extension once multiple boot entries exist).
-  - Ubuntu-branding removal pass (Plymouth splash, `/etc/os-release`/`lsb-release` `PRETTY_NAME`, pending trademark-policy verification) so the live OS reads as GallosOS rather than a visibly-reskinned Ubuntu.
-  - Full design: [`docs/BOOT_BRANDING.md`](./docs/BOOT_BRANDING.md).
-- [ ] **Keyboard Layout Switcher:**
-  - Provision and expose Waybar switcher module for configured layouts (`latam`, `us`, `es`, etc.).
-- [ ] **Offline Documentation & Translation:**
-  - Bundle static HTML documentation packages (`cppreference-doc-en-html`, `python3-doc`, `openjdk-21-doc`).
-  - Pre-configure browser bookmarks pointing to `file:///usr/share/doc/`.
-  - Bundle lightweight offline dictionary (`GoldenDict` or `stardict`) with EN-ES / EN-PT databases to solve the translation firewall gap without bloating RAM.
-- [ ] **`base_os` Version Flexibility (`build.toml`):**
-  - Formalize the maintainer-tested-default vs. community-supported `base_os` tiers in the build pipeline (`ubuntu-22.04-minimal`, `ubuntu-26.04-minimal`, interim non-LTS releases) per `docs/ARCHITECTURE.md` §3.1.
-  - Document the `kernel` (HWE) pairing needed when targeting newer hardware than an older `base_os` release ships by default.
-- [ ] **Proprietary GPU Driver Support (`drivers/nvidia-proprietary`):**
-  - Package the opt-in NVIDIA proprietary driver as a DKMS-carrying `.gsm` module per `docs/ARCHITECTURE.md` §4.
-  - Implement the MOK signing-key generation/persistence step in `gallos-builder` (`docs/BUILD_SYSTEM.md` §4) and document the one-time per-machine `mokutil --import` venue-setup flow (`docs/HARDWARE_COMPATIBILITY.md` §1.3).
-  - **Future dependency:** a `langs/programming/cuda-toolkit` module (nvcc, cuDNN) for CUDA programming sessions depends on this driver work landing first — not scoped or specified yet.
+  - Implement contestant printing based on the `printfile` (`a2ps` / `enscript`) pattern from `icpcsysops/ansible` and SWERC Lyon.
+  - Support browser/judge printing through the default virtual CUPS queue and screenshot printouts via `grim` (`gallos-print --screenshot`).
+  - Implement syntax highlighting, line numbering, team metadata, timestamps, and page numbers through `gallos-cups-filter`.
+  - Enforce Organizer printer allowlists.
+- [ ] **Rapid White-Labeling and Branding Engine:**
+  - Generate an offline Plymouth splash from `boot_splash_logo_url` and inject configured desktop themes/wallpapers with optional `show_powered_by_gallos` watermark.
+  - Add a GRUB background and menu colors as the initial branding increment; a full icon-based `theme.txt` is a later extension.
+  - Review Canonical's trademark/branding policy before changing Ubuntu release-identification fields.
+  - Follow [`docs/BOOT_BRANDING.md`](./docs/BOOT_BRANDING.md); existing asset directories are scaffolding.
+- [ ] **Offline Documentation and Translation:** Bundle static C++, Python, and Java references with browser bookmarks. Candidate packages include `cppreference-doc-en-html`, `python3-doc`, and `openjdk-21-doc`; verify package availability when implementing. Evaluate GoldenDict or stardict with EN-ES / EN-PT data for the offline dictionary.
+- [ ] **Optional Proprietary GPU Driver Support:** Package `drivers/nvidia-proprietary` as a DKMS-carrying `.gsm` module, implement persistent MOK signing keys in the builder, and document per-machine enrollment. A future CUDA toolchain would depend on this driver work and is not yet scoped.
 
 ---
 
 ## Phase 5: Organizer Tooling Suite (RC 1)
 
-*Goal: Build standalone utilities for mass USB preparation, migration, and visual configuration.*
+*Goal: Build standalone Organizer utilities for USB preparation, migration, and visual configuration.*
 
-- [ ] **`gallos-convert` (HuronOS Migration CLI):**
-  - Parser for legacy `.hdf` configuration formats into canonical `gallos.toml`.
-  - Include `--validate` (taplo schema check) and `--diff` CLI flags.
-- [ ] **`gallos-flash` (Mass Multi-USB Flashing Tool):**
-  - Multi-threaded parallel writer supporting 50+ simultaneous USB targets.
-  - Native support for Linux, macOS, and Windows WSL2 via `usbipd-win`.
-  - Automatic creation of a FAT32 `GALLOS_BOOT` partition plus an ext4 `event-data` partition sized to consume all remaining drive capacity. No `contest-data` partition — `Contest` mode never persists to the boot drive (see `docs/ARCHITECTURE.md` §4, item 5).
-  - Native unattended/scriptable CLI operation as a first-class interface (structured flags, no interactive-prompt patching required) — a real-world lab-deployment requirement identified from huronOS's own installer lacking one (`docs/COMPARATIVE_ANALYSIS.md` §4, item 16).
-  - Concurrent-safe multi-instance operation with no shared global mount points or system-wide mutable state, so multiple simultaneous flashing runs (including a Windows/WSL2 run alongside a native Linux run) cannot race each other (`docs/COMPARATIVE_ANALYSIS.md` §4, items 17–18).
-- [ ] **`gallos-inject` (In-Place USB Delta Updater CLI):**
-  - In-place delta updater for already-provisioned GallosOS USB drives, avoiding full-disk re-flashing and preserving partition tables and MBR/GPT sectors.
-  - **Tier 1 (Configuration & Branding):** Direct filesystem replacement of `gallos.toml` and `wallpaper.png` on the FAT32 `GALLOS_BOOT` partition without SquashFS repacking.
-  - **Tier 2 (Modular `.gsm` Packages):** Dynamic addition, removal, or update of standalone software modules (`/gallos/modules/*.gsm`) stacked automatically into OverlayFS at boot.
-  - **Tier 3 (Custom Layer Overrides):** Unsquashes, patches, and rebuilds the top `99-custom.gsm` system layer (e.g. for custom drivers, udev rules, or emergency scripts) with automatic checksum recalculation.
-  - **Tier 4 (Bootloader Tuning):** In-place tuning of GRUB kernel parameters (`toram`, display driver flags) in `/boot/grub/grub.cfg` and `/EFI/BOOT/grub.cfg`.
-  - **Multi-Device Batch Mode:** Concurrently detect and update all mounted USB drives labeled `GALLOS_BOOT`.
-- [ ] **GallosOS Config Builder (Web & GUI App):**
-  - Interactive web application (Angular) hosted on GitHub Pages or locally.
-  - Visual time-picker for contest schedule, checkbox module selector, firewall IP list builder, and live TOML preview/download.
+- [ ] **`gallos-convert` (HuronOS Migration CLI):** Convert legacy `.hdf` into canonical `gallos.toml`, with `--validate` and `--diff` support.
+- [ ] **`gallos-flash` (Mass Multi-USB Flasher):**
+  - Implement a concurrent writer targeting 50+ drives, with Linux, macOS, and Windows WSL2 workflows. This is a target, not a measured throughput or concurrency result.
+  - Create FAT32 `GALLOS_BOOT` and an ext4 `event-data` partition using the remaining drive capacity when Event persistence is selected, without a persistent Contest partition.
+  - Provide an unattended CLI and avoid shared global mount points or system-wide mutable state between flashing instances.
+- [ ] **`gallos-inject` (In-Place USB Updater):**
+  - Preserve partition tables and boot sectors while replacing configuration and branding on `GALLOS_BOOT`.
+  - Add/remove standalone `.gsm` modules and selectively rebuild the top `99-custom.gsm` override layer with checksum updates.
+  - Support in-place GRUB parameter updates and concurrent batch updates of mounted GallosOS drives.
+  - Retain the four customization tiers described in [`docs/BUILD_SYSTEM.md` §5](./docs/BUILD_SYSTEM.md#5-in-place-usb-delta-updates-and-layer-injection-gallos-inject).
+- [ ] **GallosOS Config Builder:** Provide an Angular web application with schedule editing, module selection, firewall allowlists, and TOML preview/download, hosted locally or on GitHub Pages.
 
 ---
 
-## Phase 6: Software Toolchains, Virtual Appliances & CI/CD (GA Release)
+## Phase 6: Software Expansion & Release Engineering (GA Release)
 
-*Goal: Package contest programming languages, IDEs, VM targets, and automated build pipelines.*
+*Goal: Expand the selected core through optional software and platform support, and automate release delivery.*
 
-- [ ] **Compilers & Runtimes:**
-  - Package and verify standard contest toolchains (cross-referencing package manifests from `icpc-environment/icpc-env`, `maratona-linux/maratona-team-tools`, and `ioi-2025/contestant-vm`): GCC (C/C++), Clang, OpenJDK 21 (Java), Python 3, PyPy3, Rust, Kotlin, Mono / .NET.
-- [ ] **Default Browser Support:**
-  - Target Chromium (Blink/V8), Firefox (Gecko/SpiderMonkey), and GNOME Web (WebKitGTK/JavaScriptCore) as the supported browser set. Verify offline launch, contest policy coverage, telemetry controls, printing, and graphical-session behavior for each before marking them delivered.
-- [ ] **University Exam Workstation Use Case:**
-  - Evaluate GallosOS as an optional locked-down workstation for in-person university exams, using Contest mode and an Organizer allowlist for the institution's LMS. Assess both a browser-only kiosk configuration and integration with the community [SEB for Linux](https://github.com/Jvr2022/seb-linux) project; treat compatibility as unverified until built-image, LMS, and graphical-session acceptance is complete.
-  - Add `examples/exam.gallos.toml` as a Moodle policy-testing example. It uses Moodle's public demo host and is explicitly unsuitable for live exams; real deployments must replace it with the institution's tested LMS, SSO, and required service hosts.
-- [ ] **Contestant IDEs:**
-  - Pre-configure and package VSCodium (with offline extensions), JetBrains Community Edition (IntelliJ IDEA, PyCharm), CLion (with activation script), Code::Blocks, Geany, Kdevelop, Neovim (LazyVim), Vim (linters, plugins), and Kate. Evaluate Zed for contest suitability, offline operation, packaging, and disabling AI features and telemetry before deciding whether to include it.
-  - Offline extension-registry robustness for VSCodium `.gsm` modules: no marketplace dependency, correct extension-ID normalization, and correct write permissions preserved across every module's OverlayFS layer — lessons from huronOS's own offline-`.vsix` fragility (`docs/COMPARATIVE_ANALYSIS.md` §4, item 9).
-- [ ] **Anti-Cheat Purge & Telemetry Neutralization (Post-MVP):**
-  - Write a startup service to purge `com.intellij.ml.llm` and Copilot plugins from JetBrains and VSCodium installations.
-  - Neutralize telemetry and crash reporting in Chromium, Firefox, and VSCodium.
-- [ ] **Virtual Machine Appliances:**
-  - Automated building of `.ova` (VirtualBox / VMware) and `.qcow2` (KVM/QEMU) appliances.
-  - Pre-configure guest additions and display resizing for virtualization.
-- [ ] **Public Documentation Site:**
-  - Deploy an official Docusaurus or GitBook site for user-facing documentation, quickstarts, and architectural deep-dives.
-- [ ] **CI/CD & Release Automation:**
-  - GitHub Actions workflow to build release ISOs inside OCI containers on Git tags.
-  - Automated smoke tests in headless QEMU to verify boot, firewall default-DROP, and daemon operation.
+- [ ] **Optional Toolchains and Software Modules:** Evaluate and package additional runtimes such as Mono/.NET, using the upstream contest manifests as references. Build real `.gsm` bundles and wire build-profile module copying into ISO assembly; the existing casper mount mechanism alone does not supply module packages.
+- [ ] **Additional Browsers:** Evaluate Chromium and GNOME Web alongside the Firefox baseline. Require offline launch, effective policy/telemetry configuration, printing, and graphical acceptance before advertising a browser as supported.
+- [ ] **Expanded IDE Catalog and Offline Extensions:** Evaluate JetBrains IDEs (IntelliJ IDEA, PyCharm, CLion), Code::Blocks, KDevelop, Neovim/LazyVim, Kate, and Zed beyond the selected Geany/VSCodium/terminal-editor baseline. Design offline extension bundles with correct IDs and OverlayFS permissions; review licensing, AI controls, telemetry, and offline operation before inclusion.
+- [ ] **Optional IDE AI-Plugin Purging:** Implement startup removal of unwanted AI assistants for expanded IDE packages. Preserve and verify the telemetry settings already generated for the selected applications; broader restricted-profile web policy remains in Phase 2.
+- [ ] **Additional `base_os` and Kernel Pairings:** Define supported release tiers and verify alternate Ubuntu bases and their kernel/HWE pairings. Ubuntu 24.04 remains the current build target; other pairs are not validated defaults.
+- [ ] **University Exam Workstation Evaluation:** Evaluate Organizer LMS allowlisting, browser-only kiosk behavior, and the community [SEB for Linux](https://github.com/Jvr2022/seb-linux) project. `examples/exam.gallos.toml` already supplies a Moodle public-demo policy example; production LMS/SSO integration and secure exam behavior remain unimplemented/unverified.
+- [ ] **VM Appliances and Guest Integration:** Automate `.ova` packaging for VirtualBox/VMware and `.qcow2` packaging for KVM/QEMU. Guest-tool packages are declared in the core recipe, but mode-aware services, display integration, and supported-hypervisor behavior require implementation and acceptance as applicable.
+- [ ] **Public Documentation Site:** Publish user and architectural documentation through an official site, evaluating Docusaurus or GitBook.
+- [ ] **Release Automation and Extended Acceptance Harnesses:** Build and publish release ISOs on Git tags and extend guest checks to verify firewall and daemon behavior. Reuse Phase 1's existing QA and firmware boot workflow instead of treating them as future work. Tie release results to the exact image checksum and source revision.
 
 ---
 
-## Phase 7: Venue Controller & Advanced Telemetry (Post-GA / v2.0)
+## Phase 7: Venue Services & Auditing (Post-GA / v2.0)
 
-*Goal: Centralized infrastructure for massive deployments, fleet monitoring, and automated auditing.*
+*Goal: Provide optional venue infrastructure, fleet monitoring, and auditing without requiring it for standalone workstations.*
 
-- [x] **Remote Organizer Policy Updates:** Custom ISOs can embed a trusted HTTPS source URL at build time. GallosOS fetches on startup and every five minutes, validates TOML against the directives schema, and applies updates without rebooting. Offline machines start with the bundled Organizer profile; the last-known-good remote file is cached under `/run` for the current boot. Explicit local policies keep precedence. See [`docs/CONFIG_SPEC.md`](./docs/CONFIG_SPEC.md#2-configuration-delivery-methods).
+- [ ] **Venue Controller Server Mode:** Provide optional DHCP, NTP, machine assignment, monitoring, printing coordination, and audit aggregation. The separate Judge Server remains external.
+- [ ] **Signed Clarification Broadcast:** Implement the optional Venue Controller signer and workstation client described by the `gallos-broadcast` configuration. Keep it disabled by default and independent from Judge Server clarification workflows.
+- [ ] **Administrative Proctoring and Input Forensics:** Evaluate the `martkeys` architecture from `icpcsysops/ansible`, with explicit Organizer policy through `enable_keystroke_forensics` for input metrics/keystroke collection. Implement authorized screenshots through a privileged Wayland capture interface and `node-exporter` / `gallos-exporter` fleet metrics.
+- [ ] **Audit Export:** Implement `gallos-audit-export` to aggregate workstation logs, OOM events, firewall drops, input metrics, print history, and proctoring evidence into a `gallos-audit-YYYYMMDD.tar.gz` archive.
+- [ ] **ARM64 Exploration:** Evaluate AArch64 Live builds for Apple Silicon through the Asahi boot stack and Qualcomm Snapdragon laptops with suitable UEFI firmware. Keep 32-bit x86 outside the supported architecture scope. These are research targets, not tested hardware support.
 
-- [ ] **Venue Controller Server Mode:**
-  - Dedicated GallosOS boot mode to act as the central orchestrator (DHCP, NTP, MAC mapping).
-- [ ] **Administrative Proctoring, Auditing & Keystroke Forensics:**
-  - Adopt/fork the **`martkeys`** daemon architecture (`icpcsysops/ansible`) for kernel-level `/dev/input/event*` keystroke and mouse activity aggregation (Wayland compositor-agnostic) when `enable_keystroke_forensics = true`.
-  - Implement scheduled background screenshot captures via dedicated root Wayland socket.
-  - Bundle `node-exporter` and `gallos-exporter` for real-time fleet health metrics.
-  - Build `gallos-audit-export` CLI to aggregate and export ephemeral workstation logs, EarlyOOM kill events, firewall drops, `martkeys` activity metrics, print history, and proctoring snapshots into a persistent `gallos-audit-YYYYMMDD.tar.gz` archive.
+---
 
-- [ ] **ARM64 (AArch64) Multi-Architecture Exploration (Post-GA):**
-  - Evaluate containerized AArch64 Live ISO generation for BYOD contestant laptops, prioritizing **Apple Silicon MacBooks** (via Asahi Linux boot stack: `m1n1` / U-Boot / GRUB) and **Qualcomm Snapdragon X Elite / Plus laptops** (UEFI ARM64 / Surface) over generic embedded SBCs (see `docs/HARDWARE_COMPATIBILITY.md` § 1.5).
-  - Explicitly maintain 32-bit (x86/i386) exclusion due to contest judge parity, LP64 vs ILP32 data model divergence, and upstream Ubuntu 24.04 deprecation (`docs/HARDWARE_COMPATIBILITY.md` § 1.4).
+## Release acceptance
+
+Acceptance results are separate from implementation checkboxes. Use **PASS**, **FAIL**, **BLOCKED**, or **NOT TESTED** for each identified run. Every PASS or FAIL must name the source revision, ISO SHA256, environment, exact check, and evidence location. Record prerequisite failures as BLOCKED and checks that were not run as NOT TESTED. A repository check or an implemented CI workflow cannot substitute for a live-image result.
+
+The table below tracks open gates for the next release candidate. No candidate checksum or linked runtime report is recorded here yet; previous QEMU observations above remain historical context and are not carried forward as fresh PASS results. Populate the candidate identity and evidence when those checks are performed. Repository lint/unit results are reported with each change and do not close these gates.
+
+| Gate | Relevant phase | Status | Evidence needed |
+| :--- | :--- | :--- | :--- |
+| BIOS/UEFI boot, enforced Secure Boot, `toram`, and modified-kernel rejection | 1–2 | NOT TESTED | Candidate checksum, firmware configuration, and guest/boot logs; reuse `iso-boot.yml` checks. |
+| Host-visible Event storage, busy-mount failure/retry, return from Contest, and preserved data | 3 | NOT TESTED | Candidate checksum and host/guest state evidence for the complete transition sequence. |
+| Whole-workstation network restrictions, USB storage/HID handling, root-only mutation, and clean Contest state | 2–3 | NOT TESTED | Direct enforcement results, unchanged state after denied operations, and live-medium/device evidence. |
+| Base contestant desktop, application launch, configured graphics, and visible mode information | 1–3 | NOT TESTED | An actual contestant graphical session with screenshots and expected-state assertions. |
+| Selected compilers, Firefox, Geany/VSCodium, public-judge workflows, and restricted training proxy | 1–3 | NOT TESTED | Installed version inventory, compile/run results, browser login/submission, policy, and graphical evidence. |
+| Keyboard switching and the remaining specified Waybar controls | 4 | BLOCKED | Complete compositor layout application and UI integration before acceptance. |
+| Physical venue hardware, firmware, peripherals, and workstation behavior | 1–3 | NOT TESTED | Per-machine results; VM observations do not certify physical hardware. |
+
+This table makes no claim that hardware benchmarking, physical lab trials, or a release-candidate acceptance run has occurred.

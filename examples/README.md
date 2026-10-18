@@ -2,6 +2,8 @@
 
 This directory contains example profiles for the canonical **`gallos.toml`** directives format. Organizers must validate judge access, language versions, and desktop behavior before an official event.
 
+The catalogs below describe intended event policies, including planned printing, auditing, branding, layout controls, and software modules. A valid profile does not implement those features or install the referenced applications. See [`ROADMAP.md`](../ROADMAP.md) for implementation status and the selected release core; broader software is optional future expansion.
+
 ---
 
 ## 🧭 `gallos.toml` vs. `machine.toml` vs. `examples/*.gallos.toml`
@@ -15,7 +17,7 @@ To keep deployment modular and easy to manage, GallosOS separates configuration 
 2. **`machine.toml` (Local Station Identity — WHO & WHERE):**
    - Unique to each physical workstation / USB drive.
    - Defines: `pc_name = "PC-14"`, `room = "Lab-A"`, `team_name = "Team-42"`, and `seat_label = "Desk 03"`.
-   - Injected per-USB automatically by `gallos-flash` during mass writing or assigned dynamically via MAC matching by the **Venue Controller**.
+   - Prepared locally today; automatic `gallos-flash` injection and Venue Controller assignment are planned Organizer/venue capabilities.
 3. **`examples/*.gallos.toml` (Example Profiles):**
    - Pre-configured blueprints for popular competitive programming platforms.
    - **How to use:** Pick the template that matches your contest, customize your timestamps, and deploy!
@@ -30,7 +32,7 @@ A common point of confusion for new users is why this directory contains only ru
 
 - **Build-Time Recipes (`build/profiles/*.build.toml`):** Used strictly during ISO compilation by developers running the containerized build pipeline (`gallos-builder`). The repository maintains its canonical base build recipe at [`build/profiles/universal.build.toml`](../build/profiles/universal.build.toml); see [`build/profiles/README.md`](../build/profiles/README.md) and [`docs/BUILD_SYSTEM.md`](../docs/BUILD_SYSTEM.md).
 - **Run-Time Directives (`examples/*.gallos.toml`):** Blueprints in this directory are intended for **contest organizers**. Organizers do not compile custom OS images from scratch; they simply flash the official release ISO and supply one of these blueprints at runtime.
-- **The "Single Universal Base ISO" Principle:** The underlying base system (Ubuntu 24.04 LTS minimal, Linux kernel, Wayland kiosk stack, audio, and device management) is identical across all competitions. **A single ISO built with `universal.build.toml` runs every single contest archetype listed below.** All contest-specific constraints — judge IP whitelists, allowed IDEs, countdown clocks, and desktop lockouts — are evaluated dynamically at boot time by `gallosd`.
+- **The "Single Universal Base ISO" Principle:** One base recipe provides the selected core packages and runtime policy engine. Profiles select supported restrictions without requiring separate base images for every event. This is not a claim that every archetype, optional application, UI control, or policy field below is implemented or accepted for deployment.
 
 ---
 
@@ -103,18 +105,18 @@ The training profile restricts the whole workstation through a local proxy and o
 
 ## 🚀 Deployment & Configuration Precedence
 
-GallosOS currently reads policy from trusted local TOML sources.
+GallosOS reads explicit local TOML policies and the bundled baseline. A custom ISO may also embed one trusted HTTPS refresh source at build time.
 
-The root-only `/etc/gallos/gallos.toml` emergency override takes precedence over a canonical `gallos.toml` on the approved boot medium, one unambiguous named profile, and the ISO baseline. Kernel arguments, DHCP options, remote URLs, and arbitrary attached disks do not supply policy.
+The root-only `/etc/gallos/gallos.toml` emergency override takes precedence over a canonical `gallos.toml` on the approved boot medium, one unambiguous named profile, and the ISO baseline. Build-trusted HTTPS updates can replace only that baseline. Kernel arguments, DHCP options, arbitrary runtime URLs, and unrelated attached disks cannot select policy. The official neutral ISO has no remote source; see [`CONFIG_SPEC.md` §2](../docs/CONFIG_SPEC.md#2-configuration-delivery-methods).
 
-When preparing physical drives, **`gallos-flash`** burns the ISO to multiple USBs concurrently and bakes in the selected configuration profile, team metadata (`machine.toml`), and branding.
+The planned **`gallos-flash`** will prepare multiple USBs with the selected profile, identity, and branding. The following behavior and command describe that future interface; they are not an available deployment tool.
 
 - **Air-Gapped Operation:** If the machine has no internet or the central server is unreachable, GallosOS boots instantly using this baked-in profile.
 - **Automated Provisioning:** No manual partition mounting or copying files.
 
 ```bash
-# Flash 10 USBs concurrently with the baked-in ICPC profile and sequential PC numbers
-gallos-flash --image gallos-os-amd64.iso \
+# Planned CLI: prepare USBs with the selected ICPC profile and sequential PC numbers
+gallos-flash --image gallosos-universal-amd64.iso \
              --profile examples/icpc-onsite.gallos.toml \
              --drives /dev/sd[b-k] \
              --room "Lab-A" \
