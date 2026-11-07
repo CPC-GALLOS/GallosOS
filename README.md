@@ -275,7 +275,7 @@ GallosOS/
 ├── scripts/                   # Repo-local dev tooling (not part of the ISO build pipeline)
 │   ├── check.sh               # Single pre-flight command: ruff + pytest + shellcheck + TOML + commits
 │   ├── check_commits.py       # Conventional Commits validator (local, git hook, and CI)
-│   └── validate_toml.py       # Syntax-only TOML fallback validator used by check.sh
+│   └── validate_toml.py       # TOML syntax and optional directives-schema validation
 ├── docs/                      # Architectural & design specifications
 │   ├── ARCHITECTURE.md        # System design, Wayland, OverlayFS, Build & VM testing
 │   ├── CONFIG_SPEC.md         # Canonical TOML directives, GallosOS Config Builder & mode hierarchy
@@ -300,6 +300,61 @@ GallosOS/
 └── schema/                    # Directives validation schemas
     └── directives.schema.json # JSON Schema for gallos.toml (taplo integration)
 ```
+
+---
+
+## Repository Contracts
+
+### System Overview
+
+The build pipeline packages the runtime daemon, boot integrations, and an
+Organizer policy into a Live image. At runtime, the daemon selects modes and
+delegates privileged host operations to systemd helpers. Repository verification
+tools operate on source and configuration; they do not establish image acceptance.
+
+### Subdirectories & System Boundaries
+
+| Contract | Boundary |
+| :--- | :--- |
+| [Build](./build/README.md) | Container entry points, ordered image stages, artifacts, and explicit QEMU checks. |
+| [Daemon](./daemon/README.md) | Installed service units and `gallosctl`; its [runtime modules](./daemon/src/README.md) own mode selection and policy application. |
+| [Developer scripts](./scripts/README.md) | Source/unit checks, TOML validation, and commit-message validation. |
+| [Schema](./schema/README.md) | Accepted directives structure, including fields reserved for planned capabilities. |
+| [Vendored integrations](./vendor/README.md) | Casper hooks and storage authorization, with preserved attribution. |
+
+The [example catalog](./examples/README.md) and [build profile catalog](./build/profiles/README.md)
+remain separate policy and recipe references. Test-only folders, documentation,
+and asset-only folders are not executable contract packages.
+
+### Global Invariants
+
+- `build/scripts/build-iso.sh:DEFAULT_DIRECTIVES` selects
+  `examples/neutral.gallos.toml` unless an Organizer supplies another fallback.
+  Build recipes and runtime directives are separate inputs.
+- `daemon/src/state_machine.py:ModeStateMachine.evaluate_target_mode()` gives
+  Contest precedence over Event in automatic selection, then uses the configured
+  fallback (normally Default). Explicit Organizer manual overrides are evaluated
+  first; the daemon contract documents their lifetime.
+- `daemon/src/config.py:load_active_config()` permits remote replacement only
+  of the bundled baseline. Local recovery credentials remain locally sourced.
+- Schema acceptance and successful unit tests are not evidence that every
+  accepted field is implemented or that a booted workstation enforces it.
+  Implementation and acceptance remain separately tracked in [ROADMAP.md](./ROADMAP.md).
+
+### Global Side Effects
+
+`build/Makefile:iso` runs a privileged builder with a writable repository mount
+and replaces build artifacts. Runtime mode changes can replace firewall rules,
+stop contestant processes, change mounts/device authorization, and erase
+contestant scratch data. These effects belong to the build and daemon contracts;
+the schema itself has no execution side effects.
+
+### System Verification
+
+Run `./scripts/check.sh` from the repository root. It includes both daemon and
+build tests; plain `pytest` uses the narrower default in `pyproject.toml`.
+Inspect reported skips and TOML validation coverage. Image boot, graphical
+contestant-session, and physical-hardware acceptance require separate evidence.
 
 ---
 
