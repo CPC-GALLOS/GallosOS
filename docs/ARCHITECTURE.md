@@ -55,6 +55,9 @@ GallosOS enforces a **Monorepo** strategy with a strict **"In-Band vs Out-of-Ban
 - **In-Band Tooling (Hackable OS Core):** GallosOS-maintained scripts running inside the live environment (`gallosd`, helpers, and boot hooks) use **Python or Bash** so an authorized Organizer can inspect and patch them without a compiler.
 - **Out-of-Band Tooling (Planned Organizer CLIs):** Organizer utilities such as `gallos-convert` and `gallos-flash` are planned as statically compiled Rust binaries. Those tools are not implemented in the current repository.
 
+> [!NOTE]
+> **Phase 5 Roadmap — Planned:** The Out-of-Band Organizer CLI tools (`tools/gallos-flash`, `tools/gallos-inject`, `tools/gallos-convert`, and Config Builder) are future architectural components planned for Phase 5. They do not exist in the current Phase 1–3 MVP repository.
+
 ---
 
 ## 2. Trusted Local Directives
@@ -100,6 +103,9 @@ The Live root combines a read-only SquashFS lower layer with a writable OverlayF
    SquashFS modules mounted dynamically into the overlay stack:
    Casper can discover and mount `.gsm` SquashFS layers. The current profile declares the selected core packages in the base image, but does not package optional `.gsm` catalogs or copy configured module files into the ISO. Additional languages, IDEs, offline references, and proprietary drivers remain expansion work; see Phase 6 in [`ROADMAP.md`](../ROADMAP.md).
 
+   > [!NOTE]
+   > **Phase 4 & Phase 6 Roadmap — Planned:** Automated build-time bundling of `.gsm` modules into the ISO (`build-iso.sh`) and runtime mounting based on `software` directives remain planned for Phase 4 and Phase 6.
+
 3. **Upper Writable Layer (`tmpfs` — 100% Ephemeral in RAM):**
    Writes to the OverlayFS upper layer, including ordinary system and session changes, reside in RAM and are discarded at reboot. `event-data` is separate persistent storage, and release acceptance must verify the behavior of both paths.
 
@@ -116,6 +122,9 @@ The Live root combines a read-only SquashFS lower layer with a writable OverlayF
 
 6. **In-Place Delta Injection (`gallos-inject`, Planned Phase 5):**
    - The planned tool is intended to update approved configuration/assets and manage optional SquashFS modules without rewriting the base ISO. The command and `99-custom.gsm` workflow are not implemented.
+
+   > [!NOTE]
+   > **Phase 5 Roadmap — Planned:** In-place delta injection via `gallos-inject` and the `99-custom.gsm` workflow are planned for Phase 5.
 
 7. **Contestant Code & Session Lifecycle:**
 
@@ -159,6 +168,9 @@ To solve this, GallosOS defaults to a customized, stripped-down **Wayland Kiosk 
 *Note: Resource usage metrics represent theoretical architectural estimates derived from core package profiles and have not been empirically benchmarked.*
 
 ### 5.2 Desktop Ergonomics & Kiosk Controls (UX)
+
+> [!NOTE]
+> **Phase 4 Roadmap — Planned:** The desktop ergonomics detailed below (clock stress toggle, mode-aware app menu, instant layout switcher, dynamic countdown timer, and mode-aware power controls) are Phase 4 UX enhancements. The Phase 1–3 kiosk currently provides a static launcher (`wmenu-run`), a minute clock, and baseline Waybar indicators.
 
 GallosOS separates administrative contest constraints from the following target desktop controls. These are Phase 4 requirements; the current bar has static mode/countdown text, a minute-resolution clock, and a `wmenu-run` launcher. See [`WAYLAND_DESKTOP.md`](./WAYLAND_DESKTOP.md#implementation-status) for implemented behavior and gaps.
 
@@ -264,6 +276,9 @@ sequenceDiagram
 
 ### 7.1 Planned Distribution & Customization Model
 
+> [!NOTE]
+> **Phase 6 Roadmap — Planned:** Official ISO release publication (Track 1) and `.gsm` software module packaging and catalog distribution (Track 3) are scheduled for Phase 6. Track 2 (containerized builds via Podman/Docker) is fully implemented.
+
 GallosOS bridges the simplicity of pre-baked distribution images with the power of complete source-level customizability through three primary deployment tracks:
 
 1. **Track 1: Published ISO Releases (Planned):**
@@ -347,6 +362,9 @@ The repository provides a QEMU boot workflow in `.github/workflows/iso-boot.yml`
 ---
 
 ## 10. Deployment Infrastructure Spectrum
+
+> [!NOTE]
+> **Phase 6 & Phase 7 Roadmap — Planned:** Dedicated Venue Controller services (Tier 3) and institutional IT integration (Tier 4) are planned for Phases 6 and 7. The current Phase 1–3 runtime is fully self-contained across Tiers 0, 1, and 2.
 
 GallosOS is intended to support venues ranging from air-gapped rooms to institution-managed networks. The tiers below describe architectural options. Build-trusted HTTPS policy refresh is implemented; Venue Controller services, fleet monitoring, and printing remain future design work.
 
@@ -432,6 +450,9 @@ team_name = "Beta"
 
 ### 11.3 USB Integrity Verification (Anti-Substitution)
 
+> [!NOTE]
+> **Phase 6 Roadmap — Planned:** Centralized SquashFS SHA256 remote attestation and network-level USB admission controls are design targets planned for Phase 6.
+
 > [!CAUTION]
 > **A student bringing their own GallosOS USB is a real attack vector.** If a student pre-loads their USB with extra algorithms, macros, or even a compromised browser, they gain an unfair advantage.
 
@@ -470,7 +491,7 @@ The current build does not start `ssh-agent` as a GallosOS-managed credential se
 ## 12. The `gallos-print` Subsystem (CUPS, Metadata Headers & Syntax Formatting)
 
 > [!NOTE]
-> This section specifies the planned Phase 4 printing subsystem. The current build does not install `gallos-print`, `gallos-cups-filter`, or the described CUPS queues; configuration fields alone do not enable printing.
+> **Phase 4 Roadmap — Planned:** This section specifies the planned Phase 4 printing subsystem. The current Phase 1–3 build does not install `gallos-print`, `gallos-cups-filter`, or the described CUPS queues; configuration fields alone do not enable printing.
 
 In in-person collegiate contests (ICPC World Finals, SWERC, NWERC, Latin America), teams share a single workstation, making physical paper printouts essential for debugging code away from the keyboard.
 
@@ -608,6 +629,9 @@ OOMScoreAdjust=-900
 
 ### 13.2 Desktop Notifications (`earlyoom -n` + `systembus-notify`)
 
+> [!NOTE]
+> **Phase 4 Roadmap — Planned:** The `systembus-notify` D-Bus-to-Mako session bridge is a Phase 4 design requirement; `earlyoom -n` is active in the base OS, but the user-session bridge service is not yet installed.
+
 The build enables EarlyOOM's D-Bus broadcasting flag (`-n`). The companion [**`systembus-notify`**](https://github.com/rfjakob/systembus-notify) session bridge is a Phase 4 design requirement, not an installed GallosOS service. The intended event path is:
 
 1. **System Service (`earlyoom`):** Runs as root and broadcasts an `org.freedesktop.earlyoom` signal on the system D-Bus whenever a process is terminated.
@@ -639,6 +663,9 @@ Once this bridge is implemented, the intended result is a Mako notification expl
 
 ### 13.3 Planned Per-User Process Limits (`ulimit` / `limits.conf`)
 
+> [!NOTE]
+> **Phase 4 Roadmap — Planned:** Explicit `/etc/security/limits.d/99-contestant.conf` process and stack limits are planned for Phase 4 validation.
+
 Per-user process and stack limits are not currently configured by the build. The following values are an example for evaluation, not active policy:
 
 ```text
@@ -656,7 +683,7 @@ contestant  hard  stack    unlimited
 ## 14. Planned Real-Time Broadcast & Clarifications Subsystem (`gallos-broadcast`)
 
 > [!NOTE]
-> The schema describes a future broadcast configuration, but the current daemon does not open a broadcast listener, verify Ed25519 messages, display clarification modals, or record acknowledgements. This is a Phase 7 design target.
+> **Phase 7 Roadmap — Planned:** The schema describes a future broadcast configuration, but the current daemon does not open a broadcast listener, verify Ed25519 messages, display clarification modals, or record acknowledgements. This is a Phase 7 design target.
 
 During live contests, the contest jury frequently issues urgent clarifications or corrections to problem statements. Declaring announcements inside the static `gallos.toml` configuration is impractical as it requires pushing a new system-wide configuration file for simple message updates.
 

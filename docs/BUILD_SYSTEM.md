@@ -214,7 +214,8 @@ The pipeline's orchestration scripts (`build/scripts/*.sh`) are expected to pass
 
 ## 4. MOK Signing Key Persistence (Optional Proprietary Kernel Modules)
 
-**Status: planned Phase 4 driver support.** The module and persistent MOK-signing workflow below are design requirements; the current signed Ubuntu boot chain does not implement them.
+> [!NOTE]
+> **Phase 4 Roadmap — Planned:** The module and persistent MOK-signing workflow below are design requirements; the current signed Ubuntu boot chain does not implement them.
 
 The `drivers/nvidia-proprietary` `.gsm` module (see `docs/HARDWARE_COMPATIBILITY.md` § 1.3) carries a DKMS-built, out-of-tree kernel module, which requires a Machine Owner Key (MOK) signature to load under SecureBoot. Because organizers enroll that MOK **once per physical machine** (a venue-setup step, not a per-boot one), the signing key itself must stay stable across ISO rebuilds — a rotated key would silently invalidate every previously-enrolled machine's trust.
 
@@ -226,7 +227,8 @@ The `drivers/nvidia-proprietary` `.gsm` module (see `docs/HARDWARE_COMPATIBILITY
 
 ## 5. In-Place USB Delta Updates and Layer Injection (`gallos-inject`)
 
-**Status: planned Phase 5 Organizer tooling.** The following tiers and CLI examples specify intended behavior; `gallos-inject` and `gallos-flash` are not implemented commands in this repository.
+> [!NOTE]
+> **Phase 5 Roadmap — Planned:** The following tiers and CLI examples specify intended behavior; `gallos-inject` and `gallos-flash` are not implemented commands in this repository.
 
 While `gallos-flash` is engineered for the initial mass provisioning of raw USB drives across large workstation fleets, organizers frequently need to make minor contest adjustments (e.g. updating contest schedules, changing whitelisted URLs, swapping event wallpapers, adding an offline IDE extension, or adjusting GPU kernel flags) on **already-flashed USB drives**.
 
@@ -294,7 +296,8 @@ gallos-inject --all-drives --config icpc-date3.gallos.toml --wallpaper gpm-wallp
 
 ## 6. Planned Release Artifact Distribution & Mirror Architecture
 
-Phase 6 plans release publication and artifact hosting. No official release-download mirrors or Organizer CLI binaries are currently published by this repository. Any future channels should document artifact identity, signatures, and region-specific availability without promising download performance.
+> [!NOTE]
+> **Phase 6 Roadmap — Planned:** Release artifact publication, automated checksum generation, and binary mirror hosting are planned for Phase 6. No official release-download mirrors or Organizer CLI binaries are currently published by this repository. Any future channels should document artifact identity, signatures, and region-specific availability without promising download performance.
 
 ### 6.1 GitHub Release Considerations
 

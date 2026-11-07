@@ -13,6 +13,10 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 cd "${REPO_ROOT}"
 
+if [ -d "${REPO_ROOT}/.venv/bin" ]; then
+    PATH="${REPO_ROOT}/.venv/bin:${PATH}"
+fi
+
 # Color codes for clean output
 GREEN='\033[0;32m'
 RED='\033[0;31m'

@@ -34,6 +34,9 @@ GallosOS avoids requiring Secure Boot to be disabled by using:
 
 ### 1.3 Planned Proprietary GPU Drivers & MOK Signing
 
+> [!NOTE]
+> **Phase 4 Roadmap — Planned:** The proprietary NVIDIA driver `.gsm` module packaging and persistent MOK signing workflow are planned Phase 4 roadmap features.
+
 An optional proprietary NVIDIA driver bundle is a Phase 4 roadmap item, not part of the current ISO or module catalog. Hardware using Nouveau or a proprietary driver has not been certified across a physical machine matrix.
 
 - The current daemon does not select this module through `gallos.toml`; build-time module packaging and copying are also not implemented.
@@ -59,6 +62,9 @@ Some venues may consider 64-bit Intel Macs as Live USB hosts. They fall within t
 Treat each model as unvalidated until it passes direct boot and contestant-workflow checks.
 
 ### 1.6 Future Architecture Trajectory: ARM64 (AArch64)
+
+> [!NOTE]
+> **Phase 7 Roadmap — Planned:** Evaluation of ARM64 architecture (Apple Silicon via Asahi Linux, Snapdragon laptops) is a Phase 7 research goal.
 
 The canonical build targets `x86_64` (`amd64`). ARM64 is a Phase 7 exploration target, not a supported build. The project has not collected hardware-demand data or validated ARM64 laptops.
 
@@ -104,6 +110,9 @@ The project has no accepted Wi-Fi hardware matrix. The current recipe does not e
 
 ### 3.2 Enterprise and Campus Wi-Fi (IEEE 802.1X / WPA-Enterprise)
 
+> [!NOTE]
+> **Phase 4 Roadmap — Planned:** Declarative WPA-Enterprise configuration (`wifi_profiles` in `gallos.toml`) and an interactive Waybar network manager UI are planned for Phase 4.
+
 GallosOS currently installs NetworkManager, but the selected desktop does not include the described graphical network applet and `gallos.toml` has no consumed `wifi_profiles` setting. Interactive EAP setup and declarative profile provisioning are future requirements, not current BYOD support. Validate credentials, certificate handling, reconnect behavior, and the contestant workflow on an accepted image before advertising this capability.
 
 The predecessor ConnMan issue documented in [`CPC-GALLOS/icpc-gpm-uaa-huronos`](https://github.com/CPC-GALLOS/icpc-gpm-uaa-huronos) is historical context; it does not demonstrate that GallosOS supports the same networks.
@@ -111,6 +120,9 @@ The predecessor ConnMan issue documented in [`CPC-GALLOS/icpc-gpm-uaa-huronos`](
 ---
 
 ## 4. Planned Mass Flashing Hardware (`gallos-flash`)
+
+> [!NOTE]
+> **Phase 5 Roadmap — Planned:** The `gallos-flash` parallel mass USB flashing utility is planned for Phase 5.
 
 `gallos-flash` is planned Phase 5 organizer tooling and is not implemented. The project has no measured concurrent-write throughput or supported-device matrix. The following are general planning considerations for a future flashing station, not GallosOS performance claims or mandatory hardware specifications.
 
@@ -121,6 +133,9 @@ Before large-scale use, test the actual host, hub, and USB drives together and v
 3. Measure end-to-end write and verification time with the intended drive models before planning a deployment schedule.
 
 ## 5. Exploratory CPU Timing Considerations (Not Implemented)
+
+> [!NOTE]
+> **Phase 6 Roadmap — Planned:** Kernel CPU frequency scaling controls, disabling boost, sibling thread deactivation, and `taskset` execution wrappers are exploratory Phase 6 features.
 
 The current build and runtime do not configure CPU governors, disable boost, offline sibling threads, pin workloads, or provide the named `run*` wrappers. The project has not benchmarked these ideas on target hardware; they are exploratory considerations, not active policy or guaranteed timing improvements.
 

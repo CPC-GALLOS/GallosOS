@@ -60,28 +60,60 @@ GitHub Actions continues to install its Python dependencies with `pip`; local `u
 
 ```text
 daemon/
+├── gallosctl                         # Live OS management CLI tool (/usr/bin/gallosctl)
+├── gallosd.service                   # systemd unit running GallosDaemon under root
+├── gallos-session-gate.service       # systemd unit blocking contestant login until policy is applied
+├── gallos-qemu-guest.service         # systemd unit managing hypervisor guest integration
 ├── src/
-│   ├── __init__.py       # Package marker, __version__
-│   ├── main.py           # Entry point: daemon loop, Unix-socket IPC dispatch (START/STOP/STATUS/RELOAD)
-│   ├── config.py         # Trusted local TOML loading and policy precedence
-│   ├── state_machine.py  # 3-tier mode state machine (Contest > Event > Default), schedule evaluation, Clean State Wipe
-│   ├── firewall.py       # Dynamic nftables ruleset generation and periodic DNS re-resolution
-│   ├── browser_policy.py # Chromium/Firefox enterprise managed-policy JSON generation
-│   ├── identity.py       # MAC-address-to-machine.toml identity resolution, hostname assignment
-│   ├── desktop.py        # Wallpaper (swaybg), notifications (Mako), Waybar status export
-│   └── usb_manager.py    # USB mass-storage lockdown (Polkit rule + udev fallback)
+│   ├── __init__.py                   # Package marker, __version__
+│   ├── browser_policy.py             # Chromium/Firefox enterprise managed-policy JSON generation & DoH lockdown
+│   ├── clean_state.py                # Volatile session cleanup, preloaded file handling, unmount boundaries
+│   ├── config.py                     # Trusted local TOML loading, schema validation, and policy precedence
+│   ├── constants.py                  # Daemon IPC sockets, paths, default ports, and fallback values
+│   ├── daemon.py                     # Entry point: daemon loop, Unix-socket IPC dispatch (STATUS, RELOAD, STOP)
+│   ├── desktop.py                    # Wallpaper (swaybg), notifications (Mako), Waybar status export
+│   ├── firewall.py                   # Dynamic nftables ruleset generation and periodic DNS re-resolution
+│   ├── identity.py                   # MAC-address-to-machine.toml identity resolution, hostname assignment
+│   ├── ipman.py                      # Network interface configuration helper
+│   ├── remote_policy.py              # HTTPS-based remote policy fetching and caching
+│   ├── root_access.py                # Root password locking and terminal console restrictions
+│   ├── session_gate.py               # Pre-session verification gate releasing the contestant graphical shell
+│   ├── state_machine.py              # 3-tier mode state machine (Contest > Event > Default), schedule evaluation
+│   ├── storage.py                    # Persistent Caspar partition mounting and disk boundary checks
+│   ├── transition_record.py          # State transition journal, auditing records, and failure logging
+│   ├── unprivileged_access.py        # Contestant user privilege boundaries and capability dropping
+│   ├── usb_manager.py                # USB mass-storage lockdown (Polkit rule + udev fallback)
+│   ├── usb_storage.py                # Host-level USB drive detection and interface unbinding
+│   └── web_egress.py                 # Outbound web proxy egress enforcement and judge domain allowlists
 └── tests/
     ├── __init__.py
-    ├── test_config.py
-    ├── test_state_machine.py
-    ├── test_firewall.py
     ├── test_browser_policy.py
+    ├── test_check_commits.py
+    ├── test_clean_state_host.py
+    ├── test_config.py
+    ├── test_daemon_ipc.py            # Unix-socket IPC dispatch (daemon.py's GallosDaemon)
+    ├── test_desktop.py               # Waybar countdown/status export and desktop notifications
+    ├── test_event_storage_host.py
+    ├── test_firewall.py
     ├── test_identity.py
-    ├── test_daemon_ipc.py    # Unix-socket IPC dispatch (main.py's GallosDaemon)
-    └── test_usb_manager.py
+    ├── test_mode_usb_policy.py
+    ├── test_policy_failures.py
+    ├── test_qemu_boot_watcher.py
+    ├── test_remote_policy.py
+    ├── test_root_access_host.py
+    ├── test_root_access.py
+    ├── test_session_gate.py
+    ├── test_state_machine.py
+    ├── test_storage.py
+    ├── test_transition_record.py
+    ├── test_transition_safety.py
+    ├── test_unprivileged_access.py
+    ├── test_usb_manager.py
+    ├── test_usb_storage_host.py
+    └── test_web_egress.py
 ```
 
-Each `daemon/tests/test_*.py` file mirrors the `daemon/src/*.py` module it exercises (`test_daemon_ipc.py` covers `main.py`'s IPC dispatcher). `desktop.py` currently has no dedicated test file. When adding a function to a module, add or extend the matching test file rather than creating a new one.
+Each `daemon/tests/test_*.py` file exercises corresponding daemon modules and runtime safety invariants. When adding or modifying functionality in any module, extend or add matching test coverage.
 
 ---
 
