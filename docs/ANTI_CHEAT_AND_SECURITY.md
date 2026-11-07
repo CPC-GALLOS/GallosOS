@@ -133,8 +133,9 @@ table inet gallos_filter {
         # 1. Allow Loopback (Required for IDE local debuggers and local doc servers)
         oif "lo" accept
 
-        # 2. Allow Established / Related connections
-        ct state established,related accept
+        # 2. Hard-Drop Hardcoded IDE DNS Resolvers & DoT/DoH
+        ip daddr @telemetry_dns_blacklist drop
+        tcp dport { 22, 853 } drop
 
         # 3. Hard-Drop Broadcast, Multicast & Telemetry Clutter (prevents discovery leakage)
         #    mDNS (5353) is dropped unconditionally, full stop. [Precedent: the
@@ -149,9 +150,8 @@ table inet gallos_filter {
         udp dport { 137, 1124, 3289, 3702, 5353, 8610, 8612 } drop
         ip daddr { 224.0.0.1, 224.0.0.22, 239.255.255.250, 255.255.255.255 } drop
 
-        # 4. Hard-Drop Hardcoded IDE DNS Resolvers & DoT/DoH
-        ip daddr @telemetry_dns_blacklist drop
-        tcp dport 853 drop
+        # 4. Allow DHCP Client Requests
+        meta nfproto ipv4 udp sport 68 udp dport 67 accept
 
         # 5. Allow Local DNS (Port 53 UDP/TCP) to verified local gateway only (dynamically populated by gallosd)
         udp dport 53 ip daddr 192.168.1.1 accept
@@ -168,39 +168,33 @@ table inet gallos_filter {
         #    direct workstation egress is not permitted.
         meta skuid proxy tcp dport { 80, 443 } ip daddr @allowed_judge_ips accept
 
-        # 7a. Venue Controller printing: CUPS/IPP (631), static IP only —
-        #     no mDNS (5353) unless enable_mdns_discovery = true (see rule 3)
-        tcp dport 631 ip daddr @allowed_venue_controller_ip accept
-
-        # 7b. Venue Controller audit/telemetry upload (fleet metrics,
-        #     screenshot sync, code backup) — HTTPS to the Controller only
+        # 8. Venue Controller API (HTTPS)
         tcp dport 443 ip daddr @allowed_venue_controller_ip accept
 
-        # 7c. ICMP: asymmetric, not blanket-dropped. [Precedent: the real
-        #     World Finals ruleset accepts ping only from its backup/admin
-        #     subnet and drops+logs everything else.] Diagnostic ping is
-        #     useful for on-site troubleshooting without opening a general
-        #     ICMP hole.
-        icmp type echo-request ip saddr @allowed_venue_controller_ip accept
-
-        # 8. Rate-limited Audit Logging for Denied Outbound Attempts
+        # 9. Rate-limited Audit Logging for Denied Outbound Attempts
         limit rate 5/minute burst 7 packets log prefix "GALLOS_DENIED: " flags all
 
-        # 9. Reject everything else with immediate ICMP port unreachable
+        # 10. Reject everything else with immediate ICMP port unreachable
         reject
     }
 
     chain input {
         type filter hook input priority 0; policy drop;
         iif "lo" accept
-        ct state established,related accept
+        ct state established,related ip saddr @allowed_judge_ips accept
+        ct state established,related ip saddr @allowed_venue_controller_ip accept
+        ct state established,related ip saddr 192.168.1.1 accept
+        meta nfproto ipv4 udp sport 67 udp dport 68 accept
     }
 }
 ```
 
+> [!IMPORTANT]
+> **Strict Outbound Flow Re-Evaluation:** The `output` chain deliberately omits `ct state established,related accept`. This guarantees that transitioning into Contest mode forces all pre-existing and subsequent outbound flows to re-evaluate against destination allowlists and proxy UID boundaries — eliminating stealth conduits maintained across mode shifts. The `input` chain permits established/related response packets strictly when originating from authorized endpoints (`@allowed_judge_ips`, `@allowed_venue_controller_ip`, and the local DNS resolver).
+
 ### 3.2 DNS-over-HTTPS (DoH), Telemetry & Tunnel Mitigation
 
-- **Resolver and telemetry controls:** The generated Contest rules block configured telemetry DNS addresses and TCP ports 22/853. Browser policy generation writes URL allow/block rules, proxy settings, and telemetry settings for Firefox and Chromium. Chromium is not part of the selected installed browser core; verify the policy in each installed application before claiming enforcement. DNS filtering alone does not prove that AI services are blocked.
+- **Resolver and telemetry controls:** The generated Contest rules block configured telemetry DNS addresses and TCP ports 22/853. Browser policy generation writes URL allow/block rules, proxy settings, telemetry settings, and explicit DoH disablement (`DnsOverHttpsMode: "off"` for Chromium; `DNSOverHTTPS: { Enabled: false, Locked: true }` for Firefox) to eliminate DoH-based firewall circumvention. Verify effective policy loading in each installed browser before claiming enforcement. DNS filtering alone does not prove that AI services are blocked.
 
 ### 3.3 Browser Sub-URL Filtering (omegaUp / Platform Lockdown)
 
@@ -337,21 +331,41 @@ Default and Event honor their own `allow_usb_storage` flag (default `true`), inc
 
 ---
 
-## 6. Keyboard Layout Selector
+## 6. Multi-Platform Keyboard Ergonomics & Ephemeral Clipboard Security Boundary
 
-Contestants come from diverse international backgrounds and require specific layout mappings:
+> [!NOTE]
+> **Phase 4 Roadmap — Approved Design:** The complete architecture for behavioral profiles, searchable layout catalog picker, ephemeral clipboard history, and numpad Alt-code emulation is specified in [`docs/designs/keyboard-profiles-and-input-ergonomics.md`](./designs/keyboard-profiles-and-input-ergonomics.md).
 
-- **Supported Layouts:** `latam` (Latin America), `us` (US English), `es` (Spain), `br` (Brazil ABNT2), `dvorak`.
-- **Fast Switching:**
-  - **Global Hotkey:** `Super + Space` (or `Alt + Shift`) cycles through active layouts.
-  - **Status Bar Module:** Visual flag/text indicator in Waybar status bar.
-  - **Persistence:** Layout choice is saved across app launches within the session.
+GallosOS decouples physical keymaps from desktop operational ergonomics while establishing strict anti-cheat isolation boundaries for ephemeral input state:
+
+### 6.1 Two-Tier Decoupling: Behavioral Profiles & Language Layouts
+
+Contestants compete on diverse hardware with pre-existing physical muscle memory:
+- **Language Layouts:** Supports the full upstream XKB catalog (`/usr/share/X11/xkb/rules/base.lst`). Left-clicking the Waybar layout badge cycles organizer-curated layouts (`us`, `latam`, `es`, `br`, `fr`, `dvorak`, `ar`), while right-clicking launches a searchable `wmenu -l 15` catalog picker (including Apple Mac hardware variants like `us(mac)`).
+- **Behavioral Profiles:** Contestants switch between `Windows Compat` (default), `macOS Compat`, and `Linux Standard` via Waybar or keyboard shortcuts without altering their active language keymap.
+
+### 6.2 Ephemeral Clipboard Isolation & Zero-Leak Purge
+
+Contestants require multi-slot clipboard history during competition to manage algorithm templates and test cases. However, pre-contest practice snippets must never leak into an official competition:
+- **Volatile Storage Boundary:** The clipboard stack uses upstream `cliphist` (Ubuntu 24.04 `universe`) and `wl-clipboard`. All snippet data and database indexes are hosted strictly on `tmpfs` under `/run/user/1000/cliphist/`—no clipboard record ever touches persistent flash storage.
+- **Deterministic Clean State Wipe:** On Contest mode transition, `perform_clean_state_wipe()` in `daemon/src/state_machine.py` invokes `_purge_clipboard_state()`. The eviction sequence:
+  1. Executes `cliphist wipe` under contestant credentials.
+  2. Unlinks all ephemeral cache files under `/run/user/1000/cliphist/`.
+  3. Clears active compositor selection memory via `wl-copy --clear` and `wl-copy --primary --clear`.
+  4. Restarts `cliphist.service` with an empty buffer before unlocking the kiosk session.
+
+### 6.3 Numpad-Only Alt-Code Hardware Boundary
+
+To allow Windows contestants to input symbols via decimal Alt codes (e.g. `Alt + 64` for `@`) without corrupting IDE shortcuts:
+- **Dedicated Keypad Scancodes Only:** The daemon (`/usr/libexec/gallos/gallos-altcode-daemon`) monitors exclusively `KEY_KP0`..`KEY_KP9` from `/dev/input/event*`. It **never intercepts top-row number keys** (`KEY_1`..`KEY_0`), protecting critical IDE navigation shortcuts (`Alt + 1` Project view, `Alt + 7` Structure view in CLion, PyCharm, and VSCodium).
+- **Hardware Gating & Sleep Dormancy:** On compact laptops lacking a physical numeric keypad, the daemon detects the absence of keypad scancodes and enters an inotify kernel sleep loop with 0.0% CPU overhead.
 
 ---
 
 ## 7. Offline Documentation & Translation
 
-Offline documentation and dictionary packages are planned Phase 4 work. The current image does not bundle the catalog described below.
+> [!NOTE]
+> **Phase 4 Roadmap — Planned:** Offline documentation and dictionary packages (`cppreference-doc`, JDK docs, `dictd` FreeDict) are planned Phase 4 work. The current image does not bundle the catalog described below.
 
 The proposed catalog would help contestants work offline without relying on Google Translate or DeepL:
 
@@ -367,7 +381,8 @@ The proposed catalog would help contestants work offline without relying on Goog
 
 ## 8. Administrative Proctoring, Auditing & Fleet Telemetry
 
-The services and data collection described in this section are planned Phase 7 capabilities. No screenshot, keystroke, code-backup, active-window, or fleet-export pipeline is implemented by the current GallosOS runtime.
+> [!NOTE]
+> **Phase 7 Roadmap — Planned:** The administrative proctoring, auditing, and telemetry engine described in this section (periodic screenshot capture, keystroke logging, code watchdog, and fleet exporters) is a planned Phase 7 capability. No screenshot, keystroke, code-backup, active-window, or fleet-export pipeline is implemented by the current GallosOS runtime.
 
 For future evaluation, the architecture proposes an **opt-in, declarative auditing engine**. The current runtime does not provide or manage this engine:
 

@@ -93,6 +93,9 @@ To prevent configuration pollution and keep deployment modular, GallosOS enforce
 
 ## 4. End-to-End Ecosystem Tooling
 
+> [!NOTE]
+> **Phase 5 Roadmap — Planned:** The ecosystem tools detailed below (GallosOS Config Builder web GUI, `gallos-convert` CLI, and `gallos-flash` mass writer) are Phase 5 organizer utilities. They are not implemented in the current Phase 1–3 codebase.
+
 The architecture describes a longer-term Organizer toolkit. The Config Builder, `gallos-convert`, `gallos-flash`, `gallos-inject`, and PXE support shown below are planned, not available deployment commands. `gallosd` and policy-scoped firewall behavior are implemented; see [`ROADMAP.md`](../ROADMAP.md) for exact status.
 
 ```mermaid
@@ -127,6 +130,9 @@ graph LR
 
 ### 4.1 GallosOS Config Builder (Future Web / Desktop GUI Configurator)
 
+> [!NOTE]
+> **Phase 5 Roadmap — Planned:** The visual Config Builder web application is a planned Phase 5 organizer tool.
+
 To make contest preparation effortless for non-technical organizers, the design specifies **GallosOS Config Builder** (a web application and desktop GUI):
 
 - **Visual Schedule Builder:** Interactive calendar and time-picker to define Contest, Event, and Warm-up time windows without manually typing ISO dates.
@@ -136,6 +142,9 @@ To make contest preparation effortless for non-technical organizers, the design 
 - **Live Validation & Export:** Instant JSON Schema validation with one-click export to `gallos.toml` or direct publishing to a GitHub Gist.
 
 ### 4.2 `gallos-convert` CLI (HuronOS `.hdf` Migration Tool)
+
+> [!NOTE]
+> **Phase 5 Roadmap — Planned:** `gallos-convert` is a planned Phase 5 Rust CLI utility.
 
 For institutions migrating from HuronOS, the architecture includes an automated offline migration utility:
 
@@ -237,6 +246,7 @@ The matrix separates current runtime behavior from planned controls. A schema fi
 | **Bookmarks** | Launch links; not an access control | Launch links; not an access control | Launch links; browser/network policy enforces any restrictions |
 | **Software Modules (.gsm)** | Casper can mount discovered layers; profile module packaging is not wired | Same | Same |
 | **Contestant Files** | Volatile root-layer changes; optional `event-data` persists outside Contest | Same | Cleanup and `event-data` unmount are requested on entry; image acceptance remains open |
+| **Clipboard History** | Active (volatile RAM `tmpfs`) | Active (volatile RAM `tmpfs`) | Fresh instance; pre-contest history deterministically wiped on transition |
 | **External USB Mass Storage** | Configurable (`allow_usb_storage`, default `true`) | Configurable (`allow_usb_storage`, default `true`) | Denied by the Contest transition |
 | **AI Plugin Purging** | Planned | Planned | Planned; judge-only network is the current control |
 | **EarlyOOM** | Service enabled with process preferences; no complete process immunity | Same | Same |
@@ -286,6 +296,15 @@ The schema validates these identifiers, but the current daemon does not mount
 or switch `.gsm` modules from `software`. Use the built image's
 `/usr/share/gallos/toolchains.tsv` to identify installed programs.
 
+> [!NOTE]
+> **Phase X Roadmap Badging for Specification Directives:**
+> The canonical TOML profile below includes directives accepted by `directives.schema.json`. Note the following roadmap milestones for specific directive blocks:
+> - **`software = [...]` (`.gsm` layers):** Planned for Phase 4 & Phase 6.
+> - **`[global.broadcast]` (Ed25519 announcements):** Planned for Phase 7.
+> - **`[contest.audit]` (screen capture, code backup, telemetry):** Planned for Phase 6.
+> - **`[contest.printing]` (CUPS metadata printing):** Planned for Phase 4.
+> - **`wallpaper` remote download & `wallpaper_sha256`:** Local file paths are loaded in Phase 3; remote download and SHA256 verification are planned for Phase 4.
+
 ```toml
 # ==============================================================================
 # GallosOS Contest Profile Specification (v1.0)
@@ -294,8 +313,10 @@ or switch `.gsm` modules from `software`. Use the built image's
 [global]
 timezone = "America/Mexico_City"
 config_expiration = "2026-08-30T23:59:59Z"
-available_keyboard_layouts = ["latam", "us", "es", "br"]
+default_keyboard_profile = "windows-compat" # "windows-compat" | "macos-compat" | "linux-standard"
+available_keyboard_layouts = ["latam", "us", "es", "br", "fr", "dvorak", "ar"]
 default_keyboard_layout = "latam"
+enable_alt_codes = true                     # Emulate decimal Alt-codes on physical numeric keypads
 enable_event_mode = false
 enable_contest_mode = true
 
@@ -468,7 +489,7 @@ The following table specifies how `gallos-convert` maps legacy HuronOS directive
 | `[Contest-Times]` lines | `[[contest.schedule]]` | `BeginTime EndTime` → `{start = ..., end = ...}` |
 
 > [!NOTE]
-> **Migration tooling is planned, not available.** `gallos-convert` has not been implemented, and these mappings are design references only. No automatic software remapping or `.hsm`-to-`.gsm` migration currently occurs; an old HuronOS layer is not a GallosOS module.
+> **Phase 5 Roadmap — Planned:** Migration tooling is planned, not available. `gallos-convert` has not been implemented, and these mappings are design references only. No automatic software remapping or `.hsm`-to-`.gsm` migration currently occurs; an old HuronOS layer is not a GallosOS module.
 
 ### Package Name Remapping Table (HuronOS → GallosOS)
 

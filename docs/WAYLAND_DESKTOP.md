@@ -14,7 +14,8 @@ The specification includes future Phase 4 behavior. Checkboxes in [`ROADMAP.md`]
 | App menu | The configured action invokes `wmenu-run`. | Implement the specified mode-aware application allowlist. |
 | Mode and countdown | Waybar displays static `MODE: DEFAULT` and standby text; the daemon separately exports state. | Connect the displayed controls to runtime state. |
 | Clock | The generated format is `HH:MM`. | Implement the precision/relaxed/hidden cycle below. |
-| Keyboard | Shortcuts invoke a helper that cycles `us`, `latam`, `es`, `br` in `/tmp/gallos_layout` and sends a notification. | Apply actual compositor/XKB changes, consume configured layouts, and add a Waybar indicator/control. |
+| Keyboard & Profiles | Shortcuts invoke a helper that cycles `us`, `latam`, `es`, `br` in `/tmp/gallos_layout` and sends a notification. | Apply two-tier model: language layouts (`us`, `latam`, `es`, `br`, `fr`, `dvorak`, `ar`, Mac variants) and behavioral profiles (`Windows Compat`, `macOS Compat`, `Linux Standard`), Waybar controls, searchable catalog picker, Foot `Mod4` bindings, and numpad Alt-code daemon. See [`docs/designs/keyboard-profiles-and-input-ergonomics.md`](./designs/keyboard-profiles-and-input-ergonomics.md). |
+| Clipboard | The desktop currently has no clipboard manager or history UI. | Integrate ephemeral `Super + V` clipboard history and Waybar applet (`📋`) using upstream `cliphist` on `tmpfs`, with zero-leak purge on contest transition. |
 | Low memory and audio | EarlyOOM broadcasts are configured; mode-aware audio is specified. | Implement the desktop notification bridge and effective audio policy. |
 
 The target controls below are not claims of completed implementation or graphical acceptance.
@@ -112,17 +113,31 @@ All keybindings are centralized within `/etc/xdg/labwc/rc.xml` and enforced auth
 
 | Hotkey | Action | Description |
 | :--- | :--- | :--- |
-| **`Super + Space`** | Keyboard helper | Invokes the partial helper; actual layout switching remains planned. |
-| **`Alt + Shift`** | Keyboard helper | Invokes the same partial helper as a fallback shortcut. |
+| **`Super + V`** | Clipboard History | Opens ephemeral `wmenu` clipboard history (`gallos-clipboard-picker`). |
+| **`Super + Shift + V`** | Clipboard History | Secondary clipboard shortcut for `macos-compat` profile. |
+| **`Super + D`** | Launch Application Menu | Primary application launcher (`wmenu-run`). |
+| **`Super + Space`** | Launch Application Menu | macOS-style application launcher (`Cmd + Space` muscle memory). |
+| **`Alt + Space`** | Launch Application Menu | Secondary macOS application launcher (`Option + Space` muscle memory). |
 | **`Super + Return`** | Launch Foot Terminal | Opens a new Foot terminal instance. |
 | **`Alt + Tab`** | Window Switcher | Switches focus between open contestant application windows. |
 | **`Super + Q` / `Alt + F4`** | Close Window | Closes the active client window. |
 
-Both keyboard layout shortcuts invoke the session helper at `/usr/bin/gallos-layout-toggle`.
+### 4.2 Foot Terminal Ergonomics & SIGINT Decoupling
 
-The helper currently writes a layout name and reports it through `notify-send`; it does not apply that layout. Do not use the notification as evidence of active keyboard state.
+In terminal emulators, `Ctrl + C` sends the POSIX interrupt signal (`SIGINT`), abruptly killing executing user programs, interactive debuggers, or test solution scripts.
 
-### 4.2 Security Restrictions
+To support macOS contestants accustomed to physical `Command + C` / `Command + V` without breaking standard Unix signal handling, Foot terminal explicitly defines decoupled keybindings in `/etc/xdg/foot/foot.ini`:
+
+```ini
+[key-bindings]
+clipboard-copy=Control+Shift+c Mod4+c
+clipboard-paste=Control+Shift+v Mod4+v
+```
+
+- When using `macos-compat` (where physical `Command` is mapped to `Mod4`), contestants copy and paste with `Cmd + C` and `Cmd + V`.
+- `Ctrl + C` remains strictly preserved for process interruption (`SIGINT`), eliminating accidental test aborts.
+
+### 4.3 Security Restrictions
 
 - **Virtual Terminal (VT) Console Switch Lockout:** Keybindings for switching virtual terminals (`Ctrl+Alt+F1` through `Ctrl+Alt+F6`) are explicitly disabled at the compositor level. In legacy X11 distributions like huronOS, contestants pressing IDE shortcuts (e.g. VS Code comment toggles or Fn shortcuts) routinely triggered accidental VT switches to raw text prompts, leading to panic reboots, DHCP IP churn, and subsequent BOCA judge "IP Warning" lockouts.
 - **Restricted Spawning:** Dangerous shortcuts that could break desktop kiosk integrity (such as spawning arbitrary unvetted desktop shells or executing raw system commands outside the whitelisted menu) are completely excluded from `/etc/xdg/labwc/rc.xml`.
@@ -131,11 +146,14 @@ The helper currently writes a layout name and reports it through `notify-send`; 
 
 ## 5. Waybar Ergonomics & Custom Modules
 
+> [!NOTE]
+> **Phase 4 Roadmap — Planned:** The advanced Waybar ergonomics and custom status modules detailed below (whitelisted application launcher, dynamic contest countdown timer, interactive stress-free clock, compositor keyboard layout switcher, EarlyOOM indicator, and mode-aware power controls) are Phase 4 features. The current baseline bar provides static text and default modules.
+
 The following target design for `Waybar` is Phase 4 work. The current generated configuration is summarized above; the diagram is a proposed layout.
 
 ```text
 +---------------------------------------------------------------------------------------------------+
-| [ Gallos Menu ]  [Active Task]                   [ Countdown: 02:45:10 ]  [LATAM]  [14:32:08] [RAM] |
+| [ Gallos Menu ]  [Active Task]     [ Countdown: 02:45:10 ]     [📋]  [🪟 WIN]  [⌨ US]  [14:32:08] |
 +---------------------------------------------------------------------------------------------------+
 ```
 
@@ -147,12 +165,17 @@ The following target design for `Waybar` is Phase 4 work. The current generated 
 3. **Interactive Stress-Free Clock (Planned):**
    - Clicking directly on the clock widget cycles between:
      $$\text{Full Precision (HH:MM:SS)} \longrightarrow \text{Relaxed (HH:MM)} \longrightarrow \text{Focus Mode (Hidden)}$$
-4. **Keyboard Layout Indicator & Switcher:**
-   - **Planned:** A badge showing the actual compositor layout, with a click action that applies the next Organizer-configured layout. No keyboard module is currently included in the generated bar.
+4. **Two-Tier Keyboard Layout & Behavioral Profile Indicators (Planned):**
+   - **Behavioral Profile Indicator (`custom/keyboard_profile`):** Displays `🪟 WIN`, `🍏 MAC`, or `🐧 LNX`. Left-click cycles through `windows-compat` $\to$ `macos-compat` $\to$ `linux-standard`.
+   - **Language Layout Indicator (`custom/keyboard_layout`):** Displays active layout (`⌨ US`, `⌨ ES`, `⌨ LATAM`). Left-click cycles organizer-curated rotation (`us`, `latam`, `es`, `br`, `fr`, `dvorak`, `ar`).
+   - **Searchable Global Catalog Picker:** Right-click on the layout indicator launches `gallos-layout-picker`, streaming `/usr/share/X11/xkb/rules/base.lst` into `wmenu -l 15` to search and immediately apply any layout across the complete XKB catalog (including Apple Mac hardware variants like `us(mac)`).
 5. **EarlyOOM Low-Memory Indicator (Planned):**
    - Add a visible status indicator; the current Waybar has no such module.
 6. **Mode-Aware Power Controls (Planned):**
    - Apply specified shutdown/reboot controls by mode; these controls are not integrated with daemon state.
+7. **KDE-Style Ephemeral Clipboard Tray Module (`custom/clipboard`) (Planned):**
+   - Displays a `📋` icon. Left-click launches `gallos-clipboard-picker`, displaying recent volatile clipboard history via `wmenu -l 10`. Backed by `cliphist` on `tmpfs` under `/run/user/1000/cliphist/`.
+   - Cleared deterministically upon Contest mode transition via `_purge_clipboard_state()`.
 
 ---
 
@@ -171,6 +194,9 @@ The target desktop style is a neutral dark theme across the selected Wayland and
 
 ## 7. Audio Subsystem (PipeWire & WirePlumber)
 
+> [!NOTE]
+> **Phase 4 Roadmap — Planned:** PipeWire and WirePlumber integration with automated mute during Contest mode (`allow_audio = false`) is a Phase 4 feature. The current Phase 1–3 base does not enforce audio controls.
+
 The schema describes a PipeWire-based audio policy. The current build/runtime does not install or apply an effective per-mode audio policy.
 
 ### 7.1 Contest vs. Practice Audio Policy
@@ -182,3 +208,28 @@ The intended audio policy below is not yet wired to effective session controls. 
   - To prevent accidental noise, notification dings, or rogue audio cues, the PipeWire master output is **muted and disabled by default** during active `Contest` windows (`allow_audio = false`).
 - **Event & Default Modes (Enabled for Training & Lectures):**
   - Audio output is fully enabled (`allow_audio = true`) during training camp lectures, classroom practice, and upsolving sessions, allowing contestants to watch tutorial videos, algorithm lectures (e.g. YouTube / course portals), and participate in remote debriefs.
+
+---
+
+## 8. Multi-Platform Keyboard Ergonomics, Behavioral Profiles & Alt-Codes
+
+> [!NOTE]
+> **Phase 4 Roadmap — Approved Design:** The complete architecture for behavioral profiles, searchable layout catalog picker, ephemeral clipboard history, and numpad Alt-code emulation is specified in [`docs/designs/keyboard-profiles-and-input-ergonomics.md`](./designs/keyboard-profiles-and-input-ergonomics.md).
+
+GallosOS decouples physical keymaps from desktop operational ergonomics to accommodate contestants trained on different operating systems:
+
+### 8.1 Behavioral Profiles vs. Language Layouts
+
+| Profile | Target Audience | Primary Action Modifier | Launcher Hotkey | Clipboard History | Alt-Code Daemon |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **`windows-compat`** *(Default)* | Windows / Standard PC | `Left Ctrl` (`Ctrl+C`, `Ctrl+V`) | `Super + D` | `Super + V` | **Active** (Numpad) |
+| **`macos-compat`** | macOS / Apple Hardware | Physical `Cmd` (`Mod4`) via `altwin:swap_lalt_lwin` | `Cmd + Space` / `Alt + Space` | `Super + Shift + V` / Tray | **Dormant** |
+| **`linux-standard`** | Standard Linux / X11 | Standard `Left Ctrl` | `Super + D` | `Super + V` | **Disabled** |
+
+Both dimensions are orthogonal: an international contestant using a Latin American (`latam`) or Spanish (`es`) physical layout can freely select `macos-compat` to match their Apple laptop ergonomics.
+
+### 8.2 Numpad Alt-Code Subsystem (`gallos-altcode-daemon`)
+
+Windows contestants frequently rely on muscle memory for decimal ASCII Alt codes (e.g. `Alt + 64` for `@`, `Alt + 92` for `\`, `Alt + 96` for `` ` ``):
+- **Implementation:** An auxiliary Python daemon (`/usr/libexec/gallos/gallos-altcode-daemon`) monitors `/dev/input/event*` scancodes for physical keypad keys (`KEY_KP0`..`KEY_KP9`). When Alt is released after entering a valid decimal sequence, the corresponding UTF-8 character is emitted via `/dev/uinput`.
+- **Hardware Gating & Laptop Safety:** To protect critical IDE navigation shortcuts (such as `Alt + 1` for Project View and `Alt + 7` for Structure View in CLion and VSCodium), the daemon **never intercepts top-row number keys**. On compact laptops lacking a physical numeric keypad, the daemon detects the absence of `KEY_KP*` scancodes and enters an inotify kernel sleep loop with 0.0% CPU overhead.

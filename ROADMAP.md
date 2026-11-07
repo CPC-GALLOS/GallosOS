@@ -72,7 +72,19 @@ Historical stabilization notes report a signed Live-image QEMU run covering host
 *Goal: Complete desktop controls, printing, branding, and offline references after the base-session acceptance gates.*
 
 - [ ] **Dynamic Desktop Controls:** Connect the visible mode badge and countdown to daemon state, complete mode-aware application-menu behavior, and implement the specified clock-confidence and low-memory indicators. The generated bar currently includes placeholder mode/countdown text; its presence is not completed runtime integration.
-- [ ] **Keyboard Layout Switcher:** Apply Organizer-configured XKB layouts in the compositor and expose the active layout and switching control in Waybar. The current `gallos-layout-toggle` helper only cycles a file and sends a notification; its shortcuts do not change the actual layout.
+- [ ] **Multi-Platform Keyboard Ergonomics & Behavioral Profiles:**
+  - Decouple language keymaps from desktop behavior into a two-tier model: Language Layouts (`us`, `latam`, `es`, `br`, `fr`, `dvorak`, `ar`, and Mac variants like `us(mac)`) vs. Behavioral Profiles (`Windows Compat` [Default], `macOS Compat`, `Linux Standard`).
+  - Implement dynamic Waybar indicators for profile (`🪟 WIN`) and layout (`⌨ US`). Left-click cycles curated rotation; right-click launches a fast searchable layout picker (`wmenu -l 15`) querying the complete local XKB registry (`/usr/share/X11/xkb/rules/base.lst`).
+  - Map application launcher hotkeys across platforms (`Super + D` for Windows/Linux, `Super + Space` / `Alt + Space` for macOS).
+  - Configure Foot terminal to bind `Mod4 + c` / `Mod4 + v` for clipboard copy/paste, while strictly preserving `Ctrl + C` for process termination (`SIGINT`).
+  - See approved architectural specification: [`docs/designs/keyboard-profiles-and-input-ergonomics.md`](./docs/designs/keyboard-profiles-and-input-ergonomics.md).
+- [ ] **Ephemeral Multi-Slot Clipboard Stack & Zero-Leak Purge:**
+  - Back `Super + V` (Windows Compat) and `Super + Shift + V` (macOS Compat) with upstream `cliphist` (Ubuntu 24.04 `universe`) and `wl-clipboard`, hosted in volatile RAM (`/run/user/1000/cliphist/`).
+  - Expose clipboard history through a KDE-style Waybar tray widget (`📋`) invoking `gallos-clipboard-picker`.
+  - Enforce anti-cheat isolation: execute `_purge_clipboard_state()` during `perform_clean_state_wipe()` in `state_machine.py` on contest transition to clear `cliphist` and active Wayland selection buffers before contestant session unlock.
+- [ ] **Auxiliary Numpad-Only Alt-Code Emulation:**
+  - Provide `/usr/libexec/gallos/gallos-altcode-daemon` to emulate Windows decimal Alt codes on physical numeric keypads (`KEY_KP*`) via `/dev/uinput` when Alt is released.
+  - Automatically detect hardware keypad capabilities; remain in a dormant kernel sleep loop on compact laptops without physical keypads, strictly protecting top-row IDE navigation shortcuts (`Alt + 1` Project view, `Alt + 7` Structure).
 - [ ] **EarlyOOM Desktop Notifications:** Install and start a contestant-session bridge such as `systembus-notify`, and integrate effective low-memory notifications with Mako. `earlyoom -n` alone does not complete this feature.
 - [ ] **Mode-Aware Audio:** Connect the specified `allow_audio` policy to effective PipeWire/WirePlumber session controls; a configuration field alone does not apply mute or disable behavior.
 - [ ] **`gallos-print` CUPS Subsystem:**
@@ -149,7 +161,7 @@ The table below tracks open gates for the next release candidate. No candidate c
 | Whole-workstation network restrictions, USB storage/HID handling, root-only mutation, and clean Contest state | 2–3 | NOT TESTED | Direct enforcement results, unchanged state after denied operations, and live-medium/device evidence. |
 | Base contestant desktop, application launch, configured graphics, and visible mode information | 1–3 | NOT TESTED | An actual contestant graphical session with screenshots and expected-state assertions. |
 | Selected compilers, Firefox, Geany/VSCodium, public-judge workflows, and restricted training proxy | 1–3 | NOT TESTED | Installed version inventory, compile/run results, browser login/submission, policy, and graphical evidence. |
-| Keyboard switching and the remaining specified Waybar controls | 4 | BLOCKED | Complete compositor layout application and UI integration before acceptance. |
+| Keyboard profiles, layout switching, and clipboard controls | 4 | BLOCKED | Complete compositor layout application, profile toggles, and clipboard UI integration before acceptance. |
 | Physical venue hardware, firmware, peripherals, and workstation behavior | 1–3 | NOT TESTED | Per-machine results; VM observations do not certify physical hardware. |
 
 This table makes no claim that hardware benchmarking, physical lab trials, or a release-candidate acceptance run has occurred.
