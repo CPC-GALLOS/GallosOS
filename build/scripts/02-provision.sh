@@ -241,7 +241,7 @@ cat > "$ROOTFS/etc/xdg/waybar/config.jsonc" <<'EOF'
     "modules-center": ["custom/contest_badge", "custom/countdown"],
     "modules-right": ["network", "clock"],
     "custom/appmenu": {
-        "format": " 🏆 GallosOS ",
+        "format": "GallosOS",
         "tooltip": false,
         "on-click": "wmenu-run"
     },
@@ -260,7 +260,7 @@ cat > "$ROOTFS/etc/xdg/waybar/config.jsonc" <<'EOF'
         "tooltip": false
     },
     "custom/countdown": {
-        "format": "⏳ Standby",
+        "format": "Standby",
         "tooltip": false
     },
     "network": {

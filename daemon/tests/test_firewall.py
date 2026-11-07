@@ -49,6 +49,8 @@ def test_firewall_apply_contest_mode():
         assert "192.168.50.10" in rules
         assert "192.168.50.1" in rules
         assert "GALLOS_DENIED: " in rules
+        assert "udp dport { 137, 1124, 3289, 3702, 5353, 8610, 8612 } drop" in rules
+        assert "ip daddr { 224.0.0.1, 224.0.0.22, 239.255.255.250, 255.255.255.255 } drop" in rules
         assert "meta nfproto ipv4 udp sport 68 udp dport 67 accept" in rules
         assert "meta nfproto ipv4 udp sport 67 udp dport 68 accept" in rules
 

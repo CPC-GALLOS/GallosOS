@@ -61,7 +61,7 @@ def export_waybar_state(
     payload = {
         "mode": mode,
         "badge": f"MODE: {mode.upper()}",
-        "time_str": f"⏳ {time_str}",
+        "time_str": time_str,
         "remaining_sec": remaining_seconds,
         "transition_status": transition_status,
         "last_error": last_error,

@@ -21,9 +21,11 @@ def test_create_policy_payloads_contest_mode():
     assert ch_payload["DefaultSearchProviderEnabled"] is False
     assert ch_payload["ProxyMode"] == "fixed_servers"
     assert ch_payload["ProxyServer"] == "http=127.0.0.1:3128;https=127.0.0.1:3128"
+    assert ch_payload["DnsOverHttpsMode"] == "off"
     assert ff_payload["policies"]["WebsiteFilter"]["Block"] == ["<all_urls>"]
     assert ff_payload["policies"]["WebsiteFilter"]["Exceptions"] == allowed
     assert ff_payload["policies"]["DisableTelemetry"] is True
+    assert ff_payload["policies"]["DNSOverHTTPS"] == {"Enabled": False, "Locked": True}
     assert ff_payload["policies"]["Proxy"]["Mode"] == "manual"
     assert ff_payload["policies"]["Proxy"]["Locked"] is True
 
@@ -33,7 +35,9 @@ def test_create_policy_payloads_default_mode():
     assert ch_payload["URLBlocklist"] == []
     assert ch_payload["URLAllowlist"] == []
     assert ch_payload["ProxyMode"] == "direct"
+    assert ch_payload["DnsOverHttpsMode"] == "off"
     assert ff_payload["policies"]["DisableTelemetry"] is True
+    assert ff_payload["policies"]["DNSOverHTTPS"] == {"Enabled": False, "Locked": True}
     assert ff_payload["policies"]["Proxy"] == {"Mode": "none", "Locked": True}
 
 

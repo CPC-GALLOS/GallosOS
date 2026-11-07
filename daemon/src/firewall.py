@@ -173,6 +173,10 @@ table inet gallos_filter {{
         ip daddr @telemetry_dns_blacklist drop
         tcp dport {{ 22, 853 }} drop
 
+        # 3. Block Broadcast & Multicast Clutter
+        udp dport {{ 137, 1124, 3289, 3702, 5353, 8610, 8612 }} drop
+        ip daddr {{ 224.0.0.1, 224.0.0.22, 239.255.255.250, 255.255.255.255 }} drop
+
         # 4. Allow DHCP Client Requests
         meta nfproto ipv4 udp sport 68 udp dport 67 accept
 

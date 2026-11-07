@@ -71,12 +71,14 @@ def _create_policy_payloads(
                 "URLAllowlist": [],
                 "MetricsReportingEnabled": False,
                 "ProxyMode": "direct",
+                "DnsOverHttpsMode": "off",
             },
             {
                 "policies": {
                     "DisableTelemetry": True,
                     "DisableFirefoxStudies": True,
                     "Proxy": {"Mode": "none", "Locked": True},
+                    "DNSOverHTTPS": {"Enabled": False, "Locked": True},
                 }
             },
         )
@@ -88,6 +90,7 @@ def _create_policy_payloads(
         "PasswordManagerEnabled": False,
         "AutofillAddressEnabled": False,
         "AutofillCreditCardEnabled": False,
+        "DnsOverHttpsMode": "off",
     }
     if mode == "Contest":
         chromium_payload["DefaultSearchProviderEnabled"] = False
@@ -105,6 +108,7 @@ def _create_policy_payloads(
             "DisableFirefoxStudies": True,
             "DisableTelemetry": True,
             "PasswordManagerEnabled": False,
+            "DNSOverHTTPS": {"Enabled": False, "Locked": True},
         }
     }
     firefox_payload["policies"]["Proxy"] = {
