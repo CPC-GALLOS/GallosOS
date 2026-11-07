@@ -78,6 +78,13 @@
       "sourceType": "github",
       "skillPath": "plugins/shell-scripting/skills/shellcheck-configuration/SKILL.md",
       "computedHash": "cb87c1d9fc44443a3ebe53432cf4077ae1e9daa46dfe73d140ae777b853f8592"
+    },
+    "thermos": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "skillPath": "thermos/skills/thermos/SKILL.md",
+      "computedHash": "f7f174564eddf63e60ac2b5d6831230942e57ecc5142ac276afe402d3ff99174",
+      "installMode": "copy"
     }
   }
 }
