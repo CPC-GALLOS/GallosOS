@@ -48,8 +48,7 @@ GallosOS/
 │   ├── HARDWARE_COMPATIBILITY.md # Firmware support (UEFI SecureBoot & Legacy BIOS), RAM specs
 │   ├── ANTI_CHEAT_AND_SECURITY.md# Firewall, Anti-Cheat protection, telemetry block, USB lock, keyboards
 │   ├── COMPARATIVE_ANALYSIS.md# In-depth comparison: GallosOS vs HuronOS vs Maratona vs ICPC vs IOI
-│   ├── PROVENANCE.md          # Third-party code, vendored assets & attribution ledger
-│   └── designs/               # Approved system design specifications (RFCs/EGM)
+│   └── PROVENANCE.md          # Third-party code, vendored assets & attribution ledger
 ├── examples/                  # Production-ready gallos.toml configuration profiles
 │   ├── README.md              # Profile catalog, gallos.toml vs machine.toml, deployment & config precedence
 │   ├── codeforces-training.gallos.toml # Camp & practice mode (Codeforces, AtCoder, Clang, Rust)

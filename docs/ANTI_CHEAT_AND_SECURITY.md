@@ -331,34 +331,28 @@ Default and Event honor their own `allow_usb_storage` flag (default `true`), inc
 
 ---
 
-## 6. Multi-Platform Keyboard Ergonomics & Ephemeral Clipboard Security Boundary
+## 6. Keyboard Profiles & Ephemeral Clipboard Boundary
 
 > [!NOTE]
-> **Phase 4 Roadmap — Approved Design:** The complete architecture for behavioral profiles, searchable layout catalog picker, ephemeral clipboard history, and numpad Alt-code emulation is specified in [`docs/designs/keyboard-profiles-and-input-ergonomics.md`](./designs/keyboard-profiles-and-input-ergonomics.md).
+> **Phase 4 — Approved requirements; implementation and acceptance pending.** See the [desktop requirements](./WAYLAND_DESKTOP.md#8-keyboard-profiles-preferences--deferred-alt-codes). The current runtime has no clipboard-history manager or purge hook.
 
-GallosOS decouples physical keymaps from desktop operational ergonomics while establishing strict anti-cheat isolation boundaries for ephemeral input state:
+Language layouts and variants remain independent of the behavioral profile. The Contestant explicitly selects a session-wide profile; Apple hardware detection may suggest macOS Compat but never activates it. All connected keyboards share that profile. Official application compatibility must be verified, including terminal controls; Organizer-added applications are best effort.
 
-### 6.1 Two-Tier Decoupling: Behavioral Profiles & Language Layouts
+### 6.1 Preference and clipboard storage
 
-Contestants compete on diverse hardware with pre-existing physical muscle memory:
-- **Language Layouts:** Supports the full upstream XKB catalog (`/usr/share/X11/xkb/rules/base.lst`). Left-clicking the Waybar layout badge cycles organizer-curated layouts (`us`, `latam`, `es`, `br`, `fr`, `dvorak`, `ar`), while right-clicking launches a searchable `wmenu -l 15` catalog picker (including Apple Mac hardware variants like `us(mac)`).
-- **Behavioral Profiles:** Contestants switch between `Windows Compat` (default), `macOS Compat`, and `Linux Standard` via Waybar or keyboard shortcuts without altering their active language keymap.
+Validated layout/profile preferences last until reboot, surviving home and session cleanup in root-managed volatile storage. Clipboard history uses a separate private store under `/run/gallos/`, with one explicit location shared by all clipboard clients. Neither store belongs in persistent `event-data`, the home cache, or `/run/user/<uid>` whose lifetime may end with the session. Resolve the Contestant UID dynamically. Verify volatile backing and persistent swap configuration before making storage-isolation claims.
 
-### 6.2 Ephemeral Clipboard Isolation & Zero-Leak Purge
+### 6.2 Contest-entry lifecycle
 
-Contestants require multi-slot clipboard history during competition to manage algorithm templates and test cases. However, pre-contest practice snippets must never leak into an official competition:
-- **Volatile Storage Boundary:** The clipboard stack uses upstream `cliphist` (Ubuntu 24.04 `universe`) and `wl-clipboard`. All snippet data and database indexes are hosted strictly on `tmpfs` under `/run/user/1000/cliphist/`—no clipboard record ever touches persistent flash storage.
-- **Deterministic Clean State Wipe:** On Contest mode transition, `perform_clean_state_wipe()` in `daemon/src/state_machine.py` invokes `_purge_clipboard_state()`. The eviction sequence:
-  1. Executes `cliphist wipe` under contestant credentials.
-  2. Unlinks all ephemeral cache files under `/run/user/1000/cliphist/`.
-  3. Clears active compositor selection memory via `wl-copy --clear` and `wl-copy --primary --clear`.
-  4. Restarts `cliphist.service` with an empty buffer before unlocking the kiosk session.
+The current session gate terminates all Contestant processes before applying policy. The proposed clipboard integration must stop all producers, safely remove and verify the history store during Contest-entry cleanup, and propagate required failures to the existing recovery path. The kiosk remains stopped on failure. The watcher starts only after the new compositor is available; no Wayland clearing command should target the already terminated compositor.
 
-### 6.3 Numpad-Only Alt-Code Hardware Boundary
+History is purged on entry into Contest, including initial boot into Contest. It is retained across Default/Event changes, Contest exit, and same-mode policy reapplication within the same boot. Active selections end with the old compositor. Volatile history disappears at shutdown/reboot without an additional purge service. Keyboard preferences survive Contest-entry cleanup, subject to effective Organizer policy.
 
-To allow Windows contestants to input symbols via decimal Alt codes (e.g. `Alt + 64` for `@`) without corrupting IDE shortcuts:
-- **Dedicated Keypad Scancodes Only:** The daemon (`/usr/libexec/gallos/gallos-altcode-daemon`) monitors exclusively `KEY_KP0`..`KEY_KP9` from `/dev/input/event*`. It **never intercepts top-row number keys** (`KEY_1`..`KEY_0`), protecting critical IDE navigation shortcuts (`Alt + 1` Project view, `Alt + 7` Structure view in CLion, PyCharm, and VSCodium).
-- **Hardware Gating & Sleep Dormancy:** On compact laptops lacking a physical numeric keypad, the daemon detects the absence of keypad scancodes and enters an inotify kernel sleep loop with 0.0% CPU overhead.
+This is a planned isolation contract. Repository tests alone cannot prove the absence of pre-contest clipboard content; image and graphical acceptance must inspect history and active selections and exercise cleanup failures.
+
+### 6.3 Deferred input interception
+
+Numpad Alt-code emulation is deferred. The initial delivery grants no additional input-group or uinput access and installs no Alt-code daemon. A later design must address event consumption, least privilege, inactive-state blocking, hot-plug behavior, encoding, and physical-keyboard testing while preserving top-row shortcuts and AltGr.
 
 ---
 

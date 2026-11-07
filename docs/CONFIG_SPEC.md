@@ -246,7 +246,7 @@ The matrix separates current runtime behavior from planned controls. A schema fi
 | **Bookmarks** | Launch links; not an access control | Launch links; not an access control | Launch links; browser/network policy enforces any restrictions |
 | **Software Modules (.gsm)** | Casper can mount discovered layers; profile module packaging is not wired | Same | Same |
 | **Contestant Files** | Volatile root-layer changes; optional `event-data` persists outside Contest | Same | Cleanup and `event-data` unmount are requested on entry; image acceptance remains open |
-| **Clipboard History** | Active (volatile RAM `tmpfs`) | Active (volatile RAM `tmpfs`) | Fresh instance; pre-contest history deterministically wiped on transition |
+| **Clipboard History** | Planned; no manager currently installed | Planned; retain history within the same boot | Planned; mandatory history purge on Contest entry |
 | **External USB Mass Storage** | Configurable (`allow_usb_storage`, default `true`) | Configurable (`allow_usb_storage`, default `true`) | Denied by the Contest transition |
 | **AI Plugin Purging** | Planned | Planned | Planned; judge-only network is the current control |
 | **EarlyOOM** | Service enabled with process preferences; no complete process immunity | Same | Same |
@@ -288,6 +288,10 @@ The daemon releases the contestant session only after the required firewall, sto
 
 ## 7. Official TOML Schema Specification (`gallos.toml`)
 
+Keyboard profiles and clipboard history remain [planned desktop work](./WAYLAND_DESKTOP.md#8-keyboard-profiles-preferences--deferred-alt-codes). The schema accepts `available_keyboard_layouts` and `default_keyboard_layout`, but the current runtime does not apply them. Layout variants such as `us(mac)` require validation against the installed XKB registry during future implementation. The proposed `default_keyboard_profile` field is not accepted by the current schema and is intentionally excluded from the canonical example. Alt-code configuration is deferred.
+
+The planned profile is explicitly selected for the entire session, with an optional Apple-hardware suggestion. Profile and layout preferences survive session/home cleanup in volatile storage until reboot. Planned clipboard history is purged on entry into Contest, retained on other transitions within the same boot, and never stored in `event-data`. No additional shutdown cleanup service is planned.
+
 ### 7.1 `software` Module Categories
 
 Every `software` entry follows `<category>/<package>`, validated against `schema/directives.schema.json`'s `software_list` pattern. Categories are identifiers for the planned module catalog: `internet` (browsers, translation tools), `langs` (compilers/runtimes), `programming` (IDEs/editors), `tools` (terminal/utility apps), `docs` (offline reference material), and `drivers` (proposed optional hardware drivers, including the not-yet-built `drivers/nvidia-proprietary`). The current daemon does not use this field to install or select modules.
@@ -313,10 +317,8 @@ or switch `.gsm` modules from `software`. Use the built image's
 [global]
 timezone = "America/Mexico_City"
 config_expiration = "2026-08-30T23:59:59Z"
-default_keyboard_profile = "windows-compat" # "windows-compat" | "macos-compat" | "linux-standard"
-available_keyboard_layouts = ["latam", "us", "es", "br", "fr", "dvorak", "ar"]
+available_keyboard_layouts = ["latam", "us", "es", "br", "fr", "ara"]
 default_keyboard_layout = "latam"
-enable_alt_codes = true                     # Emulate decimal Alt-codes on physical numeric keypads
 enable_event_mode = false
 enable_contest_mode = true
 

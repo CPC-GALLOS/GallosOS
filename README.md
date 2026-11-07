@@ -285,8 +285,7 @@ GallosOS/
 │   ├── HARDWARE_COMPATIBILITY.md # Firmware support (UEFI SecureBoot & Legacy BIOS), RAM specs
 │   ├── ANTI_CHEAT_AND_SECURITY.md# Firewall, Anti-Cheat protection, telemetry & USB lockdown
 │   ├── COMPARATIVE_ANALYSIS.md# In-depth comparison with existing contest distributions
-│   ├── PROVENANCE.md          # Third-party code, vendored assets & attribution ledger
-│   └── designs/               # Approved system design specifications (RFCs/EGM)
+│   └── PROVENANCE.md          # Third-party code, vendored assets & attribution ledger
 ├── examples/                  # Organizer gallos.toml profiles and policy examples
 │   ├── README.md              # Profile catalog, gallos.toml vs machine.toml, deployment & config precedence
 │   ├── neutral.gallos.toml       # GallosOS-branded ISO fallback
