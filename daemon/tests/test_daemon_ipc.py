@@ -124,3 +124,28 @@ def test_reload_schema_error_keeps_contest_policy(tmp_path):
     daemon.state_machine.request_reapply.assert_not_called()
     identity.assert_not_called()
     root_password.assert_not_called()
+
+
+def test_reload_invalid_calendar_keeps_active_policy_and_deadline(tmp_path):
+    import pytest
+
+    from daemon.src.main import GallosDaemon
+    from daemon.src.state_machine import ModeStateMachine
+
+    directory = tmp_path / "policy"
+    directory.mkdir()
+    (directory / "gallos.toml").write_text(
+        '[global]\ntimezone="UTC"\n[[contest.schedule]]\n'
+        'start="2026-11-07T09:00:00Z"\nend="2026-99-99T10:00:00Z"\n'
+    )
+    daemon = GallosDaemon()
+    previous = {"global": {"timezone": "UTC"}}
+    daemon.config = previous
+    daemon.state_machine = ModeStateMachine(previous, daemon.firewall)
+    before = daemon.state_machine.clock_snapshot()
+    with patch("daemon.src.config.CONFIG_SEARCH_DIRECTORIES", [str(directory)]):
+        with pytest.raises(ValueError):
+            daemon.reload_config()
+    assert daemon.config is previous
+    assert daemon.state_machine.config is previous
+    assert daemon.state_machine.clock_snapshot() == before

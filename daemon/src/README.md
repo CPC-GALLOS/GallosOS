@@ -24,8 +24,8 @@ These Python modules implement the Live system daemon and its host-service helpe
 ## Invariants
 
 - `config.load_local_config()` prefers canonical `gallos.toml` files in search-directory order, then one unambiguous named profile, then the bundled baseline. `load_active_config()` validates selected directives against the JSON Schema and permits remote replacement only when the selected source is the bundled baseline. Recovery credentials are re-read from local configuration.
-- `ModeStateMachine.evaluate_target_mode()` evaluates a manual override first, then Contest triggers, Event schedules, and the configured fallback mode (normally Default). Schedule windows include their start and exclude their end. `set_manual_mode("Default")` remains an override until cleared or the daemon restarts; it does not resume scheduled selection immediately.
-- `transition_to()` stops the kiosk before applying changes and releases it after successful policy application and transition-record writing. Transition errors latch; `set_manual_mode()` explicitly clears the error for another attempt, while reload's `request_reapply()` alone does not. Recording an error does not roll back host actions already performed. Reapplying an existing Contest policy does not repeat the contestant-home wipe. `transition_record.read_record()` converts an interrupted pending transition into an error.
+- `ModeStateMachine.evaluate_target_mode()` evaluates a manual override first, then Contest triggers, Event schedules, and the configured fallback mode (normally Default). Schedule windows include their start and exclude their end. `set_manual_mode("Default")` remains an override until cleared or the system reboots; it does not resume scheduled selection immediately.
+- `transition_to()` stops the kiosk for mode changes and startup recovery; same-mode hot reload retains running applications and stops them only on a required failure. Transition errors latch; `set_manual_mode()` explicitly clears the error for another attempt, while reload's `request_reapply()` alone does not. Recording an error does not roll back host actions already performed. Reapplying an existing Contest policy does not repeat the contestant-home wipe. `transition_record.read_record()` converts an interrupted pending transition into an error.
 - `GallosDaemon.handle_socket_connection()` obtains peer credentials, and command dispatch requires UID 0 for `START`, `STOP`, and `RELOAD`; `STATUS` is available to other local users. Remote refresh callbacks queue work for the daemon loop.
 - `fetch_remote_policy()` requires HTTPS without embedded credentials, validates the final response origin, caps the response at 1 MiB, and validates UTF-8 TOML against the schema. `RemotePolicySync` retains a cache under `/run`; this is not persistent offline storage.
 - `effective_websites()` lets Event inherit Default's website list unless overridden. Restricted proxy lists accept literal DNS names or IPv4 addresses. `FirewallManager` renders different Contest, restricted-practice, and open-mode rules; open mode still contains explicit public-DNS destination and TCP 853 drops.
@@ -43,3 +43,11 @@ These Python modules implement the Live system daemon and its host-service helpe
 From the repository root, run `./scripts/check.sh`. For focused daemon unit checks, run `python3 -m pytest daemon/tests/ -v`.
 
 These checks cover source and unit behavior. Booted-image policy enforcement, graphical session behavior, and physical hardware acceptance require separate evidence; see `/ROADMAP.md` and `/docs/DEVELOPMENT.md`.
+
+### Updated runtime contracts
+
+`ModeStateMachine.replace_config()` retains active Contest deadlines and applies
+explicit end changes. The transition journal stores absolute ends and monotonic
+origins for daemon restarts within the same boot. Expiration suppresses automatic
+starts without interrupting an active Contest. `gallosctl contest stop` remains
+an explicit Default override; natural manual expiry resumes schedule selection.

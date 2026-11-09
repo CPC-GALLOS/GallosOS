@@ -286,7 +286,7 @@
         },
         "config_expiration": {
           "$ref": "#/definitions/iso8601_datetime",
-          "description": "After this datetime, the directives file is considered expired and the system falls back to Default mode."
+          "description": "After this datetime, new automatic Contest/Event starts are disabled. An active Contest retains its deadline, then uses this policy Default. Root manual commands remain available."
         },
         "available_keyboard_layouts": {
           "type": "array",

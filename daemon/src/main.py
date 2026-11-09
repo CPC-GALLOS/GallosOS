@@ -69,8 +69,7 @@ class GallosDaemon:
         self.config = new_config
         self.machine_cfg = new_machine_cfg
         if self.state_machine:
-            self.state_machine.config = self.config
-            self.state_machine.request_reapply()
+            self.state_machine.replace_config(self.config)
 
     def _queue_remote_config(self, config: dict[str, Any]) -> None:
         self.pending_remote_configs.put(config)

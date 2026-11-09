@@ -5,12 +5,15 @@ import json
 import os
 import pathlib
 import tempfile
+from typing import Any
 
 RECORD = pathlib.Path("/run/gallos/transition.json")
 MODES = {"Contest", "Event", "Default"}
 
 
-def write_record(mode: str, target_mode: str, status: str, error: str) -> None:
+def write_record(
+    mode: str, target_mode: str, status: str, error: str, *, clock: dict[str, Any] | None = None
+) -> None:
     RECORD.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
     with contextlib.suppress(OSError):
         os.chmod(RECORD.parent, 0o755)  # noqa: S103
@@ -20,6 +23,8 @@ def write_record(mode: str, target_mode: str, status: str, error: str) -> None:
         "transition_status": status,
         "last_error": error,
     }
+    if clock is not None:
+        payload["clock"] = clock
     fd, path = tempfile.mkstemp(dir=RECORD.parent, prefix=".transition-")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
@@ -33,7 +38,7 @@ def write_record(mode: str, target_mode: str, status: str, error: str) -> None:
             os.unlink(path)
 
 
-def read_record() -> dict[str, str] | None:
+def read_record() -> dict[str, Any] | None:
     try:
         with RECORD.open(encoding="utf-8") as stream:
             payload = json.load(stream)

@@ -1,6 +1,6 @@
 """Unit tests for gallosd 3-tier mode state machine."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 from daemon.src.state_machine import ModeStateMachine
@@ -66,7 +66,7 @@ def test_state_machine_wall_clock_schedule():
     (schema/directives.schema.json's time_window def), not a single dict, and
     not start_time/end_time — matches examples/*.toml's [[contest.schedule]]."""
     mock_firewall = MagicMock()
-    now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.now(UTC)
     start_utc = now_utc - timedelta(minutes=10)
     end_utc = now_utc + timedelta(minutes=50)
 
@@ -84,7 +84,7 @@ def test_state_machine_schedule_with_multiple_windows_checks_all():
     """A schedule array with several windows must find whichever one is
     currently active, not just the first entry."""
     mock_firewall = MagicMock()
-    now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.now(UTC)
     past_start = now_utc - timedelta(hours=2)
     past_end = now_utc - timedelta(hours=1)
     active_start = now_utc - timedelta(minutes=5)

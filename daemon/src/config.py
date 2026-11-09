@@ -235,8 +235,7 @@ def load_active_config(remote_config: dict[str, Any] | None = None) -> dict[str,
         source_name = "default internal"
 
     if is_config_expired(config_data):
-        print("[config] WARNING: Config is expired! Reverting to Default mode.")
-        config_data["mode"] = "Default"
+        print("[config] WARNING: Config is expired; automatic starts are disabled.")
 
     # Always re-sourced from local-only, regardless of config_data's own origin above —
     # a fresh dict assignment, never a mutation of a dict that might alias DEFAULT_CONFIG.

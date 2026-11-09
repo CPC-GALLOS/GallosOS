@@ -75,6 +75,13 @@ To prevent configuration pollution and keep deployment modular, GallosOS enforce
 > **How to use `examples/`:** Organizers do not write `gallos.toml` from scratch. For an ICPC regional, simply copy [`examples/icpc-onsite.gallos.toml`](../examples/icpc-onsite.gallos.toml) (or [`examples/maratona-sbc.gallos.toml`](../examples/maratona-sbc.gallos.toml) for South America / BOCA) to your server or USB, adjust the competition timestamps, and deploy!
 
 ---
+### Runtime continuity, explicit services, and interpreter separation
+
+- A policy's expiration disables new automatic Contest/Event starts. An active Contest continues to its retained end, then uses that policy's Default restrictions. Root manual commands remain available. A valid replacement restores scheduled selection.
+- A same-mode reload preserves applications and contestant files. An invalid replacement leaves the active policy unchanged. Required policy-application failures stop the kiosk and enter recovery.
+- An active Contest keeps its end when the Contest block/window is removed or only its start changes. A changed end applies immediately; an end already passed terminates Contest. Relative durations are recalculated from the original boot/manual start, never from reload time. For multiple windows, a matching start identifies the active window; a single replacement window can explicitly replace its end. Ambiguous replacements retain the current end.
+- `gallosctl contest stop` requests a continuing manual Default override. When a manual Contest duration expires naturally, the scheduler directly selects the applicable mode without an intermediate Default transition.
+
 
 ## 3. Format: TOML as the Sole Canonical Standard
 

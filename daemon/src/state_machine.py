@@ -4,16 +4,18 @@ Evaluates scheduled time-windows, monotonic timers, and manual organizer trigger
 orchestrating the Clean State Wipe, dynamic firewall, USB lockdown, and desktop state.
 """
 
+import math
 import os
 import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from .browser_policy import apply_browser_policy
 from .clean_state import reset_contest_scratch
+from .config import is_config_expired
 from .desktop import export_waybar_state, send_desktop_notification, update_wallpaper
 from .firewall import FirewallManager
 from .session_gate import release_kiosk, start_recovery_console, stop_kiosk
@@ -120,11 +122,43 @@ class ModeStateMachine:
         self.target_mode: str = record["target_mode"] if record else "Unknown"
         self.transition_status: str = record["transition_status"] if record else "pending"
         self.last_error: str = record["last_error"] if record else ""
+        self._hot_reapply = False
         self._needs_reapply = bool(record and self.transition_status == "ready")
+        self._contest_end: datetime | None = None
+        self._relative_end: float | None = None
+        self._active_window: dict[str, Any] | None = None
         self.manual_override: str | None = None
         self._boot_monotonic = time.monotonic()
         self._manual_start_time: float | None = None
         self._manual_duration_sec: int | None = None
+        if record and record.get("clock"):
+            self._restore_clock(record["clock"])
+        self._persisted_clock = self.clock_snapshot()
+
+    def clock_snapshot(self) -> dict[str, Any]:
+        """Persist current-boot deadline origins with the transition journal."""
+        return {
+            "end": self._contest_end.isoformat() if self._contest_end else None,
+            "relative_end": self._relative_end,
+            "window": self._active_window,
+            "boot_origin": self._boot_monotonic,
+            "manual_mode": self.manual_override,
+            "manual_origin": self._manual_start_time,
+            "manual_duration": self._manual_duration_sec,
+        }
+
+    def _restore_clock(self, clock: dict[str, Any]) -> None:
+        try:
+            self._contest_end = _parse_iso_datetime(clock["end"]) if clock.get("end") else None
+            self._relative_end = clock.get("relative_end")
+            self._active_window = clock.get("window")
+            self._boot_monotonic = clock["boot_origin"]
+            self.manual_override = clock.get("manual_mode")
+            self._manual_start_time = clock.get("manual_origin")
+            self._manual_duration_sec = clock.get("manual_duration")
+        except (ValueError, TypeError, KeyError) as exc:
+            self.transition_status = "error"
+            self.last_error = f"Invalid Contest clock: {exc}"
 
     def set_manual_mode(self, mode: str | None, duration_minutes: int | None = None) -> None:
         """Allows manual CLI triggers to override state."""
@@ -132,6 +166,9 @@ class ModeStateMachine:
             self.transition_status = "pending"
             self.last_error = ""
             self._needs_reapply = True
+        self._contest_end = None
+        self._relative_end = None
+        self._active_window = None
         self.manual_override = mode
         if mode == "Contest":
             self._manual_start_time = time.monotonic()
@@ -140,9 +177,34 @@ class ModeStateMachine:
             self._manual_start_time = None
             self._manual_duration_sec = None
 
+    def replace_config(self, config: dict[str, Any]) -> None:
+        """Replace policy while retaining an active Contest's original deadline."""
+        contest = config.get("contest", {})
+        if self._active_window:
+            windows = contest.get("schedule", [])
+            matches = [w for w in windows if w.get("start") == self._active_window.get("start")]
+            if not matches and len(windows) == 1:
+                matches = windows
+            if matches and "end" in matches[0]:
+                self._contest_end = _parse_iso_datetime(matches[0]["end"])
+                self._active_window = matches[0].copy()
+        if "duration_minutes" in contest and contest["duration_minutes"] != self.config.get(
+            "contest", {}
+        ).get("duration_minutes"):
+            duration = contest["duration_minutes"] * 60
+            if self._relative_end is not None:
+                self._relative_end = self._boot_monotonic + duration
+            if self.manual_override == "Contest" and self._manual_start_time is not None:
+                self._manual_duration_sec = duration
+        self.config = config
+        self._hot_reapply = self.transition_status == "ready"
+        self.request_reapply()
+
     def request_reapply(self) -> None:
         """Reapply a changed config, including when its mode name is unchanged."""
         self._needs_reapply = True
+        if self.transition_status == "ready":
+            self.transition_status = "pending"
 
     def _eval_manual_override(self) -> tuple[str, int] | None:
         """Evaluates manual override mode and expiration."""
@@ -151,16 +213,16 @@ class ModeStateMachine:
         rem = 0
         is_manual_contest = (
             self.manual_override == "Contest"
-            and self._manual_start_time
+            and self._manual_start_time is not None
             and self._manual_duration_sec
         )
         if is_manual_contest:
             elapsed = int(time.monotonic() - self._manual_start_time)
             rem = max(0, self._manual_duration_sec - elapsed)
             if rem == 0 and self._manual_duration_sec > 0:
-                print("[state_machine] Manual contest duration expired. Reverting to Default.")
+                print("[state_machine] Manual contest duration expired. Resuming schedules.")
                 self.manual_override = None
-                return "Default", 0
+                return None
         return self.manual_override, rem
 
     def _eval_contest_triggers(self, now_utc: datetime) -> tuple[str, int] | None:
@@ -171,10 +233,16 @@ class ModeStateMachine:
             elapsed = int(time.monotonic() - self._boot_monotonic)
             rem = max(0, (dur_min * 60) - elapsed)
             if rem > 0:
+                self._relative_end = self._boot_monotonic + dur_min * 60
                 return "Contest", rem
 
         active, rem = _is_schedule_active(contest_cfg.get("schedule", []), now_utc)
         if active:
+            for window in contest_cfg.get("schedule", []):
+                if _is_window_active(window, now_utc)[0]:
+                    self._active_window = window.copy()
+                    self._contest_end = _parse_iso_datetime(window["end"])
+                    break
             return "Contest", rem
         return None
 
@@ -191,7 +259,21 @@ class ModeStateMachine:
         if (manual_res := self._eval_manual_override()) is not None:
             return manual_res
 
-        now_utc = datetime.now(timezone.utc)
+        now_utc = datetime.now(UTC)
+
+        if self._contest_end is not None:
+            remaining = math.ceil((self._contest_end - now_utc).total_seconds())
+            if remaining > 0:
+                return "Contest", remaining
+            self._contest_end = None
+            self._active_window = None
+        if self._relative_end is not None:
+            remaining = math.ceil(self._relative_end - time.monotonic())
+            if remaining > 0:
+                return "Contest", remaining
+            self._relative_end = None
+        if is_config_expired(self.config):
+            return "Default", 0
 
         if (contest_res := self._eval_contest_triggers(now_utc)) is not None:
             return contest_res
@@ -253,38 +335,74 @@ class ModeStateMachine:
         if self.transition_status == "error":
             export_waybar_state(self.current_mode, remaining_sec, "error", self.last_error)
             return
-        if target_mode == self.current_mode and not self._needs_reapply:
+        same_mode = target_mode == self.current_mode and not self._needs_reapply
+        if same_mode and self.clock_snapshot() == self._persisted_clock:
             export_waybar_state(self.current_mode, remaining_sec, "ready")
             return
 
         old_mode = self.current_mode
         print(f"[state_machine] MODE TRANSITION: {old_mode} -> {target_mode}")
+        hot_reload = self._hot_reapply and old_mode == target_mode
+        kiosk_stopped = False
         try:
-            stop_kiosk()
+            if same_mode:
+                write_record(target_mode, target_mode, "ready", "", clock=self.clock_snapshot())
+                self._persisted_clock = self.clock_snapshot()
+                export_waybar_state(target_mode, remaining_sec, "ready")
+                return
+            if not hot_reload:
+                stop_kiosk()
+                kiosk_stopped = True
             if old_mode != _BOOT_SENTINEL_MODE:
-                write_record(old_mode, target_mode, "pending", "")
+                write_record(old_mode, target_mode, "pending", "", clock=self.clock_snapshot())
             self._apply_target_mode(target_mode, old_mode)
             self.current_mode = target_mode
             self.transition_status = "ready"
             self.last_error = ""
-            write_record(target_mode, target_mode, "ready", "")
-            release_kiosk()
+            write_record(target_mode, target_mode, "ready", "", clock=self.clock_snapshot())
+            if not hot_reload:
+                kiosk_stopped = False
+                release_kiosk()
+            self._hot_reapply = False
+            self._persisted_clock = self.clock_snapshot()
             self._needs_reapply = False
             export_waybar_state(target_mode, remaining_sec, "ready")
         except Exception as exc:
-            self.transition_status = "error"
-            self.last_error = str(exc)
-            saved_mode = old_mode if old_mode in ("Contest", "Event", "Default") else "Default"
-            self.current_mode = saved_mode
-            write_record(saved_mode, target_mode, "error", self.last_error)
+            self._contain_transition_failure(
+                exc, old_mode, target_mode, remaining_sec, kiosk_stopped
+            )
+
+    def _contain_transition_failure(
+        self,
+        exc: Exception,
+        old_mode: str,
+        target_mode: str,
+        remaining_sec: int,
+        kiosk_stopped: bool,
+    ) -> None:
+        """Contain the session independently of recovery services and journal availability."""
+        self.transition_status = "error"
+        self.last_error = str(exc)
+        saved_mode = old_mode if old_mode in ("Contest", "Event", "Default") else "Default"
+        self.current_mode = saved_mode
+        if not kiosk_stopped:
             try:
-                recovery_hash = self.config.get("recovery", {}).get("root_password_hash")
-                start_recovery_console(bool(recovery_hash))
-            except Exception as recovery_exc:
-                self.last_error += f"; recovery console failed: {recovery_exc}"
-                write_record(saved_mode, target_mode, "error", self.last_error)
-            print(f"[state_machine] Transition failed: {self.last_error}", file=sys.stderr)
-            export_waybar_state(saved_mode, remaining_sec, "error", self.last_error)
+                stop_kiosk()
+            except Exception as stop_exc:
+                self.last_error += f"; session containment failed: {stop_exc}"
+        try:
+            recovery_hash = self.config.get("recovery", {}).get("root_password_hash")
+            start_recovery_console(bool(recovery_hash))
+        except Exception as recovery_exc:
+            self.last_error += f"; recovery console failed: {recovery_exc}"
+        try:
+            write_record(
+                saved_mode, target_mode, "error", self.last_error, clock=self.clock_snapshot()
+            )
+        except Exception as journal_exc:
+            self.last_error += f"; recovery journal failed: {journal_exc}"
+        print(f"[state_machine] Transition failed: {self.last_error}", file=sys.stderr)
+        export_waybar_state(saved_mode, remaining_sec, "error", self.last_error)
 
     def _apply_target_mode(self, target_mode: str, old_mode: str) -> None:
         if target_mode == "Contest" and old_mode != "Contest":
@@ -295,6 +413,7 @@ class ModeStateMachine:
             unmount_event_data()
             set_usb_storage_allowed(False)
             apply_browser_policy("Contest", self.config)
+            update_wallpaper("Contest")
         elif old_mode == "Contest":
             self._exit_contest_mode(target_mode)
         else:
