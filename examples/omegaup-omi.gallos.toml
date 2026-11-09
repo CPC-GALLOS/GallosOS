@@ -1,4 +1,4 @@
-#:schema https://raw.githubusercontent.com/CPC-GALLOS/GallosOS/main/schema/directives.schema.json
+#:schema ../schema/directives.schema.json
 # ==============================================================================
 # GallosOS Directives Profile: omegaUp / OMI (Olimpiada Mexicana de Informática)
 # ==============================================================================

@@ -1,4 +1,4 @@
-#:schema https://raw.githubusercontent.com/CPC-GALLOS/GallosOS/main/schema/directives.schema.json
+#:schema ../schema/directives.schema.json
 # CPC-GALLOS club practice: open internet, with club identity and no schedule.
 # The anti-AI search and website policy is a separate release requirement.
 [global]

@@ -1,4 +1,4 @@
-#:schema https://raw.githubusercontent.com/CPC-GALLOS/GallosOS/main/schema/directives.schema.json
+#:schema ../schema/directives.schema.json
 # University exam policy example for Moodle's public demo site.
 # POLICY TESTING ONLY: do not use this shared demo host for a live exam.
 # A real deployment needs a tested institution-specific LMS, SSO, and service allowlist.

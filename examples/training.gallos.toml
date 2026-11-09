@@ -1,4 +1,4 @@
-#:schema https://raw.githubusercontent.com/CPC-GALLOS/GallosOS/main/schema/directives.schema.json
+#:schema ../schema/directives.schema.json
 # Multi-judge training: reviewed judge and official training hosts.
 # Event inherits this Default allowlist unless an Organizer overrides it.
 [global]

@@ -2,6 +2,8 @@
 
 This directory contains example profiles for the canonical **`gallos.toml`** directives format. Organizers must validate judge access, language versions, and desktop behavior before an official event.
 
+Each example uses `#:schema ../schema/directives.schema.json` for editor validation against this checkout. If you copy a profile elsewhere for editing, adjust that relative schema path or configure your editor to use the matching schema. The daemon treats this annotation as a TOML comment and uses its packaged schema.
+
 The catalogs below describe intended event policies, including planned printing, auditing, branding, layout controls, and software modules. A valid profile does not implement those features or install the referenced applications. See [`ROADMAP.md`](../ROADMAP.md) for implementation status and the selected release core; broader software is optional future expansion.
 
 ---
