@@ -71,3 +71,10 @@ def test_failed_proxy_restart_restores_previous_policy(tmp_path):
                 "Default", {"default": {"allowed_websites": ["codeforces.com"]}}
             )
     assert policy.read_text() == "old policy\n"
+
+
+def test_proxy_restart_has_no_thirty_second_grace_period():
+    from daemon.src.web_egress import build_squid_config
+
+    # Squid defaults to 30s shutdown grace, exceeding the 20s control deadline.
+    assert "shutdown_lifetime 0 seconds" in build_squid_config(["judge.example.org"])
