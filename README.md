@@ -81,6 +81,8 @@ Use the [bug report](./.github/ISSUE_TEMPLATE/bug_report.yml) or [hardware / fir
 
 Pull requests use a [short checklist](./.github/PULL_REQUEST_TEMPLATE.md) covering `make check`, Conventional Commits, independently reviewable commits, and documentation consistency. See [the contributor guidelines](./AGENTS.md) for the repository rules.
 
+GallosOS uses the **Elephant & Goldfish Model (EGM)** to review designs, document component contracts, and detect differences between documentation and implementation. EGM tooling is optional for contributors; the [EGM workflow guidelines](./AGENTS.md#egm-design-and-drift-review-workflow) describe how to perform the same checks manually. Dated drift reports record findings at a particular revision and may include later resolutions. They do not replace current requirements or ISO, graphical-session, and physical-hardware acceptance evidence.
+
 ### Installing Prerequisites
 
 #### Fedora / RHEL
