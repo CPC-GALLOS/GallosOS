@@ -1,6 +1,6 @@
 """Unit tests for gallosd config ingestion module."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import mock_open, patch
 
 import pytest
@@ -29,13 +29,13 @@ def test_is_config_expired_not_set():
 
 
 def test_is_config_expired_future():
-    future_dt = datetime.now(timezone.utc) + timedelta(days=1)
+    future_dt = datetime.now(UTC) + timedelta(days=1)
     config = {"global": {"config_expiration": future_dt.isoformat()}}
     assert is_config_expired(config) is False
 
 
 def test_is_config_expired_past():
-    past_dt = datetime.now(timezone.utc) - timedelta(days=1)
+    past_dt = datetime.now(UTC) - timedelta(days=1)
     config = {"global": {"config_expiration": past_dt.isoformat()}}
     assert is_config_expired(config) is True
 
@@ -301,3 +301,16 @@ def test_load_machine_config_auto_discovers_unique_profile(tmp_path):
 
     data = load_machine_config(search_dirs=[str(config_dir)])
     assert data.get("hostname") == "pc-42"
+
+
+@pytest.mark.parametrize("end", ["2026-13-01T00:00:00Z", "2026-11-07T10:00:00"])
+def test_invalid_schedule_dates_are_rejected_before_policy_replacement(end):
+    from daemon.src.config import validate_directives
+
+    with pytest.raises(ValueError):
+        validate_directives(
+            {
+                "global": {"timezone": "UTC"},
+                "contest": {"schedule": [{"start": "2026-11-07T09:00:00Z", "end": end}]},
+            }
+        )

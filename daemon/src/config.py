@@ -3,11 +3,11 @@
 import json
 import os
 import sys
-from datetime import datetime, timezone
+import tomllib
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import tomllib
 from jsonschema import Draft7Validator
 
 UTC_TZ_OFFSET = "+00:00"
@@ -65,6 +65,24 @@ def validate_directives(config: dict[str, Any]) -> None:
     if error is not None:
         location = ".".join(str(part) for part in error.absolute_path) or "root"
         raise ValueError(f"Invalid directives at {location}: {error.message}")
+    _validate_policy_dates(config)
+
+
+def _validate_policy_dates(config: dict[str, Any]) -> None:
+    values = []
+    expiration = config.get("global", {}).get("config_expiration")
+    if expiration:
+        values.append(expiration)
+    for mode in ("default", "event", "contest"):
+        for window in config.get(mode, {}).get("schedule", []):
+            values.extend((window["start"], window["end"]))
+    for value in values:
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError(f"Invalid policy datetime: {value}") from exc
+        if parsed.utcoffset() is None:
+            raise ValueError(f"Policy datetime requires an explicit timezone: {value}")
 
 
 def _discover_unique_profile(dirs: list[str], suffix: str) -> str | None:
@@ -179,7 +197,7 @@ def is_config_expired(config: dict[str, Any]) -> bool:
     try:
         normalized = exp_str.replace("Z", UTC_TZ_OFFSET)
         exp_dt = datetime.fromisoformat(normalized)
-        now_dt = datetime.now(timezone.utc)
+        now_dt = datetime.now(UTC)
         if now_dt > exp_dt:
             print(f"[config] Configuration expired at {exp_dt} (Current: {now_dt})")
             return True
