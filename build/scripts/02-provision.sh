@@ -88,12 +88,14 @@ printf '%s  %s\n' "$codium_digest" "$ROOTFS/tmp/$codium_asset" | sha256sum -c -
 chroot "$ROOTFS" apt-get install -y --no-install-recommends "/tmp/$codium_asset"
 rm -f "$ROOTFS/tmp/$codium_asset"
 
+"$SCRIPT_DIR/install-contest-pypy.sh" "$ROOTFS"
+
 # Record the package versions embedded in this ISO for the release matrix.
 mkdir -p "$ROOTFS/usr/share/gallos"
 # dpkg-query expands these template fields, not Bash.
 # shellcheck disable=SC2016
 chroot "$ROOTFS" dpkg-query -W -f='${Package}\t${Version}\n' \
-    gcc g++ clang openjdk-21-jdk python3 pypy3 rustc kotlin geany firefox codium \
+    gcc g++ clang openjdk-21-jdk python3 rustc kotlin geany firefox codium \
     > "$ROOTFS/usr/share/gallos/toolchains.tsv"
 
 # Contestant defaults are copied from /etc/skel after a fresh Contest entry.

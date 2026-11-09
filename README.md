@@ -25,7 +25,9 @@ these workflows remains open in [`ROADMAP.md`](./ROADMAP.md#release-acceptance).
 The selected release toolchains are GCC (C/C++), Clang (C/C++), OpenJDK
 (Java), Python/PyPy, Rust, and Kotlin, alongside Geany, terminal editors,
 Firefox, and VSCodium. The build writes exact installed package versions to
-`/usr/share/gallos/toolchains.tsv`. This is a curated core, not language
+`/usr/share/gallos/toolchains.tsv`; the separately pinned contestant PyPy is recorded in
+`/usr/share/gallos/contest-python.tsv`. System tools use `/usr/bin/python3`, while
+`pypy3` selects the ICPC runtime. This is a curated core, not language
 parity with every Codeforces, HackerRank, LeetCode, or omegaUp runtime.
 
 The anti-AI website and search-results policy, including review of web relays

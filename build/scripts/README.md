@@ -125,3 +125,12 @@ bash build/scripts/test-secure-boot-rejection.sh
 See `docs/BUILD_SYSTEM.md` for builder/chroot verification setup and `ROADMAP.md`
 for remaining image, graphical, and physical acceptance requirements. Listing
 these commands does not record a successful image validation run.
+
+### Contest Python and runtime acceptance
+
+`install-contest-pypy.sh ROOTFS` installs the complete pinned PyPy 7.3.15
+(Python 3.9.18) distribution under `/opt` after verifying its upstream SHA-256.
+It exposes `/usr/local/bin/pypy3` without replacing the OS `/usr/bin/python3`.
+The inventory is `/usr/share/gallos/contest-python.tsv` alongside the installed
+package inventory. `verify-toolchains.sh` checks both runtime identity and the
+system TOML parser.

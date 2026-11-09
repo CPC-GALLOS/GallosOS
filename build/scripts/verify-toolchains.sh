@@ -37,7 +37,9 @@ javac Main.java
 [[ "$(java Main)" == "42" ]]
 
 [[ "$(python3 -c 'print(42)')" == "42" ]]
-[[ "$(pypy3 -c 'print(42)')" == "42" ]]
+[[ "$(pypy3 -c 'import sys; print(sys.version_info[:3]); print(sys.pypy_version_info[:3])')" == $'(3, 9, 18)\n(7, 3, 15)' ]]
+/usr/bin/python3 -c 'import sys, tomllib; assert sys.version_info >= (3, 11); assert sys.implementation.name == "cpython"'
+/usr/bin/gallosctl check --json >/dev/null
 
 cat > main.rs <<'EOF'
 fn main() { println!("42"); }

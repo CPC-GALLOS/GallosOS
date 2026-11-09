@@ -55,7 +55,6 @@ preinstall_apt = [
     "clang",
     "openjdk-21-jdk",
     "python3",
-    "pypy3",
     "rustc",
     "cargo",
     "kotlin",
