@@ -16,7 +16,7 @@ def get_local_mac_addresses() -> list[str]:
     """Scans sysfs for all active Ethernet/WLAN hardware MAC addresses."""
     macs: list[str] = []
     for addr_file in glob.glob("/sys/class/net/*/address"):
-        if "lo" in addr_file:
+        if os.path.basename(os.path.dirname(addr_file)) == "lo":
             continue
         with contextlib.suppress(OSError):
             with open(addr_file, encoding="utf-8") as f:

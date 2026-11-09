@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from daemon.src import desktop, state_machine
+from daemon.src import desktop, identity, state_machine
 from daemon.src.state_machine import ModeStateMachine
 from daemon.src.wallpaper_session import WallpaperSession
 
@@ -94,6 +94,22 @@ def test_relative_wallpaper_keeps_daemon_directory_in_separate_session(tmp_path,
     with patch("daemon.src.wallpaper_session.subprocess.Popen") as spawn:
         WallpaperSession(state).refresh()
         assert spawn.call_args.args[0] == ["swaybg", "-i", str(asset), "-m", "fill"]
+
+
+def test_mac_lookup_excludes_only_loopback_interface(tmp_path):
+    paths = []
+    for index, interface in enumerate(["lo", "wlo1", "enp0s1", "lowifi"]):
+        folder = tmp_path / interface
+        folder.mkdir()
+        address = folder / "address"
+        address.write_text(f"AA:BB:CC:DD:EE:0{index}\n")
+        paths.append(str(address))
+    with patch.object(identity.glob, "glob", return_value=paths):
+        assert identity.get_local_mac_addresses() == [
+            "aa:bb:cc:dd:ee:01",
+            "aa:bb:cc:dd:ee:02",
+            "aa:bb:cc:dd:ee:03",
+        ]
 
 
 def test_shortened_manual_policy_duration_uses_elapsed_original_origin(machine):
