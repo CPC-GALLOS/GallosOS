@@ -8,29 +8,33 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
+from pathlib import Path
+
+WALLPAPER_STATE = Path("/run/gallos/wallpaper.json")
 
 
 def update_wallpaper(mode: str, custom_url: str = "") -> None:
-    """Switches desktop wallpaper according to mode."""
-    wallpaper_path = "/usr/share/backgrounds/gallos/default.png"
-    if mode == "Contest":
-        wallpaper_path = "/usr/share/backgrounds/gallos/contest.png"
-
-    if custom_url and os.path.isfile(custom_url):
-        wallpaper_path = custom_url
-
-    print(f"[desktop] Updating desktop wallpaper to: {wallpaper_path}")
+    """Publish a local asset for the consumer running inside the Wayland session."""
+    fallback = f"/usr/share/backgrounds/gallos/{'contest' if mode == 'Contest' else 'default'}.png"
+    path = fallback
+    if custom_url and custom_url != "default":
+        if os.path.isfile(custom_url) and os.access(custom_url, os.R_OK):
+            path = str(Path(custom_url).resolve())
+        else:
+            print(
+                f"[desktop] Wallpaper unavailable: {custom_url!r}; using fallback", file=sys.stderr
+            )
+    WALLPAPER_STATE.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(dir=WALLPAPER_STATE.parent, prefix=".wallpaper-")
     try:
-        # Terminate previous swaybg instance
-        subprocess.run(["pkill", "-x", "swaybg"], check=False)
-        # Spawn new swaybg under contestant session
-        subprocess.Popen(
-            ["su", "-", "contestant", "-c", f"swaybg -i {wallpaper_path} -m fill &"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    except Exception as e:
-        print(f"[desktop] Error updating wallpaper: {e}", file=sys.stderr)
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            os.fchmod(stream.fileno(), 0o644)
+            json.dump({"path": path, "fallback": fallback}, stream)
+        os.replace(temporary, WALLPAPER_STATE)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 
 def send_desktop_notification(title: str, message: str, urgency: str = "normal") -> None:

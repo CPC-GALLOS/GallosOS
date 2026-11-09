@@ -1,11 +1,13 @@
 """Regression coverage for runtime contract findings F01 through F06."""
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from daemon.src import state_machine
+from daemon.src import desktop, state_machine
 from daemon.src.state_machine import ModeStateMachine
+from daemon.src.wallpaper_session import WallpaperSession
 
 
 @pytest.fixture
@@ -74,6 +76,24 @@ def test_hot_reload_journal_failures_cannot_skip_containment(machine, failure_at
         assert machine.transition_status == "error"
         assert "journal unavailable" in machine.last_error
         assert publish.call_args.args[2] == "error"
+
+
+def test_relative_wallpaper_keeps_daemon_directory_in_separate_session(tmp_path, monkeypatch):
+    publisher = tmp_path / "publisher"
+    publisher.mkdir()
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    asset = publisher / "custom.png"
+    asset.write_bytes(b"image")
+    state = tmp_path / "wallpaper.json"
+    monkeypatch.chdir(publisher)
+    with patch.object(desktop, "WALLPAPER_STATE", state):
+        desktop.update_wallpaper("Default", "custom.png")
+    assert json.loads(state.read_text())["path"] == str(asset)
+    monkeypatch.chdir(consumer)
+    with patch("daemon.src.wallpaper_session.subprocess.Popen") as spawn:
+        WallpaperSession(state).refresh()
+        assert spawn.call_args.args[0] == ["swaybg", "-i", str(asset), "-m", "fill"]
 
 
 def test_shortened_manual_policy_duration_uses_elapsed_original_origin(machine):

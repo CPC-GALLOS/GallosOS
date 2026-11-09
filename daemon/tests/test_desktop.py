@@ -41,18 +41,6 @@ def test_export_waybar_state_active_countdown():
         assert payload["remaining_sec"] == 3665
 
 
-def test_update_wallpaper():
-    with (
-        patch("subprocess.run") as mock_run,
-        patch("subprocess.Popen") as mock_popen,
-    ):
-        update_wallpaper("Contest")
-        assert mock_run.called
-        assert mock_popen.called
-        popen_args = mock_popen.call_args[0][0]
-        assert "contest.png" in popen_args[4]
-
-
 def test_send_desktop_notification():
     with patch("subprocess.run") as mock_run:
         send_desktop_notification("Contest Alert", "Contest is starting soon", urgency="critical")
@@ -60,3 +48,29 @@ def test_send_desktop_notification():
         cmd = mock_run.call_args[0][0]
         assert "notify-send" in cmd[4]
         assert "Contest Alert" in cmd[4]
+
+
+def test_local_wallpaper_is_published_as_literal_data(tmp_path):
+    import json
+
+    from daemon.src import desktop
+
+    asset = tmp_path / "background ' $(touch injected).png"
+    asset.write_bytes(b"image")
+    state = tmp_path / "wallpaper.json"
+    with patch.object(desktop, "WALLPAPER_STATE", state, create=True):
+        update_wallpaper("Contest", str(asset))
+    assert json.loads(state.read_text())["path"] == str(asset)
+    assert not (tmp_path / "injected").exists()
+
+
+def test_missing_wallpaper_publishes_bundled_fallback(tmp_path, capsys):
+    import json
+
+    from daemon.src import desktop
+
+    state = tmp_path / "wallpaper.json"
+    with patch.object(desktop, "WALLPAPER_STATE", state, create=True):
+        update_wallpaper("Contest", str(tmp_path / "missing.png"))
+    assert json.loads(state.read_text())["path"] == "/usr/share/backgrounds/gallos/contest.png"
+    assert "fallback" in capsys.readouterr().err.lower()

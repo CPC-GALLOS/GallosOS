@@ -87,6 +87,7 @@ def test_restart_in_contest_reapplies_policy_without_wiping(tmp_path):
             patch("daemon.src.state_machine.apply_browser_policy"),
             patch("daemon.src.state_machine.apply_web_egress") as web_egress,
             patch("daemon.src.state_machine.perform_clean_state_wipe") as wipe,
+            patch("daemon.src.desktop.WALLPAPER_STATE", tmp_path / "wallpaper.json"),
             patch("daemon.src.state_machine.export_waybar_state"),
         ):
             machine.transition_to("Contest", 20)

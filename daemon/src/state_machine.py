@@ -291,7 +291,7 @@ class ModeStateMachine:
         set_usb_storage_allowed(False)
         apply_browser_policy("Contest", self.config)
         perform_clean_state_wipe()
-        update_wallpaper("Contest")
+        update_wallpaper("Contest", self.config.get("contest", {}).get("wallpaper", ""))
         send_desktop_notification(
             "Contest Mode Activated",
             "Configured Contest policy applied; session cleanup completed.",
@@ -307,7 +307,7 @@ class ModeStateMachine:
         set_usb_storage_allowed(usb_allowed)
         mount_event_data()
         apply_browser_policy(target_mode, self.config)
-        update_wallpaper(target_mode)
+        update_wallpaper(target_mode, self.config.get(target_mode.lower(), {}).get("wallpaper", ""))
         send_desktop_notification(
             "Contest Ended",
             (
@@ -327,7 +327,7 @@ class ModeStateMachine:
         )
         mount_event_data()
         apply_browser_policy(target_mode, self.config)
-        update_wallpaper(target_mode)
+        update_wallpaper(target_mode, self.config.get(target_mode.lower(), {}).get("wallpaper", ""))
 
     def transition_to(self, target_mode: str, remaining_sec: int) -> None:
         """Performs state transition actions if mode changed."""
@@ -413,7 +413,7 @@ class ModeStateMachine:
             unmount_event_data()
             set_usb_storage_allowed(False)
             apply_browser_policy("Contest", self.config)
-            update_wallpaper("Contest")
+            update_wallpaper("Contest", self.config.get("contest", {}).get("wallpaper", ""))
         elif old_mode == "Contest":
             self._exit_contest_mode(target_mode)
         else:

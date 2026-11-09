@@ -216,7 +216,7 @@ EOF
 # Labwc autostart
 cat > "$ROOTFS/etc/xdg/labwc/autostart" <<'EOF'
 #!/bin/sh
-swaybg -i /usr/share/backgrounds/gallos/default.png -m fill &
+/usr/bin/python3 /usr/libexec/gallosd/wallpaper_session.py &
 mako -c /etc/xdg/mako/config &
 waybar -c /etc/xdg/waybar/config.jsonc -s /etc/xdg/waybar/style.css &
 EOF

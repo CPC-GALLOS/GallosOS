@@ -36,7 +36,7 @@ These Python modules implement the Live system daemon and its host-service helpe
 - `FirewallManager` resolves DNS, runs a background thread, and submits rules beginning with `flush ruleset` through `nft -f -`. Proxy application runs Squid validation and systemd actions; browser policy replaces managed JSON files under `/etc/chromium` and `/etc/firefox`.
 - Mode changes stop tty1 and kill contestant processes. Contest entry unmounts event storage, invokes scratch cleanup, deletes `/home/contestant` contents, restores `/etc/skel`, and changes ownership. Host helpers mount/unmount filesystems, change USB sysfs authorization, and write/remove udev and polkit rules.
 - Configuration reload changes the hostname and root-password state through host commands/services. Identity, Waybar state, the kiosk-ready marker, transition records, the control socket, proxy configuration, and remote cache occupy `/run/gallos`. Optional remote refresh performs HTTPS requests; transition records and remote caches use temporary files followed by replacement.
-- Desktop helpers invoke `swaybg` and `notify-send` through the contestant account. Several desktop/output errors are logged rather than raised, so a successful policy transition alone does not establish successful graphical presentation.
+- The daemon publishes wallpaper state atomically; `wallpaper_session.py` runs inside Labwc and owns `swaybg`. Notifications still use `notify-send` through the contestant account. Several desktop/output errors are logged rather than raised, so a successful policy transition alone does not establish successful graphical presentation.
 
 ## Verification
 
@@ -51,3 +51,10 @@ explicit end changes. The transition journal stores absolute ends and monotonic
 origins for daemon restarts within the same boot. Expiration suppresses automatic
 starts without interrupting an active Contest. `gallosctl contest stop` remains
 an explicit Default override; natural manual expiry resumes schedule selection.
+
+`wallpaper_session.py` runs inside Labwc and consumes the daemon's atomic
+`/run/gallos/wallpaper.json` record. Local asset failures, including renderer
+exit, log an error and select the bundled fallback. Browser managed-policy files
+are rewritten during reload, but live uptake by an already running browser
+requires separate application acceptance; proxy/network policy is applied by
+its own services.
