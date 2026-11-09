@@ -3,7 +3,7 @@ name = "gallosd"
 version = "0.2.0"
 description = "GallosOS Live System Dynamic Security & Mode Daemon"
 authors = [{ name = "GallosOS Contributors" }]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = ["jsonschema>=4.10"]
 
 [project.optional-dependencies]
@@ -13,7 +13,7 @@ dev = [
 ]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 100
 src = ["daemon/src", "daemon/tests"]
 exclude = [".git", "__pycache__", "build", "runtime-validation", "security-audit"]

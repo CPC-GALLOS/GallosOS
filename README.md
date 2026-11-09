@@ -56,7 +56,7 @@ For host-native development and testing, install the tools below as needed:
 | **Container Engine** *(Required for ISO build)* | `podman` *(recommended)* or `docker` | Containerized pipeline build (`cd build && make iso`). |
 | **Virtualization & Emulation** *(Testing)* | `qemu-system-x86`, `edk2-ovmf`, `virt-manager`, `libvirt` | Booting the Live ISO (`build/scripts/test-iso-qemu.sh`) in BIOS or UEFI mode. |
 | **Disk & Image Utilities** | `parted`, `mtools`, `dosfstools`, `e2fsprogs`, `xorriso` | Generating synthetic USB test images and extracting `toram` boot images. |
-| **Python & QA Suite** | `python3` (>=3.10), `uv` (recommended) or `pip`, `ruff`, `pytest`, `shellcheck` | Running `./scripts/check.sh` and local unit test suites. |
+| **Python & QA Suite** | `python3` (>=3.11), `uv` (recommended) or `pip`, `ruff`, `pytest`, `shellcheck` | Running `./scripts/check.sh` and local unit test suites. |
 
 ### Developer commands
 

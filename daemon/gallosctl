@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """Organizer and Contestant CLI Control utility for GallosOS Daemon."""
 
 import json

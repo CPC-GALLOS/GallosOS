@@ -26,7 +26,7 @@ The devcontainer automatically runs `.devcontainer/post-create.sh` on first laun
 | Tool | Required? | Purpose |
 | :--- | :--- | :--- |
 | GNU Make | For root task shortcuts | Lists tasks with `make` and delegates to the existing scripts. Included in the devcontainer's build tools. |
-| Python `>= 3.10` | Yes | Matches `requires-python` in `pyproject.toml`. |
+| Python `>= 3.11` | Yes | Matches `requires-python` in `pyproject.toml`. |
 | [`uv`](https://docs.astral.sh/uv/) or `pip` | One required | Python package installer. `uv` is the recommended option; `pip` remains supported. |
 | [`ruff`](https://docs.astral.sh/ruff/) | Yes | Linting (style, complexity, security via `bandit`-equivalent rules) and formatting. |
 | [`pytest`](https://docs.pytest.org/) | Yes | Runs the `daemon/tests/` and `build/tests/` unit test suites. |
@@ -223,7 +223,7 @@ This does not run `pytest` — the test suite is intentionally left to `./script
 
 ## 6. Continuous Integration (GitHub Actions)
 
-`.github/workflows/ci.yml` defines a `GallosOS CI` workflow, job `lint-and-test`, triggered on every `push` and `pull_request` targeting `main`. It runs on `ubuntu-24.04` with Python 3.12 and executes:
+`.github/workflows/ci.yml` defines a `GallosOS CI` workflow, job `lint-and-test`, triggered on every `push` and `pull_request` targeting `main`. It runs on `ubuntu-24.04` with Python 3.11 and 3.12 and executes:
 
 1. Checkout with full commit history (`fetch-depth: 0`)
 2. Pull Request title check via [`amannn/action-semantic-pull-request@v5`](https://github.com/amannn/action-semantic-pull-request) (on `pull_request` events)
@@ -284,7 +284,7 @@ All commit messages in GallosOS MUST adhere to [Conventional Commits 1.0.0](http
 
 All Ruff and Pytest configuration lives in `pyproject.toml`, not in ad hoc CLI flags:
 
-- `[tool.ruff]` / `[tool.ruff.lint]`: rule sets `E`, `W`, `F`, `I`, `B`, `C90`, `UP`, `PLR0912`, `PLR0915`, `S`; `line-length = 100`; `target-version = "py310"`.
+- `[tool.ruff]` / `[tool.ruff.lint]`: rule sets `E`, `W`, `F`, `I`, `B`, `C90`, `UP`, `PLR0912`, `PLR0915`, `S`; `line-length = 100`; `target-version = "py311"`.
 - `[tool.ruff.lint.mccabe]` / `[tool.ruff.lint.pylint]`: complexity ceilings — `max-complexity = 10`, `max-branches = 12`, `max-statements = 40`.
 - `[tool.ruff.lint.per-file-ignores]`: `daemon/tests/**` is allowed `assert` (`S101`), predictable temp paths (`S108`), and longer test functions (`PLR0915`).
 - `[tool.pytest.ini_options]`: `testpaths = ["daemon/tests"]`, `python_files = ["test_*.py"]`, `addopts = "-v --strict-markers"`.
