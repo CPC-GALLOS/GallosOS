@@ -3,13 +3,12 @@
 import os
 import tempfile
 import threading
+import tomllib
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
-from urllib.request import urlopen
-
-import tomllib
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from .config import validate_directives
 
@@ -37,6 +36,21 @@ def _origin(url: str) -> tuple[str, int]:
     return parsed.hostname.lower(), parsed.port or 443
 
 
+class _TrustedPolicyRedirectHandler(HTTPRedirectHandler):
+    """Validate each redirect before urllib can issue its next request."""
+
+    def __init__(self, trusted_url: str) -> None:
+        self.trusted_origin = _origin(trusted_url)
+
+    def redirect_request(
+        self, req: Request, fp: Any, code: int, msg: str, headers: Any, newurl: str
+    ) -> Request | None:
+        _require_https_url(newurl)
+        if _origin(newurl) != self.trusted_origin:
+            raise ValueError("Remote policy redirect changed the trusted host")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def read_source_url(path: Path = REMOTE_POLICY_URL_PATH) -> str:
     """Read and validate the immutable, build-injected URL file."""
     url = path.read_text(encoding="utf-8").strip()
@@ -59,7 +73,8 @@ def _parse_policy(payload: bytes) -> dict[str, Any]:
 def fetch_remote_policy(url: str) -> bytes:
     """Fetch a bounded TOML response over validated HTTPS."""
     trusted_url = _require_https_url(url)
-    with urlopen(trusted_url, timeout=FETCH_TIMEOUT_SECONDS) as response:  # noqa: S310
+    opener = build_opener(_TrustedPolicyRedirectHandler(trusted_url))
+    with opener.open(trusted_url, timeout=FETCH_TIMEOUT_SECONDS) as response:
         final_url = _require_https_url(response.geturl())
         if _origin(final_url) != _origin(trusted_url):
             raise ValueError("Remote policy redirect changed the trusted host")

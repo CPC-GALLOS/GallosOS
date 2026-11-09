@@ -41,7 +41,7 @@ def test_fetch_rejects_redirect_out_of_https(tmp_path: Path) -> None:
     source.write_text("https://policy.example/gallos.toml\n", encoding="utf-8")
 
     with patch(
-        "daemon.src.remote_policy.urlopen",
+        "urllib.request.OpenerDirector.open",
         return_value=FakeResponse(VALID_TOML, "http://policy.example/gallos.toml"),
     ):
         with pytest.raises(ValueError, match="HTTPS"):

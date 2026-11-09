@@ -1,11 +1,14 @@
 """Regression coverage for runtime contract findings F01 through F06."""
 
+import io
 import json
+from email.message import Message
 from unittest.mock import MagicMock, patch
+from urllib.response import addinfourl
 
 import pytest
 
-from daemon.src import desktop, identity, state_machine
+from daemon.src import desktop, identity, remote_policy, state_machine
 from daemon.src.state_machine import ModeStateMachine
 from daemon.src.wallpaper_session import WallpaperSession
 
@@ -110,6 +113,63 @@ def test_mac_lookup_excludes_only_loopback_interface(tmp_path):
             "aa:bb:cc:dd:ee:02",
             "aa:bb:cc:dd:ee:03",
         ]
+
+
+@pytest.mark.parametrize(
+    "destination",
+    [
+        "http://policy.example/hop",
+        "https://other.example/hop",
+        "https://policy.example:444/hop",
+        "https://user:secret@policy.example/hop",
+    ],
+)
+def test_forbidden_redirect_is_rejected_before_contact(destination):
+    contacted = []
+    initial = "https://policy.example/gallos.toml"
+
+    def transport(_handler, request):
+        url = request.full_url
+        contacted.append(url)
+        headers = Message()
+        if url == initial:
+            headers["Location"] = destination
+        elif url == destination:
+            headers["Location"] = "https://policy.example/final"
+        code = 302 if "Location" in headers else 200
+        response = addinfourl(io.BytesIO(b'[global]\ntimezone="UTC"\n'), headers, url, code)
+        response.msg = "Found" if code == 302 else "OK"
+        return response
+
+    with (
+        patch("urllib.request.HTTPSHandler.https_open", transport),
+        patch("urllib.request.HTTPHandler.http_open", transport),
+    ):
+        with pytest.raises(ValueError):
+            remote_policy.fetch_remote_policy(initial)
+    assert contacted == [initial]
+
+
+def test_same_origin_https_redirect_chain_is_accepted():
+    contacted = []
+    payload = b'[global]\ntimezone="UTC"\n'
+
+    def transport(_handler, request):
+        url = request.full_url
+        contacted.append(url)
+        headers = Message()
+        if len(contacted) == 1:
+            headers["Location"] = "/second"
+        elif len(contacted) == 2:
+            headers["Location"] = "https://POLICY.example:443/final"
+        code = 302 if "Location" in headers else 200
+        response = addinfourl(io.BytesIO(payload), headers, url, code)
+        response.msg = "Found" if code == 302 else "OK"
+        return response
+
+    with patch("urllib.request.HTTPSHandler.https_open", transport):
+        assert remote_policy.fetch_remote_policy("https://policy.example/start") == payload
+    assert len(contacted) == 3
 
 
 def test_shortened_manual_policy_duration_uses_elapsed_original_origin(machine):
