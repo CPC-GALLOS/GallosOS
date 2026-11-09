@@ -134,3 +134,12 @@ It exposes `/usr/local/bin/pypy3` without replacing the OS `/usr/bin/python3`.
 The inventory is `/usr/share/gallos/contest-python.tsv` alongside the installed
 package inventory. `verify-toolchains.sh` checks both runtime identity and the
 system TOML parser.
+
+`build/tests/live/drift_probe.py` is a destructive guest-only acceptance probe
+for a disposable diagnostic image. It replaces local Organizer policy and
+requests real mode transitions. Never run it on a development host. Inject it
+through a temporary `.gsm` test layer and record that diagnostic ISO's checksum
+separately from the unmodified candidate. It checks loaded firewall rules,
+interpreter versions, reload process continuity, expiry, changed end times,
+restart recovery, and a forced host-helper failure. Its graphical process
+inventory alone is not visual or browser-navigation acceptance.
