@@ -94,9 +94,9 @@ The current bootstrap script accepts only `ubuntu-24.04-minimal` and rejects oth
 
 ## 4. Storage & Filesystem Architecture
 
-The Live root combines a read-only SquashFS lower layer with a writable OverlayFS upper layer backed by `tmpfs`. Changes to that writable layer are lost at reboot. GallosOS can also mount an optional `event-data` partition on the boot drive outside Contest; writes to that partition are persistent. The ephemeral root therefore does not mean the workstation never writes to USB storage.
+The Live root combines a read-only SquashFS lower layer with a writable OverlayFS upper layer backed by `tmpfs`. Changes to that writable layer are lost at reboot. GallosOS can also mount an optional `event-data` partition outside Contest; writes to that partition are persistent. The ephemeral root therefore does not mean the workstation never writes to USB storage.
 
-1. **Base SquashFS Layer (`rootfs.squashfs`):**
+1. **Base SquashFS Layer (`filesystem.squashfs`):**
    Contains the operating system, desktop, and provisioned packages in the current image.
 
 2. **Modular Extension Layers (`.gsm`):**
@@ -113,10 +113,10 @@ The Live root combines a read-only SquashFS lower layer with a writable OverlayF
 
 4. **`allow_usb_storage` vs. `event-data` — two different mechanisms, both called "USB":**
    - **`allow_usb_storage`** (`docs/ANTI_CHEAT_AND_SECURITY.md` §5) governs *external* USB mass-storage devices a contestant plugs in during a session — a separate flash drive, not the drive GallosOS booted from.
-   - **`event-data`** (item 5 below) is a partition *on the boot drive itself*, mounted automatically by `gallosd` when present, independent of `allow_usb_storage`.
+   - **`event-data`** (item 5 below) is a separately labelled partition (typically on the boot drive), mounted automatically by `gallosd` when present, independent of `allow_usb_storage`.
 
 5. **Optional Persistent Storage (`event-data` partition):**
-   A separately prepared ext4 partition labelled `event-data` can provide an optional workspace outside Contest. The planned `gallos-flash` tool may automate its creation; it is not currently available. The daemon delegates host-visible mount operations to `gallos-event-storage.service`, which locates the unique label and mounts it at `/media/event-data`. Duplicate labels, an unsupported filesystem, or busy unmounts are errors. Physical-device and release-image behavior remains an acceptance gate.
+   A separately prepared ext4 partition labelled `event-data` can provide an optional workspace outside Contest. Discovery searches all attached block devices by label and does not verify boot-drive ancestry; only one such label may be present. The planned `gallos-flash` tool may automate its creation; it is not currently available. The daemon delegates host-visible mount operations to `gallos-event-storage.service`, which locates the unique label and mounts it at `/media/event-data`. Duplicate labels, an unsupported filesystem, or busy unmounts are errors. Physical-device and release-image behavior remains an acceptance gate.
    - **Detection, either path:** `gallosd` delegates the host-visible mount to `gallos-event-storage.service`. Its root helper resolves the unique `event-data` filesystem label, checks for ext4, and mounts it at `/media/event-data`; the contestant-owned workspace is `/media/event-data/contestant`. A missing partition is optional. A duplicate label or busy unmount is an error. This avoids the daemon's private mount namespace hiding storage from the desktop.
    - The host service is instructed to unmount `event-data` during Contest and mount it again in an open mode. This source behavior still requires acceptance on the release image and target USB hardware.
 
@@ -338,8 +338,7 @@ The repository provides a QEMU boot workflow in `.github/workflows/iso-boot.yml`
 - Headless automated boot test:
 
   ```bash
-  qemu-system-x86_64 -m 4G -enable-kvm -cdrom output/gallos-os-amd64.iso \
-    -boot d -net nic -net user -bios /usr/share/ovmf/OVMF.fd
+  bash build/scripts/test-iso-qemu.sh --uefi --smoke
   ```
 
 ### 2. VirtualBox (Additional Acceptance Needed)
@@ -460,7 +459,7 @@ team_name = "Beta"
 
 1. **Physical:** USBs are distributed by organizers at the contest. Contestants do not bring their own USBs. Lab machines boot only from organizer-issued drives.
 2. **SquashFS SHA256 Attestation (Centralized Mode):**
-   - A future client could send a signed report of its running `rootfs.squashfs` SHA256 to a central service.
+   - A future client could send a signed report of its running `filesystem.squashfs` SHA256 to a central service.
    - The service would maintain the expected SHA256 of the official ISO release.
    - A mismatched hash could be flagged and optionally denied judge access by venue infrastructure.
 3. **Network MAC Whitelist:**

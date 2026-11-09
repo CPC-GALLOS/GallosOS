@@ -32,7 +32,7 @@ This document is the design for closing that gap. It is deliberately **not** an 
 - `build/scripts/02-provision.sh` (Stage 2, runs inside the chroot) installs `plymouth` and `plymouth-theme-ubuntu-text` via `apt-get` and runs `update-initramfs -c -k all` immediately afterward — i.e. *before* any custom theme would exist. A theme added later in the same stage (or in Stage 3/4, while the chroot mount is still shared) needs its own `update-initramfs -u` call, or it silently won't be in the initrd that `build-squashfs.sh` (Stage 5a) later copies out via a plain `cp`.
 - `build/scripts/build-iso.sh` (Stage 5b) generates `grub.cfg` with normal and `toram` entries, a five-second timeout, and authenticated editing/command-line access. It constructs BIOS/EFI boot assets and assembles the final image with `xorriso`; custom theme/background generation is not wired in.
 - The `gallos-builder` container image (`build/Containerfile`) already has `grub-pc-bin`, `grub-efi-amd64-bin`, `grub-efi-amd64-signed`, `shim-signed`, `grub-common`, and `xorriso` — sufficient for GRUB theming. It does **not** have any Plymouth theme-authoring/preview tooling (not needed at build time; Plymouth themes are just files copied into the chroot).
-- `schema/directives.schema.json` already defines `[branding]` with `name`, `organizer`, `logo_url`, `boot_splash_logo_url`, `show_powered_by_gallos` (`additionalProperties: false` — no other keys accepted today). `docs/CONFIG_SPEC.md` already states the boot splash logo can only ever be baked-in (Method B), never fetched remotely, because there's no network in the first seconds of boot.
+- `schema/directives.schema.json` already defines `[branding]` with `name`, `organizer`, `logo_url`, `boot_splash_logo_url`, `show_powered_by_gallos`, and `hostname` (`additionalProperties: false` — no other keys accepted today). Boot themes must embed their assets at build time: early boot cannot depend on network access or a later runtime policy fetch. The current [`DIRECTIVES_PROFILE` contract](./BUILD_SYSTEM.md#11-the-single-universal-base-iso-principle) selects the bundled runtime policy; consuming its boot branding assets remains planned.
 - `DIRECTIVES_PROFILE` already selects the bundled runtime fallback for a custom ISO. The missing work is consuming the selected policy's branding assets to generate and embed boot themes, not choosing which policy to bundle.
 - `build/assets/branding/` now contains documentation scaffolding for the planned Plymouth and GRUB assets; it does not contain a completed theme or pipeline consumer.
 
@@ -43,7 +43,7 @@ This document is the design for closing that gap. It is deliberately **not** an 
 A new theme named `gallos`, using Plymouth's `script` plugin (the same plugin family as Ubuntu's own default themes — well-documented, no per-frame PNG sequence required, positions elements relative to `Window.GetWidth()/GetHeight()` so it isn't tied to one resolution).
 
 - **Files** (destined for `build/assets/branding/plymouth/`, see that folder's `README.md`): `gallos.plymouth` (theme descriptor), `gallos.script` (the actual script: solid `#1e1e2e` background — the same dark navy already used for the desktop wallpaper and Waybar in `02-provision.sh`, for visual continuity from boot splash straight into the desktop — a centered logo, and a simple pulsing-dots progress indicator).
-- **Logo source:** the organizer's `[branding].boot_splash_logo_url` when the build is a baked-in (Method B) Track 2 build; a bundled default GallosOS wordmark otherwise. *(Whether that default is hand-authored artwork or generated programmatically — following the same stdlib `zlib`/`struct` flat-PNG pattern `02-provision.sh` already uses for the desktop wallpapers, so no binary asset needs to be committed to git — is an open decision, deliberately left unresolved here; see "Open questions" below.)*
+- **Logo source:** the organizer's `[branding].boot_splash_logo_url` when the build is a Track 2 build selected with `DIRECTIVES_PROFILE`; a bundled default GallosOS wordmark otherwise. *(Whether that default is hand-authored artwork or generated programmatically — following the same stdlib `zlib`/`struct` flat-PNG pattern `02-provision.sh` already uses for the desktop wallpapers, so no binary asset needs to be committed to git — is an open decision, deliberately left unresolved here; see "Open questions" below.)*
 - **Pipeline change (Stage 2, `02-provision.sh`):** copy the theme files into `$ROOTFS/usr/share/plymouth/themes/gallos/`, run `plymouth-set-default-theme -R gallos` inside the chroot, and add the missing `update-initramfs -u` call immediately after (the existing `update-initramfs -c -k all` earlier in the script runs too early to pick this up). As part of de-branding, drop `plymouth-theme-ubuntu-text` from the `apt-get install` line once `gallos` is the default — it's dead weight if nothing ever selects it.
 - **`show_powered_by_gallos`:** when true, render a small "Powered by GallosOS" line under the logo — reuses the existing schema field, no new directive needed.
 
@@ -61,7 +61,7 @@ A new theme named `gallos`, using Plymouth's `script` plugin (the same plugin fa
   set menu_color_highlight=black/cyan
   ```
   (exact hex-equivalent GRUB color names to be picked at implementation time to match the navy/accent palette used elsewhere — GRUB's `menu_color_*` only accepts its fixed 16-color VGA-style palette by name, not arbitrary hex, which constrains how closely this can match the Plymouth/desktop palette).
-- **Upgrade seam, not built now:** once `build-iso.sh` grows more than one `menuentry` (safe-mode, memtest86+, etc.), migrate to a full `theme.txt`-based GRUB theme (`+boot_menu` component, per-entry `classes` mapped to icon pixmaps) — the background/colors above become the fallback for terminals that can't render the fuller theme. This spec intentionally stops short of that today per the maintainer's explicit scope call.
+- **Upgrade seam, not built now:** if future menu requirements call for per-entry icons or richer navigation (for example, additional diagnostic entries), migrate to a full `theme.txt`-based GRUB theme (`+boot_menu` component, per-entry `classes` mapped to icon pixmaps) — the background/colors above become the fallback for terminals that can't render the fuller theme. The existing normal and `toram` entries remain within the agreed background/colors increment; they do not by themselves trigger a full-theme migration.
 
 ### 3. Ubuntu de-branding inventory
 
@@ -93,19 +93,19 @@ Created in this pass as scaffolding only (see each `README.md` for the per-folde
 
 ### 5. Config plumbing
 
-No `schema/directives.schema.json` changes needed for the organizer-facing side — `[branding].boot_splash_logo_url`, `logo_url`, and `show_powered_by_gallos` already cover what's required, and `docs/CONFIG_SPEC.md` already documents the baked-in-only caveat correctly. The unresolved piece is entirely on the *build* side: `build.toml` has no field today telling a Track 2 custom build which `gallos.toml` to read `boot_splash_logo_url` from. Candidate shapes for that (e.g. a `branding_profile = "path/to/gallos.toml"` key under `[build]`, or defaulting silently to the bundled placeholder logo when absent) are left as an implementation-time decision, not resolved here.
+The runtime profile is already selected by `DIRECTIVES_PROFILE`. Branding integration must pass that selected profile to provisioning so Stage 2 can consume its boot assets before initramfs generation. Runtime refresh does not regenerate boot themes. The schema already includes `boot_splash_logo_url`, `logo_url`, `hostname`, and `show_powered_by_gallos`.
 
 ## Open questions (resolve at Phase 4 kickoff, not now)
 
 1. **Default logo/background provenance:** hand-authored artwork supplied by the maintainer, or programmatically generated placeholders (matching the existing flat-PNG pattern in `02-provision.sh`)? Both were presented as options during design and deliberately left open.
-2. **`build.toml` → `gallos.toml` bridge:** exact mechanism for a Track 2 build to know which organizer branding to bake in.
+2. **Provisioning integration:** propagate the existing `DIRECTIVES_PROFILE` selection to the stage that builds branding assets.
 3. **Ubuntu `os-release`/`lsb-release` rewrite:** needs a real check against Canonical's trademark/branding policy before any `PRETTY_NAME` change is implemented — this spec proposes a direction, not a cleared decision.
 4. **GRUB `menu_color_*` exact values:** GRUB's built-in color names are a fixed small palette (not arbitrary hex) — pick the closest match to the navy/accent scheme at implementation time.
 
 ## References
 
 - `ROADMAP.md` § Phase 4 — "Rapid White-Labeling and Branding Engine" bullet (this spec's parent item).
-- `docs/CONFIG_SPEC.md` — `[branding]` schema and the "Architectural Caveat (Boot Splash)" note.
+- [`docs/BUILD_SYSTEM.md`](./BUILD_SYSTEM.md) and [`build/profiles/README.md`](../build/profiles/README.md) — build-time `DIRECTIVES_PROFILE` selection; the early-boot asset limitation is stated in this design's Current state section.
 - `schema/directives.schema.json` — `branding` object definition.
 - `docs/BUILD_SYSTEM.md` § 3, Stage 2 and Stage 5b — the two pipeline stages this design touches.
 - `build/scripts/02-provision.sh`, `build/scripts/build-iso.sh`, `build/Containerfile` — inspected directly to ground every claim above in the actual current pipeline, not assumed Plymouth/GRUB conventions.

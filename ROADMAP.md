@@ -38,7 +38,7 @@ The selected release core consists of GCC (C/C++), Clang (C/C++), OpenJDK 21 (Ja
 *Goal: Implement policy-scoped network and device restrictions, privilege controls, and resource protection while preserving the neutral practice baseline.*
 
 - [x] **Restricted-Mode Network Enforcement:**
-  - Render `nftables` filtering for restricted policies, including Judge Server IP/CIDR allowlists and restricted outbound traffic.
+  - Render `nftables` filtering for restricted policies, including Judge Server hostname/individual IPv4 allowlists and restricted outbound traffic.
   - Disable IPv6 through the kernel boot parameter and sysctl fallback.
   - Use the local proxy for named-host Default/Event training allowlists and block direct workstation egress under those policies. Keep neutral Default browsing open.
 - [x] **Peripheral and USB Policy Helpers:** Apply contestant `polkit`/`udisks2` restrictions and host-service storage enforcement. Preserve the live medium and HID interfaces while restricting other storage according to policy. Physical and live-image enforcement remain acceptance items.
@@ -86,6 +86,7 @@ Historical stabilization notes report a signed Live-image QEMU run covering host
   - Rely on volatile storage disappearing at shutdown/reboot; no additional shutdown purge service.
 - [ ] **Numpad Alt-Codes — Deferred Delivery:** Specify event handling, permissions, encoding, emission, and physical-keyboard acceptance separately. No daemon or input/uinput permission changes are included in the initial keyboard/clipboard delivery.
 - [ ] **EarlyOOM Desktop Notifications:** Install and start a contestant-session bridge such as `systembus-notify`, and integrate effective low-memory notifications with Mako. `earlyoom -n` alone does not complete this feature.
+- [ ] **Enterprise Wi-Fi and Network UI:** Design schema-backed WPA-Enterprise profile provisioning and an interactive network applet; validate credentials, certificates and reconnect behavior.
 - [ ] **Mode-Aware Audio:** Connect the specified `allow_audio` policy to effective PipeWire/WirePlumber session controls; a configuration field alone does not apply mute or disable behavior.
 - [ ] **`gallos-print` CUPS Subsystem:**
   - Implement contestant printing based on the `printfile` (`a2ps` / `enscript`) pattern from `icpcsysops/ansible` and SWERC Lyon.
@@ -125,6 +126,7 @@ Historical stabilization notes report a signed Live-image QEMU run covering host
 *Goal: Expand the selected core through optional software and platform support, and automate release delivery.*
 
 - [ ] **Optional Toolchains and Software Modules:** Evaluate and package additional runtimes such as Mono/.NET, using the upstream contest manifests as references. Build real `.gsm` bundles and wire build-profile module copying into ISO assembly; the existing casper mount mechanism alone does not supply module packages.
+- [ ] **CPU Timing Exploration:** Evaluate CPU governor/boost controls and affinity wrappers on physical hardware before making timing claims.
 - [ ] **Additional Browsers:** Evaluate Chromium and GNOME Web alongside the Firefox baseline. Require offline launch, effective policy/telemetry configuration, printing, and graphical acceptance before advertising a browser as supported.
 - [ ] **Expanded IDE Catalog and Offline Extensions:** Evaluate JetBrains IDEs (IntelliJ IDEA, PyCharm, CLion), Code::Blocks, KDevelop, Neovim/LazyVim, Kate, and Zed beyond the selected Geany/VSCodium/terminal-editor baseline. Design offline extension bundles with correct IDs and OverlayFS permissions; review licensing, AI controls, telemetry, and offline operation before inclusion.
 - [ ] **Optional IDE AI-Plugin Purging:** Implement startup removal of unwanted AI assistants for expanded IDE packages. Preserve and verify the telemetry settings already generated for the selected applications; broader restricted-profile web policy remains in Phase 2.

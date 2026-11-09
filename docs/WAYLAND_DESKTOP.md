@@ -98,7 +98,7 @@ To maintain tournament integrity, desktop configuration files (dotfiles) are **p
 3. **Read-Only SquashFS Layer:**
    These configurations are baked into the immutable SquashFS base layer. Even if a contestant modifies local files during a session, the baseline settings cannot be permanently corrupted, and a reboot restores the pristine environment.
 4. **No Unprivileged Desktop Settings GUI:**
-   GallosOS intentionally excludes settings panels (like `gnome-control-center` or `xfce4-settings`). System configuration (display resolution, timezone, keyboards) is handled declaratively beforehand via `gallos.toml`.
+   GallosOS intentionally excludes settings panels (like `gnome-control-center` or `xfce4-settings`). Declarative display-resolution control is not implemented. `global.timezone` is accepted by the schema but does not set the system or session timezone; schedules use their explicit timestamp offsets. Keyboard selection and application remain planned as described below. These settings still require image/session configuration outside the runtime directives consumer.
 
 ---
 
@@ -133,8 +133,8 @@ Application-specific integration mechanisms remain to be verified against instal
 
 ### 4.3 Security Restrictions
 
-- **Virtual Terminal (VT) Console Switch Lockout:** Keybindings for switching virtual terminals (`Ctrl+Alt+F1` through `Ctrl+Alt+F6`) are explicitly disabled at the compositor level. In legacy X11 distributions like huronOS, contestants pressing IDE shortcuts (e.g. VS Code comment toggles or Fn shortcuts) routinely triggered accidental VT switches to raw text prompts, leading to panic reboots, DHCP IP churn, and subsequent BOCA judge "IP Warning" lockouts.
-- **Restricted Spawning:** Dangerous shortcuts that could break desktop kiosk integrity (such as spawning arbitrary unvetted desktop shells or executing raw system commands outside the whitelisted menu) are completely excluded from `/etc/xdg/labwc/rc.xml`.
+- **Virtual Terminal (VT) Console Switching:** `build/scripts/03-harden.sh` sets logind `NAutoVTs=1` and `ReserveVT=0`, masks `autovt@.service`, and installs a console keymap service that removes console-switch actions. The generated Labwc configuration has no explicit VT-switch disabling bindings. These source-level measures require booted-image and graphical-session verification before claiming that `Ctrl+Alt+F1` through `Ctrl+Alt+F6` are blocked.
+- **Restricted Spawning:** The current bindings expose Foot and `wmenu-run`; contestants can run commands as their unprivileged account. A mode-aware launcher allowlist remains planned.
 
 ---
 
@@ -179,10 +179,10 @@ The target desktop style is a neutral dark theme across the selected Wayland and
 
 - **Status Bar Icon Font:** Ubuntu 24.04's `fonts-font-awesome` package provides the `FontAwesome` family (Font Awesome 4.7). Waybar uses glyphs from that version for `` Wi-Fi, `` Ethernet, `` Offline, and `` Clock. The build refreshes the font cache after provisioning; rendering still needs graphical-session verification.
 - **UI & Contest Platform Font:** `Inter` (matches modern contest platforms like MOJ that specify `font-family: "Inter"` without bundling webfonts), with `Liberation Sans` and `DejaVu Sans` as universal offline fallbacks.
-- **Monospace Font:** `Liberation Mono` and `DejaVu Sans Mono` (configured in Foot terminal and Mako notifications) alongside `JetBrains Mono` for contestant code editors.
+- **Monospace Font:** `Liberation Mono` and `DejaVu Sans Mono` (configured in Foot terminal and Mako notifications) with optional `JetBrains Mono` provisioning still planned.
 - **Full Color Emoji & Unicode Fallback:** `Noto Color Emoji` is installed and added through fontconfig (`/etc/fonts/conf.d/56-fonts-noto-color-emoji.conf`) as a fallback for `sans-serif`, `serif`, and `monospace`. Emoji rendering in browsers and desktop widgets still needs graphical-session verification.
 - **Theme Palette:** Neutral dark background (`#1e1e2e` Catppuccin Mocha) with high-contrast text (`#cdd6f4`) and subtle accents, reducing eye strain during 5-hour contest sessions.
-- **GTK/Qt Consistency:** Unified GTK3/GTK4 dark theme (`Adwaita-dark` / `Arc-Dark`) applied globally to Geany, VSCodium, JetBrains, and Chromium without requiring full desktop background daemons.
+- **GTK/Qt Consistency:** Global GTK3/GTK4 and Qt theme integration remains planned. Current provisioning configures Labwc, Waybar, Foot, and Mako directly.
 
 ---
 

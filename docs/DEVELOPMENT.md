@@ -60,57 +60,32 @@ GitHub Actions continues to install its Python dependencies with `pip`; local `u
 
 ```text
 daemon/
-├── gallosctl                         # Live OS management CLI tool (/usr/bin/gallosctl)
-├── gallosd.service                   # systemd unit running GallosDaemon under root
-├── gallos-session-gate.service       # systemd unit blocking contestant login until policy is applied
-├── gallos-qemu-guest.service         # systemd unit managing hypervisor guest integration
+├── gallosctl
+├── gallosd.service
+├── gallos-*.service          # Host helpers and local recovery
 ├── src/
-│   ├── __init__.py                   # Package marker, __version__
-│   ├── browser_policy.py             # Chromium/Firefox enterprise managed-policy JSON generation & DoH lockdown
-│   ├── clean_state.py                # Volatile session cleanup, preloaded file handling, unmount boundaries
-│   ├── config.py                     # Trusted local TOML loading, schema validation, and policy precedence
-│   ├── constants.py                  # Daemon IPC sockets, paths, default ports, and fallback values
-│   ├── daemon.py                     # Entry point: daemon loop, Unix-socket IPC dispatch (STATUS, RELOAD, STOP)
-│   ├── desktop.py                    # Wallpaper (swaybg), notifications (Mako), Waybar status export
-│   ├── firewall.py                   # Dynamic nftables ruleset generation and periodic DNS re-resolution
-│   ├── identity.py                   # MAC-address-to-machine.toml identity resolution, hostname assignment
-│   ├── ipman.py                      # Network interface configuration helper
-│   ├── remote_policy.py              # HTTPS-based remote policy fetching and caching
-│   ├── root_access.py                # Root password locking and terminal console restrictions
-│   ├── session_gate.py               # Pre-session verification gate releasing the contestant graphical shell
-│   ├── state_machine.py              # 3-tier mode state machine (Contest > Event > Default), schedule evaluation
-│   ├── storage.py                    # Persistent Caspar partition mounting and disk boundary checks
-│   ├── transition_record.py          # State transition journal, auditing records, and failure logging
-│   ├── unprivileged_access.py        # Contestant user privilege boundaries and capability dropping
-│   ├── usb_manager.py                # USB mass-storage lockdown (Polkit rule + udev fallback)
-│   ├── usb_storage.py                # Host-level USB drive detection and interface unbinding
-│   └── web_egress.py                 # Outbound web proxy egress enforcement and judge domain allowlists
-└── tests/
-    ├── __init__.py
-    ├── test_browser_policy.py
-    ├── test_check_commits.py
-    ├── test_clean_state_host.py
-    ├── test_config.py
-    ├── test_daemon_ipc.py            # Unix-socket IPC dispatch (daemon.py's GallosDaemon)
-    ├── test_desktop.py               # Waybar countdown/status export and desktop notifications
-    ├── test_event_storage_host.py
-    ├── test_firewall.py
-    ├── test_identity.py
-    ├── test_mode_usb_policy.py
-    ├── test_policy_failures.py
-    ├── test_qemu_boot_watcher.py
-    ├── test_remote_policy.py
-    ├── test_root_access_host.py
-    ├── test_root_access.py
-    ├── test_session_gate.py
-    ├── test_state_machine.py
-    ├── test_storage.py
-    ├── test_transition_record.py
-    ├── test_transition_safety.py
-    ├── test_unprivileged_access.py
-    ├── test_usb_manager.py
-    ├── test_usb_storage_host.py
-    └── test_web_egress.py
+│   ├── __init__.py
+│   ├── browser_policy.py
+│   ├── clean_state.py
+│   ├── clean_state_host.py
+│   ├── config.py
+│   ├── desktop.py
+│   ├── event_storage_host.py
+│   ├── firewall.py
+│   ├── identity.py
+│   ├── main.py
+│   ├── remote_policy.py
+│   ├── root_access.py
+│   ├── root_access_host.py
+│   ├── session_gate.py
+│   ├── state_machine.py
+│   ├── storage.py
+│   ├── transition_record.py
+│   ├── usb_manager.py
+│   ├── usb_storage_host.py
+│   ├── wallpaper_session.py
+│   ├── web_egress.py
+└── tests/                  # Runtime and helper regression tests
 ```
 
 Each `daemon/tests/test_*.py` file exercises corresponding daemon modules and runtime safety invariants. When adding or modifying functionality in any module, extend or add matching test coverage.
@@ -232,9 +207,9 @@ This does not run `pytest` — the test suite is intentionally left to `./script
 5. `ruff format --check .`
 6. `pytest daemon/tests/ build/tests/ -v`
 7. ShellCheck via `ludeeus/action-shellcheck@master`, scanning `build/scripts` plus `scripts/check.sh` and `.devcontainer/post-create.sh`
-8. TOML syntax validation — an inline Python step using `tomllib`, globbing `**/*.toml` **recursively across the entire repository**
+8. TOML syntax validation — an inline Python step using `tomllib`, globbing non-hidden `**/*.toml` paths recursively from the repository root
 
-**Note the TOML-check asymmetry:** CI's TOML syntax step checks every `*.toml` file in the repo, while the local fallback (`scripts/validate_toml.py`, used by `./scripts/check.sh` when `taplo` isn't installed) checks target patterns (`pyproject.toml`, `.taplo.toml`, `examples/*.gallos.toml`, `build/profiles/*.build.toml`). A TOML file outside those patterns can pass locally and still be caught by CI. The daemon validates the selected organizer directives at boot and reload against the packaged schema; an invalid edit leaves the active in-memory policy unchanged when reload is requested.
+**Note the TOML-check asymmetry:** CI's TOML syntax step skips hidden files and directories (including `.taplo.toml`), while the local fallback (`scripts/validate_toml.py`, used by `./scripts/check.sh` when `taplo` isn't installed) checks target patterns (`pyproject.toml`, `.taplo.toml`, `examples/*.gallos.toml`, `build/profiles/*.build.toml`). A TOML file outside those patterns can pass locally and still be caught by CI. The daemon validates the selected organizer directives at boot and reload against the packaged schema; an invalid edit leaves the active in-memory policy unchanged when reload is requested.
 
 The main CI workflow covers code quality (`daemon/`, `build/scripts/*.sh`, TOML syntax, Conventional Commits). The separate `iso-boot.yml` workflow builds and boots the ISO in QEMU for pull requests and pushes to `main` that change `build/`, `daemon/`, `schema/`, or `pyproject.toml`, including Secure Boot and a modified-kernel rejection check. Physical hardware validation remains manual (see [`docs/BUILD_SYSTEM.md`](./BUILD_SYSTEM.md)).
 

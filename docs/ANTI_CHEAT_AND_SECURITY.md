@@ -287,7 +287,7 @@ Default and Event honor their own `allow_usb_storage` flag (default `true`), inc
   ACTION=="add", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_interface", ATTR{bInterfaceClass}=="08", ATTR{authorized}="0"
   ```
 
-- At Contest exit, `gallos-usb-storage@unlock.service` removes the denial rules, reloads udev, authorizes connected class-08 interfaces and explicitly probes their drivers so contestants can mount storage for code export. Interface authorization and the required driver probe follow the [Linux kernel USB authorization interface](https://docs.kernel.org/usb/authorization.html#interface-authorization).
+- When the target policy allows USB storage at Contest exit, `gallos-usb-storage@unlock.service` removes the denial rules, reloads udev, authorizes connected class-08 interfaces and explicitly probes their drivers so contestants can mount storage for code export. Interface authorization and the required driver probe follow the [Linux kernel USB authorization interface](https://docs.kernel.org/usb/authorization.html#interface-authorization).
 
 ---
 

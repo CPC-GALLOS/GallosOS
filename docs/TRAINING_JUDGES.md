@@ -32,5 +32,7 @@ HTTP/HTTPS hosts. If a site needs an identity provider or asset host, add
 that exact host only after checking its function and recording it here.
 Sites that include AI features under an allowed hostname remain a separate
 anti-AI policy issue. An Organizer can supply a narrower `gallos.toml` for a
-specific session. GallosOS stops the training proxy when leaving restricted
-Default/Event mode, including on entry into Contest.
+specific session. On entry into Contest with a nonempty allowlist, GallosOS replaces the
+training ACL with the Contest ACL and restarts the same proxy service. It
+stops the proxy when the target mode has an empty website list or unrestricted
+`["*"]` access; the target mode's firewall policy still applies.

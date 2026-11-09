@@ -52,7 +52,7 @@ The official universal ISO bundles `examples/neutral.gallos.toml` as its fallbac
 
 ## 2. Declarative ISO Generation (`build.toml`)
 
-Rather than maintaining fragile Bash scripts with hardcoded `apt-get` commands, organizers feed a `build.toml` manifest into the container pipeline. This defines exactly what gets baked into the immutable `rootfs.squashfs` before the ISO is stitched together.
+Rather than maintaining fragile Bash scripts with hardcoded `apt-get` commands, organizers feed a `build.toml` manifest into the container pipeline. This defines exactly what gets baked into the immutable `filesystem.squashfs` before the ISO is stitched together.
 
 ### Example `build.toml` Blueprint
 
@@ -83,7 +83,7 @@ preinstall_apt = [
 ]
 
 [modules]
-# Which GallosOS Software Modules (.gsm) to pre-bundle into the final ISO's /gallos/software/ directory
+# Which GallosOS Software Modules (.gsm) to pre-bundle into the final ISO's /gallos/modules/ directory
 bundle = [
     "langs/gcc",
     "langs/openjdk",
@@ -129,7 +129,7 @@ The current bootstrap script accepts `ubuntu-24.04-minimal` and rejects other `b
 **What's cached today.** The only build-speed cache in the pipeline is `.cache/base-images/`, described in §2.2 above — it applies exclusively to `bootstrap_method = "tarball"`. Nothing else in the pipeline is cached across runs:
 
 - **No apt-package cache.** `build/scripts/01-bootstrap.sh` deletes and recreates `$ROOTFS` (`rm -rf "$ROOTFS"`) at the start of every run, so Stage 2's `apt-get install` re-downloads every package from `apt_mirror` on every `make iso` invocation.
-- **No container layer caching of ISO contents.** Stages 1–5 execute as `podman run` invocations of shell scripts against a bind-mounted host directory (`build/Makefile`: `-v $(REPO_ROOT):/repo:Z`), not `RUN` instructions in a Containerfile — so ordinary Docker/Podman image-layer caching doesn't apply to them. Layer caching only benefits rebuilds of the separate `gallos-builder` tool image (`build/Containerfile`, the container that *holds* `debootstrap`/`mksquashfs`/`xorriso`), which is unrelated to what ends up on the ISO.
+- **No container layer caching of ISO contents.** Stages 1–5 execute as `podman run` invocations of shell scripts against a bind-mounted host directory (`build/Makefile`: `-v $(REPO_ROOT):/repo`), not `RUN` instructions in a Containerfile — so ordinary Docker/Podman image-layer caching doesn't apply to them. Layer caching only benefits rebuilds of the separate `gallos-builder` tool image (`build/Containerfile`, the container that *holds* `debootstrap`/`mksquashfs`/`xorriso`), which is unrelated to what ends up on the ISO.
 - **No BuildKit cache mounts.** The pipeline uses plain `podman build`/`podman run`, not `docker buildx`, so `--mount type=cache` syntax isn't applicable here.
 
 Don't confuse this with the `optimization.remove_apt_cache` flag (§2 above, applied in Stage 4 / `build/scripts/04-optimize.sh`): that purges `/var/cache/apt/archives` and `/var/lib/apt/lists/*` at the *end* of the pipeline to shrink the shipped ISO's disk footprint — it's a size optimization for the output image, not a build-speed cache.
@@ -165,7 +165,7 @@ The builder enters the chroot environment and:
 1. Installs the Linux kernel, casper live boot machinery, and system utilities.
 2. Injects the GallosOS casper-bottom hook (`55gallos-live`).
 3. Parses `build.toml` $\to$ `[packages]` and executes `apt-get install -y <packages>`.
-4. For the universal recipe, installs Firefox from Mozilla's signed DEB repository and a pinned, SHA-256-checked VSCodium release. GCC, Clang, OpenJDK, Python/PyPy, Rust, Kotlin, Geany, and the local training proxy come from the configured Ubuntu package repositories. The image records installed package versions in `/usr/share/gallos/toolchains.tsv`.
+4. For the universal recipe, installs Firefox from Mozilla's signed DEB repository and a pinned, SHA-256-checked VSCodium release. GCC, Clang, OpenJDK, system CPython, Rust, Kotlin, Geany, and the local training proxy come from the configured Ubuntu package repositories; the selected compiler, interpreter, editor, and browser package versions are recorded in `/usr/share/gallos/toolchains.tsv`. `install-contest-pypy.sh` separately downloads the official pinned PyPy 7.3.15 archive (Python 3.9.18 compatibility), verifies its SHA-256 digest, and installs it under `/opt/pypy3.9-v7.3.15-linux64`. `/usr/local/bin/pypy3` selects that interpreter; `/usr/bin/python3` remains the system interpreter. The PyPy version and archive digest are recorded in `/usr/share/gallos/contest-python.tsv`.
 
 After building, run the compiler smoke test against the generated rootfs:
 
@@ -184,7 +184,7 @@ acceptance.
 
 Configures build inputs used by policy-scoped security mechanisms. The neutral profile remains open practice; the firewall does not represent a universal Zero-Trust or zero-leak guarantee.
 
-1. Installs and enables `nftables` with an `inet` family default-DROP firewall for restricted modes, whitelisting judge IPs in Contest and dropping telemetry DNS.
+1. Installs and enables `nftables` with an initial IPv4 default-DROP firewall; the runtime uses `inet` for restricted modes, whitelisting judge IPs in Contest and dropping telemetry DNS.
 2. Disables IPv6 via `/etc/sysctl.d/99-gallos-noipv6.conf` and kernel bootcmd parameters.
 3. Prepares host-service USB-storage enforcement and Polkit rules according to the build policy. The build removes any coldplug-time class-08 Udev denial; the runtime helper adds an interface rule after boot-medium discovery.
 4. Configures and enables the `earlyoom` daemon with `-n` D-Bus notification support.
@@ -261,7 +261,7 @@ flowchart TD
 2. **Tier 2: Modular Software Package Management (`/gallos/modules/*.gsm`)**
    - **Mechanism:** Standalone SquashFS packages. The early-boot initramfs dynamically stacks all `.gsm` modules present in `/gallos/modules/` into the live OverlayFS stack.
    - **I/O Scope:** Limited to the size of the added or replaced `.gsm` package (e.g. `programming-vsc-cph.gsm`).
-   - **Advantage:** Adds compilers or IDE extensions without modifying the core `rootfs.squashfs` base image.
+   - **Advantage:** Adds compilers or IDE extensions without modifying the core `filesystem.squashfs` base image.
 
 3. **Tier 3: Custom System Layer Overrides (`99-custom.gsm`)**
    - **Mechanism:** Reserved at the top of the OverlayFS layer stack. `gallos-inject` extracts `99-custom.gsm`, applies arbitrary files/scripts (e.g. emergency `udev` rules, custom dotfiles, offline deb packages, or driver quirks), recompresses it via `mksquashfs`, and updates `checksums.sha256`.
@@ -297,7 +297,7 @@ gallos-inject --all-drives --config icpc-date3.gallos.toml --wallpaper gpm-wallp
 ## 6. Planned Release Artifact Distribution & Mirror Architecture
 
 > [!NOTE]
-> **Phase 6 Roadmap — Planned:** Release artifact publication, automated checksum generation, and binary mirror hosting are planned for Phase 6. No official release-download mirrors or Organizer CLI binaries are currently published by this repository. Any future channels should document artifact identity, signatures, and region-specific availability without promising download performance.
+> **Phase 6 Roadmap — Planned:** Release artifact publication, signing/manifests, and binary mirror hosting are planned for Phase 6. Local ISO checksum generation is already implemented. No official release-download mirrors or Organizer CLI binaries are currently published by this repository. Any future channels should document artifact identity, signatures, and region-specific availability without promising download performance.
 
 ### 6.1 GitHub Release Considerations
 

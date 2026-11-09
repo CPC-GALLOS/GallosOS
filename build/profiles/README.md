@@ -26,7 +26,7 @@ The build still uses one `universal.build.toml` recipe.
 The reasons are architectural:
 
 ### 1. The Single Universal Base ISO Architecture (The MVP Release Image)
-For the GallosOS Minimum Viable Product (MVP), **only one official `.iso` is compiled and distributed**. Its embedded fallback is `examples/neutral.gallos.toml`: open practice with GallosOS identity. A strict official contest needs an Organizer policy with the correct judge and schedule. The underlying operating system stack is shared across club sessions, training, and contests.
+For the GallosOS Minimum Viable Product (MVP), **one canonical build recipe targets the official `.iso`**; publication remains planned. Its embedded fallback is `examples/neutral.gallos.toml`: open practice with GallosOS identity. A strict official contest needs an Organizer policy with the correct judge and schedule. The underlying operating system stack is shared across club sessions, training, and contests.
 
 [`gallosd`](../../daemon/) reads `gallos.toml` for implemented scheduling, network, and USB restrictions. This shared base avoids an image recipe per event, but it does not implement every catalog feature: dynamic countdown/menu integration, optional IDE provisioning, and other workstation controls remain roadmap items.
 
@@ -49,7 +49,7 @@ The planned expansion mechanism packages specialized software as `.gsm` SquashFS
 You only need to create a new profile in `build/profiles/` if you are compiling a bespoke base image (Track 2 deployment):
 
 1. **Future Alternate `base_os` Support:** Additional bases require implementation changes; the current bootstrap accepts only `ubuntu-24.04-minimal`. A custom profile alone cannot enable a different release (see [`docs/ARCHITECTURE.md` § 3.1](../../docs/ARCHITECTURE.md)).
-2. **Resource-Constrained Environments (Tier 0):** Creating a stripped-down profile (e.g. console-only, minimal RAM footprint) for older 1–2 GB RAM lab workstations.
+2. **Resource-Constrained Environments (Tier 0):** A console-only image requires provisioning changes as well as a custom profile: Stage 2 currently writes desktop configuration and installs Firefox/VSCodium unconditionally. Hardware minimums require separate validation.
 3. **Hardware-Specific Driver Ingestion:** Baking in proprietary GPU drivers (such as NVIDIA DKMS packages) or custom kernel modules directly into the base squashfs layer.
 
 ---

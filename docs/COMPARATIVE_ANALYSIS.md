@@ -18,7 +18,7 @@ The target catalog includes future optional software and venue services. It does
 | **Target Ecosystem** | OMI, TCMX, ICPC Gran Premio | ICPC Latin America (SBC/BOCA) | **Universal (ICPC, IOI, Camps, Clubs)** |
 | **Primary Deployment** | Live USB (AUFS + `.hsl`/`.hsm`) | Ubuntu PPA Meta-Packages | **Live USB (OverlayFS + `.gsm`) + VMs (`.ova`/`.qcow2`) + PXE** |
 | **Base Operating System** | Debian 11 Minimal (AUFS Kernel) | Ubuntu 22.04 LTS (PPA) | **Ubuntu 24.04 LTS Minimal Base**¹ |
-| **Base Download Mirrors** | Custom hosting (`mirrors.huronos.org`) | Canonical Global Mirrors | **Canonical Mirrors + GitHub CDN / Official Google Drive Mirror (`cpc.gallos@gmail.com`)** |
+| **Base Download Mirrors** | Custom hosting (`mirrors.huronos.org`) | Canonical Global Mirrors | **Canonical package mirrors; release hosting planned** |
 | **Build Pipeline** | Custom `sysforge` scripts | Debian `.deb` package builds | **Podman/Docker + CI/CD** |
 | **Display Server / DE** | X11 / Budgie Desktop | X11 / Ubuntu Desktop | **Wayland / Labwc + Waybar (Kiosk)** |
 | **Execution Modes** | `Contest > Event > Always` | Single static mode | **`Contest > Event > Default` (Formalized)** |
@@ -33,7 +33,7 @@ The target catalog includes future optional software and venue services. It does
 | **Translation & Offline Docs** | Crow Translate (online-only) | `dictd` + FreeDict / doc packages | **Dual-Mode (`dictd` FreeDict Offline + API Whitelist) + DevDocs** |
 | **WSL2 / Windows Flashing** | None (Linux-only scripts) | None | **Native WSL2 + `usbipd-win` + Flasher** |
 
-¹ The upstream maintainer builds and tests only against Ubuntu 24.04 LTS. `base_os` is a build-time `build.toml` field — organizers may target `ubuntu-22.04-minimal`, `ubuntu-26.04-minimal`, or an interim non-LTS release via Track 2, but these alternates are architecturally supported, not maintainer-validated (see `docs/ARCHITECTURE.md` §3.1).
+¹ Only `ubuntu-24.04-minimal` is implemented. Alternate bases require bootstrap/provisioning changes and independent acceptance; Track 2 configuration alone cannot enable them.
 
 ---
 
@@ -70,7 +70,7 @@ This matrix compares the environments engineered for national and international 
 | **Languages** | C++20 (version pinned in editor config; Python 3 and Java present but unversioned upstream) | C++20 (GCC 10.2 / Clang 11.0), Python 3.9, PyPy3 7.3 | C++14/17/20, C, Python, Free Pascal | **Full ICPC/IOI Matrix (C++, Java, Python, Kotlin, Rust)** |
 | **IDEs & Editors** | VS Code, Eclipse, Geany, Neovim (also Atom, Sublime Text, emacs, kate, kdevelop) | VS Code 1.80, Code::Blocks 20.03, Geany 1.37, Kate, Emacs 27, Vim 8.2 | VS Code 1.57, Code::Blocks, Geany, Vim, Sublime | **VSCodium, JetBrains CE, Geany, Neovim, CPH** |
 
-¹ Maintainer-tested default only — see footnote 1 in §1 above and `docs/ARCHITECTURE.md` §3.1 for the community-supported `base_os` alternatives.
+¹ Maintainer-tested default only — see footnote 1 in §1 above and `docs/ARCHITECTURE.md` §3.1 for the unimplemented `base_os` alternatives.
 
 *Note: EGOI 2026 (European Girls' Olympiad in Informatics) officially retired Code::Blocks from its workstation specifications ("this year CodeBlocks will not be available on the contest machines, and we will not accept any requests to make it available" - egoi2026.it), accelerating the international transition toward modern editors (VSCodium, CLion, Geany, Neovim).*
 
@@ -143,7 +143,7 @@ Inspection of the huronOS codebase, official deployment guides (such as the OMI 
    - Because huronOS relies on an out-of-tree AUFS-patched Linux kernel, it cannot be signed with Microsoft-trusted Canonical shim keys.
    - Consequently, the official OMI 2023 installation manual explicitly instructed contestants and delegates: *"Busque la opción de Secure Boot y desactívela. Desactive también la opción TPM (Trusted Platform Module)."*
    - The manual accompanied this with a critical warning: disabling Secure Boot and TPM on modern Windows 11 machines with BitLocker active can trigger permanent boot failures, BitLocker recovery lockouts, and potential data loss.
-   - **GallosOS Advantage:** GallosOS ships with Canonical's officially signed `shim` and signed Ubuntu LTS kernel using **in-tree OverlayFS**, booting seamlessly under UEFI SecureBoot without requiring contestants or lab managers to touch firmware security settings.
+   - **GallosOS Advantage:** GallosOS ships with Canonical's officially signed `shim` and signed Ubuntu LTS kernel using **in-tree OverlayFS**, targeting UEFI Secure Boot without disabling it. Firmware configuration and physical compatibility still require venue validation.
 
 2. **Deprecated Union Filesystem (AUFS vs OverlayFS):**
    - HuronOS relies on AUFS, an unmerged third-party patch set that requires building and maintaining custom Linux kernels. Modern Linux distributions have standardized on in-tree **OverlayFS**.
@@ -152,7 +152,7 @@ Inspection of the huronOS codebase, official deployment guides (such as the OMI 
    - HuronOS alpha 0.4 is pinned to a custom Linux 6.0 kernel (`vmlinuz-6.0.15-huronos+`), which lacks DRM/KMS drivers for modern processor architectures (such as Intel Arrow Lake / Lunar Lake, device ID `8086:7d67`) and modern discrete GPUs (NVIDIA GeForce RTX 40-series / Ada Lovelace).
    - Booting huronOS on modern laboratory workstations fails during DRM initialization with black screens or kernel panics. Attempting to force-probe Intel DRM via `i915.force_probe=*` crashes the kernel, while legacy boot parameters like `vga=normal` break modern UEFI GOP displays.
    - **Required Workaround in `icpc-gpm-uaa-huronos` (`03-configure-nvidia-boot.sh` & `02-inject-custom-layer.sh`):** To boot at all on modern hardware, organizers had to blacklist modern DRM (`modprobe.blacklist=i915,nouveau fbcon=nodefer`), fall back to the unaccelerated EFI Framebuffer (`/dev/fb0`), extract and inject Debian's missing `xserver-xorg-video-fbdev` driver (`fbdev_drv.so`) into `05-custom.hsl`, force Mesa LLVMpipe CPU software rendering (`LIBGL_ALWAYS_SOFTWARE=1` and `GALLIUM_DRIVER=llvmpipe`), and rewrite the EFI Syslinux boot menu config (`EFI/Boot/syslinux.cfg`) with the new fallback boot labels, updating checksums afterward.
-   - **GallosOS Advantage:** Built on **Ubuntu 24.04 LTS with Linux Kernel 6.8+ (and HWE 6.11+)** and standard **in-tree OverlayFS**, providing native, out-of-the-box hardware DRM/KMS acceleration for Intel (`xe`/`i915`), AMD (`amdgpu`), and NVIDIA (Nouveau/NVK or MOK-signed proprietary driver module) without requiring fbdev hacks or CPU software rendering.
+   - **GallosOS Advantage:** Built on **Ubuntu 24.04 LTS with Linux Kernel 6.8+ (and HWE 6.11+)** and standard **in-tree OverlayFS**, targeting in-tree DRM/KMS drivers; proprietary NVIDIA packaging remains planned and hardware acceleration requires per-machine validation.
 
 4. **Fragile `.hdf` Directives Parser & The DOS CRLF `sed` Bug:**
    - HuronOS configuration relied on a custom, untyped text format (`directives.hdf`) parsed via Bash scripts (`dvar`, `hsync`) using `sed` and `cat`.
@@ -165,7 +165,7 @@ Inspection of the huronOS codebase, official deployment guides (such as the OMI 
    - In university laboratories dual-booting Windows and Linux, Windows sets the hardware Real-Time Clock (RTC) in the BIOS to local time (e.g. UTC-6 for Mexico Central Time), whereas Linux expects the hardware RTC to be in UTC.
    - In venues where campus firewall policies or isolated lab VLANs blocked UDP port 123 (NTP), huronOS was unable to synchronize its clock over the network upon booting. The OS interpreted the local RTC time as UTC, causing an immediate 6-hour time drift.
    - Because huronOS execution mode transitions depended strictly on the system clock matching scheduled contest time-windows, workstations failed to enter `Contest` mode during live events (such as ICPC GPMX dates). Organizers were forced into emergency fallbacks—such as deleting scheduled contests and running in unisolated "Always/Default" mode.
-   - **GallosOS Advantage:** Implements dual-tier time synchronization: workstations synchronize time directly from the local Tier 3 Venue Controller (over HTTP/JSON or local broadcast) independent of external NTP port blocking, coupled with declarative manual mode enforcement (`gallos-admin force-mode`).
+   - **GallosOS Advantage:** Supports absolute schedules and monotonic duration timers, alongside explicit root manual control; clock-confidence handling and controller time distribution remain planned (`gallosctl contest start` / `gallosctl contest stop`).
 
 6. **Accidental TTY Virtual Console Dropping (X11 / LightDM on TTY7):**
    - HuronOS ran the Solus Budgie desktop environment on legacy X11 via LightDM on virtual terminal 7 (`TTY7`).
@@ -177,17 +177,17 @@ Inspection of the huronOS codebase, official deployment guides (such as the OMI 
    - While official championship sites (e.g. World Finals, ICPC Regionals) use wired Ethernet, **BYOD (Bring Your Own Device)** events such as Training Camp México (TCMX), club practices, and university invitationals rely primarily on student laptops connecting to campus Wi-Fi.
    - HuronOS uses **ConnMan** (`cmst`) as its network daemon. ConnMan's lightweight system tray GUI cannot prompt interactively for EAP credentials (PEAP, MSCHAPv2, TTLS, EAP-TLS) when connecting to university/enterprise Wi-Fi networks (such as UAA's `RIUAA` or worldwide `eduroam`). Clicking an enterprise SSID in the tray yields a fatal error: *"Failed to toggle connection state. IEEE8021x secured services have to be manually configured."*
    - **Required Workaround in `icpc-gpm-uaa-huronos`:** Organizers were forced to mandate physical wired Ethernet cables (where available) or manually craft root-level INI provisioning service files under `/var/lib/connman/*.config` (specifying `EAP=peap`, `Phase2=MSCHAPV2`, `Identity`, and `Passphrase`) via the command line and restart ConnMan.
-   - **GallosOS Advantage:** GallosOS integrates **NetworkManager** with full interactive 802.1X/EAP GUI dialogs in the desktop interface (essential for BYOD students), alongside declarative pre-provisioning of university Wi-Fi credentials directly inside `gallos.toml` (`[network.wifi_profiles]`).
+   - **GallosOS Advantage:** GallosOS integrates **NetworkManager** with planned interactive 802.1X/EAP dialogs and declarative Wi-Fi provisioning. Neither the UI nor a `wifi_profiles` schema directive is implemented.
 
 8. **Firewall Over-Restriction on Local Network Services:**
    - HuronOS's automated firewall opened only ports 80 (HTTP) and 443 (HTTPS) by default. Local contest services operating on non-standard ports (such as university web print servers, local DOMjudge instances on custom ports, or scoreboard mirrors) were silently blocked.
-   - **GallosOS Advantage:** GallosOS provides declarative port allowlists in `gallos.toml` (`[firewall]`), allowing organizers to explicitly permit custom ports for local printing, judge servers, and monitoring proxies.
+   - **GallosOS Advantage:** Custom web ports are not currently supported by the proxy: the implemented web policy permits HTTP/HTTPS on 80/443. A future port-policy design requires schema and runtime work.
 
 9. **Air-Gapped VS Code Extensions Lifecycle & Permission Fragility:**
    - HuronOS alpha 0.4 shipped **VSCodium 1.81.1** (installed at `/usr/share/codium`) with five official directive-selectable extensions: C/C++ (`vsc-cpptools`), Clangd (`vsc-clangd`), Vim (`vsc-vscodevim`), IntelliJ keybindings (`vsc-intellij-idea-keybindings`), and C++ Compile-Run (`vsc-cpp-compile-run`) — but no equivalent official module for Python, Java, or Competitive Programming Helper (CPH). In isolated contest networks where the Open VSX marketplace is inaccessible, those three extensions were completely unavailable through HuronOS's own directive system.
    - **Required Workaround in `icpc-gpm-uaa-huronos` (`02-inject-custom-layer.sh`, `02b-inject-vscode-extensions.sh`):** Required downloading offline `.vsix` packages, extracting them into `/opt/codium/contestant/extensions/` (a custom injection root), creating synthetic `ids/vsc-*.json` manifests, forcing `chmod 777` permissions (because the Codium startup wrapper rewrites `extensions.json` as unprivileged user `contestant`), and manually registering module names across `/etc/hmm/any` and `/etc/hsync/all_software`.
    - Two further bugs surfaced maintaining this workaround: VSCodium's marketplace client is intolerant of mixed-case extension IDs when resolving an offline `.vsix` against its local registry, silently failing to register the extension unless the ID is lowercase-normalized first; and the extension registry must stay writable across every dynamic HSM module injection, or the very next injected module clobbers permissions set by a prior one.
-   - **GallosOS Advantage:** First-class, pre-packaged `.gsm` modules for VSCodium, CPH, Python (offline `jedi-language-server`), and Red Hat Java (offline JDT LS + OpenJDK 21) managed cleanly via declarative `gallos.toml` directives.
+   - **GallosOS Advantage:** Offline extension bundles are a Phase 6 design target; no packaged `.gsm` catalog or directive-driven extension selection is implemented.
 
 10. **Virtualization & Guest Integration Omission (`spice-vdagent`):**
     - HuronOS lacked `spice-vdagent` in its base system, preventing dynamic screen resizing and bidirectional clipboard sharing when tested inside KVM/QEMU (`virt-manager`, SPICE display) or Oracle VirtualBox. The `icpc-gpm-uaa-huronos` project had to extract and inject `spice-vdagent`/`spice-vdagentd` binaries, systemd service/socket units, udev rules, and an `Xsession.d` autostart script into `05-custom.hsl`.
@@ -205,7 +205,7 @@ Inspection of the huronOS codebase, official deployment guides (such as the OMI 
 
 14. **Centralized Branding & Mirror Bottleneck:**
     - HuronOS centralized wallpaper distribution and ISO mirrors on custom host servers (`directives.huronos.org`, `mirrors.huronos.org`, `archive.huronos.org`). When these institutional servers encountered downtime or DNS failures, clients failed to pull wallpapers, contest configs, and release assets.
-    - **GallosOS Advantage:** GallosOS provides a native, offline white-label branding engine in `gallos.toml` and distributes release assets globally via GitHub Releases CDN and Google Drive mirrors.
+    - **GallosOS Advantage:** Hostname and local wallpaper support are implemented. Full boot branding and release publication/mirror selection remain planned.
 
 15. **Project Stagnation & Incomplete Documentation:** Upstream development stalled after version Alpha 0.4 (2023–2024). **12 documentation pages** across its official repository are left as near-empty `TODO: Write doc` stubs (6–28 words each):
     - `internals/execution-modes.md`
@@ -226,7 +226,7 @@ Inspection of the huronOS codebase, official deployment guides (such as the OMI 
 16. **No Native Unattended/Non-Interactive Installer:**
     - HuronOS's own `install.sh` was written for a single interactive operator: every choice (target disk, confirmation, root password, directives URL, sync-server IP) is gathered via `read -r -p` prompts, with no `--unattended`/`--yes` equivalent of its own. Its argument parser also unconditionally resets its password variable before ever inspecting the environment, so environment-variable overrides from a wrapper script are silently clobbered.
     - **Required Workaround in `icpc-gpm-uaa-huronos` (`01-install-huronos.sh`):** To script unattended lab installs across many machines, organizers had to `sed`-patch the upstream script's individual `read -r -p` prompt lines at runtime (hardcoding disk selection and confirmation, neutering the sync-server-IP prompt to a no-op) and pass explicit CLI flags instead of relying on environment exports, since only real flags survive the upstream parser.
-    - **GallosOS Advantage:** `gallos-flash` ships unattended, scriptable operation as a first-class, structured CLI interface from day one — organizers never need to patch anyone else's installer to automate lab-day USB prep.
+    - **GallosOS Advantage:** The planned `gallos-flash` contract includes unattended, scriptable operation; the command is not implemented.
 
 17. **Ad Hoc Raw-USB-Device Tooling Fragility in VM-Based QA:**
     - Verifying a freshly cloned or installed huronOS USB inside VirtualBox requires mapping the raw block device into a VMDK descriptor, which surfaced host-permission and stale-state issues: raw device access needing interactive `sudo`, host-mounted partitions of the target device blocking attachment until unmounted, and stale VM/medium UUID registrations left behind by prior runs against the same device.
@@ -245,19 +245,19 @@ Maintaining or patching HuronOS directly was unviable because its architectural 
 1. **Kernel & Silicon Modernization:** Replacing the unmaintained AUFS Linux 6.0 kernel patch set with standard **in-tree OverlayFS on Ubuntu 24.04 LTS (Kernel 6.8+)**, eliminating driver panics on modern Intel/NVIDIA hardware and avoiding fragile `fbdev`/software-rendering fallbacks.
 2. **Network Stack Modernization:** Replacing ConnMan (`cmst`) with **NetworkManager**, enabling seamless interactive WPA-Enterprise (802.1X / `eduroam`) authentication and declarative TOML pre-provisioning.
 3. **Display Protocol & Process Isolation:** Moving from X11/Budgie to **Wayland (Labwc + Waybar)** to isolate unprivileged processes, while implementing dedicated, privileged system hooks for official administrative proctoring (screen auditing / logging).
-4. **Declarative Architecture:** Replacing the untyped legacy `.hdf` INI format with canonical **TOML (`gallos.toml`)** validated by JSON Schema and supported by a GUI builder (GallosOS Config Builder).
+4. **Declarative Architecture:** Replacing the untyped legacy `.hdf` INI format with canonical **TOML (`gallos.toml`)** validated by JSON Schema; the GUI Config Builder remains planned.
 5. **Containerized Reproducible Builds:** Eliminating host-polluting manual Debian builds in favor of **OCI Podman/Docker containerized ISO generation** capable of running anywhere (Linux, macOS, Windows WSL2).
 6. **Multi-USB Parallel Tooling & In-Place Delta Updating:** Replacing fragile interactive bash `extlinux` installation scripts with a dedicated parallel mass flashing tool (**`gallos-flash`**) and an in-place delta update CLI (**`gallos-inject`**) for non-destructive, zero-reformat updates across fleets of USB drives.
 7. **Native Multi-Language Toolchain Modules:** Packaging full offline extensions (CPH, Python, Java) into clean `.gsm` modules rather than hacking unpacked VSIX directories into squashfs layers.
 
 ### GallosOS Architectural Design & Differentiation
 
-- **Native OverlayFS on Standard Modern Kernel:** Standard in-tree **OverlayFS** on **Ubuntu 24.04 LTS (Kernel 6.8+)**, delivering full hardware acceleration across modern Intel, AMD, and NVIDIA silicon.
-- **Process-Isolated Wayland Desktop:** **Labwc + Waybar Kiosk Session (Wayland)**, providing process-level window and input isolation while supporting privileged administrative auditing.
-- **Enterprise Network Compatibility:** Full out-of-the-box support for WPA-Enterprise / IEEE 802.1X campus networks via NetworkManager and `gallos.toml`.
+- **Native OverlayFS on Standard Modern Kernel:** Standard in-tree **OverlayFS** on **Ubuntu 24.04 LTS (Kernel 6.8+)**, targeting available in-tree drivers; physical graphics compatibility remains unvalidated.
+- **Process-Isolated Wayland Desktop:** **Labwc + Waybar Kiosk Session (Wayland)**, mediating client window/input access. Privileged administrative auditing remains planned.
+- **Enterprise Network Compatibility:** NetworkManager is installed; interactive/declarative WPA-Enterprise integration and acceptance remain planned.
 - **Type-Safe Directives Engine:** Canonical **TOML (`gallos.toml`)** and JSON schema validation.
 - **Parallel Multi-Target Flasher & In-Place Injector (`gallos-flash` & `gallos-inject`):** Concurrent multi-USB writing with WSL2 + `usbipd-win` support alongside rapid in-place delta injection for already-provisioned drives.
-- **Bundled Offline Docs & Translation DBs:** Pre-bundles DevDocs and Crow bilingual dictionaries for 100% offline air-gapped contests.
+- **Bundled Offline Docs & Translation DBs:** Offline references and bilingual dictionaries remain planned; the selected core does not bundle DevDocs or Crow dictionary databases.
 
 ---
 
@@ -302,7 +302,7 @@ Inspection of the official **`maratona-linux/maratona-linux`** super-repository 
 
 ### How GallosOS Unifies and Elevates Maratona Linux
 
-- **Native Live ISO / OverlayFS:** GallosOS encapsulates the entire Maratona package ecosystem into an immutable, fast-booting Live USB with ephemeral RAM overlays, eliminating the need to install or modify local OS partitions.
+- **Native Live ISO / OverlayFS:** GallosOS targets selected contest packages rather than bundling the entire Maratona ecosystem into an immutable, fast-booting Live USB with ephemeral RAM overlays, eliminating the need to install or modify local OS partitions.
 - **Declarative TOML Profile ([`maratona-sbc.gallos.toml`](../examples/maratona-sbc.gallos.toml)):** Provides a drop-in profile implementing Maratona's toolchains (GCC 14, Java 21, Kotlin 2.1, Python 3.12, PyPy3, VSCodium, CLion, Byobu) and BOCA firewall rules declaratively.
 - **Modern Kernel Filtering (`nftables`):** Replaces `ufw`/`iptables` scripts with dynamic, kernel-level `nftables` sets that update instantly without package reconfigurations.
 - **Process Isolation:** Runs under **Wayland (Labwc + Waybar)**, closing X11 security holes while preserving full terminal and IDE capabilities.
@@ -338,7 +338,7 @@ To ensure real-world architectural parity with actual 2024–2025 championship d
   - **Prometheus Exporters:** Bundles `node-exporter` (1.9.1) and custom `icpc-exporter` (0.12) services.
   - **Anti-Cheat Policy:** Contest regulations explicitly disallow ML-assisted code completion plugins (e.g. JetBrains "Full Line Code Completion").
   - **SSH Lockdown & Desktop Trusting:** Disallows contestant SSH execution via `chmod o-rx /usr/bin/ssh` and uses `gio set "${i}" "metadata::trusted" true` in `desktop-truster.sh` (convergent with Maratona Linux's `zera-home-icpc`).
-- **GallosOS Architectural Design & Differentiation:** Rather than requiring automated installation to wipe and overwrite the host machine's internal disk, GallosOS is designed to boot directly into RAM as an immutable Live OS without modifying the host storage, while utilizing a process-isolated **Wayland compositor (Labwc)** instead of legacy X11.
+- **GallosOS Architectural Design & Differentiation:** Rather than requiring automated installation to wipe and overwrite the host machine's internal disk, GallosOS is designed to boot directly into RAM as an immutable Live OS without modifying the host storage, while using a **Wayland compositor (Labwc)** with compositor-mediated client access. This does not provide a contestant process sandbox.
 
 ### C. ICPC CloudContest Admin & Wizard Suite (`environment.cloudcontest.org`)
 
@@ -377,7 +377,7 @@ To ensure real-world architectural parity with actual 2024–2025 championship d
   - **No Runtime Mode Hierarchy:** Does not distinguish between instruction/warm-up and contest lockdown modes.
   - **No AI / Telemetry Stripping:** Bundles standard Microsoft VS Code without removing telemetry or cloud endpoints.
   - **Resource Heavy:** Running full GNOME 3.36 on live media requires significantly more memory compared to a dedicated lightweight Wayland kiosk stack (Labwc + Waybar).
-- **GallosOS Architectural Design & Differentiation:** GallosOS supports full Chinese NOI compiler toolchains (GCC 9-14, FPC) while providing an immutable live USB overlay without hard drive installation, minimal desktop shell overhead, and kernel-level default-DROP firewall isolation (blocking external AI services and unauthorized internet traffic by design).
+- **GallosOS Architectural Design & Differentiation:** The current GallosOS core does not provide the full NOI compiler catalog (GCC 9–14/FPC); future expansion could evaluate those runtimes while providing an immutable live USB overlay without hard drive installation, minimal desktop shell overhead, and kernel-level default-DROP firewall isolation (blocking external AI services and unauthorized internet traffic by design).
 
 ---
 
@@ -421,7 +421,7 @@ Binary and filesystem inspection of the official **EGOI 2023 Contestant VM** (`e
 ### C. GallosOS Architectural Synthesis vs. Olympiad Appliances
 
 - **Multi-Target Deployment (Live USB + Bare Metal + VM):** While IOI/EGOI VMs run strictly inside virtualizers (requiring host OS installation and allocating 8 GB RAM per virtual guest), GallosOS is designed to boot directly on bare-metal hardware via immutable Live USB as well as virtual appliances (`.ova`, `.qcow2`), avoiding host-guest virtualization overhead during compilation while supporting air-gapped environments.
-- **Modern Kernel Isolation (Wayland vs. X11 xhost):** Replaces legacy X11 screen-grabbing (`xhost +local:` / `x11grab`) with native **Wayland process isolation**, allowing secure administrative compositor screencasts without exposing window snooping vulnerabilities to unprivileged student processes.
+- **Modern Kernel Isolation (Wayland vs. X11 xhost):** Replaces legacy X11 screen-grabbing (`xhost +local:` / `x11grab`) with **Wayland compositor-mediated access**. Administrative capture remains planned; no blanket prevention of window capture or contestant process sandbox is claimed.
 - **Declarative Directives Architecture (TOML vs. Custom Python Daemons):** Replaces custom monolithic Python pollers with a memory-safe daemon (`gallosd`) governed by typed `gallos.toml` directives and JSON Schema validation.
 
 ---
@@ -478,11 +478,11 @@ Source and playbook inspection of the `icpcsysops/ansible` infrastructure tree r
 | **System Philosophy** | **Mutable Network Configuration Management:** Assumes target machines are already running an installed Linux OS, mutating files on disk over SSH. | **Immutable Declarative Operating System:** Base OS is a read-only SquashFS container; changes live in RAM (OverlayFS); configured via typed `gallos.toml`. |
 | **Primary Deployment Context** | **Tier 3 / Tier 4 Arenas:** High-end on-site World Finals / NAC with dedicated servers, static subnets, and a team of sysadmins. | **Tier 0 through Tier 4 (Universal):** Autonomous Live USBs for air-gapped rooms, training camps, regionals, and scalable to centralized Venue Controllers. |
 | **Infrastructure Prerequisites** | Requires pre-installed OS on SSDs or PXE/FOG network boot, static IPs, Python interpreter on target, and pre-distributed SSH CA keys. | **Zero Infrastructure Needed:** Runs directly from a USB stick without installing to internal hard drives or requiring external network servers. |
-| **Configuration State & Drift** | Vulnerable to partial play failures or network dropouts leaving some workstations in an inconsistent intermediate state (*configuration drift*). | **Bit-for-Bit Identical & Drift-Free:** Every boot guarantees 100% state consistency. A reboot purges all temporary RAM modifications. |
+| **Configuration State & Drift** | Vulnerable to partial play failures or network dropouts leaving some workstations in an inconsistent intermediate state (*configuration drift*). | **Volatile root reset:** Reboot discards the writable root layer. Remote policy and optional persistent event-data can differ; bit-for-bit reproducibility and drift-free runtime behavior are not guaranteed. |
 | **Runtime Mode Scheduling** | Manual execution of playbooks by sysadmins (`do_contest_template.yml`, `enable_challenge.yml`, `lock_teams.yml`). | **Autonomous Declarative Scheduling:** Transitions through `Default` $\to$ `Event` $\to$ `Contest` automatically based on ISO 8601 timestamps in `gallos.toml`. |
-| **Display Protocol & Security** | Legacy **X11** (GNOME Flashback / LightDM). Uses `xprop` for inspection and `x11grab` for streaming (subject to X11 security leakage). | **Wayland (Labwc + Waybar):** Modern compositor with process-level window/input isolation; secure compositor-level screencasting. |
-| **Anti-Cheat Enforcement** | Host-based `iptables` scripts + policykit rules + custom background auditing daemons (`martkeys`, `s.py`). | Kernel-level `nftables` Default-DROP + AI extension purge + Chromium/Firefox enterprise URL policy + process isolation. |
-| **Ad-Hoc Live Patching** | **Outstanding:** Sysadmins can push ad-hoc Bash scripts or configuration overrides live to 200 machines simultaneously via SSH. | **Tier 3/4 Integration:** Built-in Python 3 and OpenSSH enable the Venue Controller to run Ansible plays over GallosOS nodes if ad-hoc orchestration is desired. |
+| **Display Protocol & Security** | Legacy **X11** (GNOME Flashback / LightDM). Uses `xprop` for inspection and `x11grab` for streaming (subject to X11 security leakage). | **Wayland (Labwc + Waybar):** Modern compositor with compositor-mediated window/input access; screencasting acceptance remains open. |
+| **Anti-Cheat Enforcement** | Host-based `iptables` scripts + policykit rules + custom background auditing daemons (`martkeys`, `s.py`). | Policy-scoped `nftables`/proxy and managed-browser configuration. AI extension purge and proctoring remain planned; contestant process sandboxing is not provided. |
+| **Ad-Hoc Live Patching** | **Outstanding:** Sysadmins can push ad-hoc Bash scripts or configuration overrides live to 200 machines simultaneously via SSH. | **Tier 3/4 Integration:** Python 3 and the OpenSSH client are installed; inbound SSH/Ansible management requires a future explicit server configuration. |
 
 ---
 
@@ -498,7 +498,7 @@ The examination of `icpcsysops/ansible` provides crucial real-world sysadmin pat
 3. **Forensic Audit & Process Monitoring Subsystems:**
    - The auditing architecture in GallosOS borrows the concepts of `martkeys` (keystroke journaling) and `s.py` (process hierarchy and active window monitoring) as opt-in audit plugins managed cleanly by `gallosd` during official Olympiad and Championship modes.
 4. **Venue Controller Fleet Integration (Tier 3 / Tier 4):**
-   - For large-scale events where organizers manage hundreds of workstations from a central Venue Controller, GallosOS acts as a hardened, immutable client node. Because GallosOS includes Python 3, OpenSSH, and systemd out of the box, organizers can utilize Ansible from the Venue Controller for live ad-hoc intervention while relying on GallosOS's immutable OverlayFS for resilient boot behavior.
+   - For large-scale events where organizers manage hundreds of workstations from a central Venue Controller, GallosOS acts as a hardened, immutable client node. The recipe includes Python 3, systemd, and an OpenSSH client. It does not enable an SSH server; controller-driven Ansible access remains a future integration.
 
 ---
 
@@ -548,8 +548,8 @@ These repositories provide both immediate technical acceleration and high narrat
 
 2. **[`maratona-linux/maratona-casper`](https://github.com/maratona-linux/maratona-casper) (Contest-Specific Casper Hook Package):**
    - **Ecosystem Grounding:** A small, contest-tested Casper initramfs hook package from **Maratona Linux**, used across university sites throughout the **ICPC South America / Brazilian Finals (SBC)**.
-   - **Technical Coherence:** GallosOS explicitly uses **Casper** as its live-boot foundation ([`docs/BUILD_SYSTEM.md`](./BUILD_SYSTEM.md)). Its single hook script (`55maratona-fixes`) runs after casper's standard root-mount stage and handles contest-specific fixups: cleaning up a leftover snapd overlay directory, bootstrapping the `icpc` home directory with a `.clean-home` marker, and — when `factoryreset`/`mlinstall` kernel cmdline flags are set — chrooting in to trigger factory-reset/install scripts before reboot. It does not itself implement partition mounting or tmpfs overlay binding; those remain standard Casper behavior that GallosOS still needs to design independently.
-   - **Strategic Value:** As a small, working example of contest-specific Casper hooks rather than rebuilding boot-time fixups from scratch, it is a useful reference for GallosOS's own hook scripts even though the core OverlayFS integration work remains GallosOS's own to do.
+   - **Technical Coherence:** GallosOS explicitly uses **Casper** as its live-boot foundation ([`docs/BUILD_SYSTEM.md`](./BUILD_SYSTEM.md)). Its single hook script (`55maratona-fixes`) runs after casper's standard root-mount stage and handles contest-specific fixups: cleaning up a leftover snapd overlay directory, bootstrapping the `icpc` home directory with a `.clean-home` marker, and — when `factoryreset`/`mlinstall` kernel cmdline flags are set — chrooting in to trigger factory-reset/install scripts before reboot. It does not itself implement partition mounting or tmpfs overlay binding; those remain upstream Casper behavior, extended by the implemented GallosOS module-layer patch.
+   - **Strategic Value:** As a small, working example of contest-specific Casper hooks rather than rebuilding boot-time fixups from scratch, it is a useful reference for GallosOS's own hook scripts while the current GallosOS OverlayFS patch already implements module discovery; module packaging remains planned.
 
 ---
 
@@ -596,11 +596,11 @@ Components that represent secondary features or auxiliary presentation tools sho
 
 GallosOS's lightweight Wayland desktop (**Labwc + Waybar**) is the project's **signature technical innovation**, delivering:
 
-- Strict per-client process isolation (preventing window snooping and unauthorized screen captures).
+- Compositor-mediated client access; no contestant syscall sandbox or blanket screen-capture prevention guarantee.
 - Ultra-low memory and CPU footprint for low-spec venue hardware.
-- Native compositor-level screencasting and auditing.
+- Potential compositor-level screencasting; the auditing pipeline remains planned.
 
-**Engineering Implication:** Because this Wayland kiosk environment has zero historical precedent in contest production, it cannot rely on inherited upstream validation. It is the component that most critically mandates the **Hardware Graveyard Test**—comprehensive empirical validation across legacy Intel HD Graphics, AMD Radeon, and NVIDIA Nouveau hardware to guarantee universal display compatibility on competition day.
+**Engineering Implication:** Because this Wayland kiosk environment has zero historical precedent in contest production, it cannot rely on inherited upstream validation. It is the component that most critically mandates the **Hardware Graveyard Test**—comprehensive empirical validation across legacy Intel HD Graphics, AMD Radeon, and NVIDIA Nouveau hardware to establish compatibility for the tested venue machines.
 
 ---
 

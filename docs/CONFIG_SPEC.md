@@ -75,16 +75,18 @@ To prevent configuration pollution and keep deployment modular, GallosOS enforce
 > **How to use `examples/`:** Organizers do not write `gallos.toml` from scratch. For an ICPC regional, simply copy [`examples/icpc-onsite.gallos.toml`](../examples/icpc-onsite.gallos.toml) (or [`examples/maratona-sbc.gallos.toml`](../examples/maratona-sbc.gallos.toml) for South America / BOCA) to your server or USB, adjust the competition timestamps, and deploy!
 
 ---
+
 ### Runtime continuity, explicit services, and interpreter separation
 
 - A policy's expiration disables new automatic Contest/Event starts. An active Contest continues to its retained end, then uses that policy's Default restrictions. Root manual commands remain available. A valid replacement restores scheduled selection.
 - A same-mode reload preserves applications and contestant files. An invalid replacement leaves the active policy unchanged. Required policy-application failures stop the kiosk and enter recovery.
 - An active Contest keeps its end when the Contest block/window is removed or only its start changes. A changed end applies immediately; an end already passed terminates Contest. Relative durations are recalculated from the original boot/manual start, never from reload time. For multiple windows, a matching start identifies the active window; a single replacement window can explicitly replace its end. Ambiguous replacements retain the current end.
+- `gallosctl contest stop` requests a continuing manual Default override. When a manual Contest duration expires naturally, the scheduler directly selects the applicable mode without an intermediate Default transition.
 - Restricted modes may declare `global.local_dns_ip`, `global.ntp_server_ip`, and `global.venue_api_ip` as independent IPv4 destinations. Omitted services receive no permissions. API HTTPS is root-only. Explicit service permissions take precedence over the Contest resolver blacklist only for their declared destination and protocol/port; other traffic to those addresses remains restricted. Declare a DNS resolver when allowing hostnames; IP-only judges can operate without DNS. No Venue Controller address is assumed.
 - Neutral open practice does not block public resolver IPs or TCP 853. Application telemetry settings remain separate.
-- `gallosctl contest stop` requests a continuing manual Default override. When a manual Contest duration expires naturally, the scheduler directly selects the applicable mode without an intermediate Default transition.
-
 - Local `wallpaper` paths are published for the running Wayland session and consumed on startup and changes. An unavailable path logs an error and falls back to the bundled mode image. Remote download/checksum support remains planned.
+- `/usr/bin/python3` is the Ubuntu-maintained system interpreter (daemon minimum 3.11); `gallosctl` pins it explicitly. `pypy3` selects the separately installed ICPC PyPy 7.3.15, Python 3.9.18 compatibility. These runtimes do not replace one another. See the [ICPC environment](https://docs.icpc.global/worldfinals-programming-environment/) and [PyPy checksums](https://pypy.org/checksums.html).
+
 
 ## 3. Format: TOML as the Sole Canonical Standard
 
@@ -95,7 +97,7 @@ To prevent configuration pollution and keep deployment modular, GallosOS enforce
 1. **Superior Organizer UX (Syntax Highlighting):** Legacy custom formats like HuronOS `.hdf` lack editor support. TOML is natively supported by modern editors (VSCodium, Notepad++), providing rich syntax highlighting and instantly revealing syntax errors to organizers before a contest begins.
 2. **AI-Assisted Configuration:** Organizers increasingly rely on LLMs to generate or modify lab configurations. Custom formats cause AI hallucinations, whereas TOML is universally understood by AI models, allowing organizers to seamlessly prompt: *"Adjust these TOML timestamps to Mexico City time and add Codeforces to the whitelist"*.
 3. **Strict Schema Validation:** Integrates natively with `taplo` and JSON Schema (`directives.schema.json`), providing real-time linting and auto-completion directly in the organizer's IDE.
-4. **Native Datetime Literals (RFC 3339 / ISO 8601):** Timestamps like `2026-08-29T11:00:00Z` are first-class primitives in TOML, eliminating string parsing errors and timezone ambiguities.
+4. **Quoted Datetime Strings (RFC 3339 / ISO 8601):** The current schema requires quoted timestamp strings such as `"2026-08-29T11:00:00Z"`. Native TOML datetime objects are not accepted by runtime validation.
 5. **Zero Indentation Vulnerabilities:** Unlike YAML, TOML uses explicit headers (`[contest]`, `[[contest.schedule]]`) and is immune to broken indentation, tab vs. space mixups, or accidental whitespace corruption during copy-pasting.
 6. **Native TOML Parsing:** Python 3.11+ includes `tomllib`; `gallosd` uses it for parsing and the packaged `jsonschema` library for runtime validation, without requiring a compiler on the Live system.
 
@@ -177,9 +179,11 @@ GallosOS ships a formal **JSON Schema** for the TOML directives file at [`schema
 
 - ✅ **IDE Autocompletion:** Configure `taplo` in VS Code / VSCodium to validate and autocomplete `gallos.toml` while editing.
 - ✅ **CI Validation:** GitHub Actions checks TOML syntax; the daemon tests exercise schema rejection, and the ISO boot workflow builds the packaged runtime validator.
-- ✅ **Local Linting:** `taplo check --schema schema/directives.schema.json configs/sample-icpc.toml`
+- ✅ **Local Linting:** `taplo check --schema schema/directives.schema.json examples/icpc-onsite.gallos.toml`
 
-**VS Code / VSCodium setup (`settings.json`):**
+**VS Code / VSCodium setup (`settings.json`, with the repository root open):**
+
+These associations use the checked-out schema, including compound profile filenames in `examples/`. The repository's [`.taplo.toml`](../.taplo.toml) also associates the profiles with that local schema.
 
 ```json
 {
@@ -187,8 +191,8 @@ GallosOS ships a formal **JSON Schema** for the TOML directives file at [`schema
     "editor.defaultFormatter": "tamasfe.even-better-toml"
   },
   "evenBetterToml.schema.associations": {
-    "**/gallos.toml": "https://raw.githubusercontent.com/gallosos/gallosos/main/schema/directives.schema.json",
-    "**/configs/*.toml": "https://raw.githubusercontent.com/gallosos/gallosos/main/schema/directives.schema.json"
+    "**/gallos.toml": "./schema/directives.schema.json",
+    "**/*.gallos.toml": "./schema/directives.schema.json"
   }
 }
 ```
@@ -315,7 +319,7 @@ or switch `.gsm` modules from `software`. Use the built image's
 > The canonical TOML profile below includes directives accepted by `directives.schema.json`. Note the following roadmap milestones for specific directive blocks:
 > - **`software = [...]` (`.gsm` layers):** Planned for Phase 4 & Phase 6.
 > - **`[global.broadcast]` (Ed25519 announcements):** Planned for Phase 7.
-> - **`[contest.audit]` (screen capture, code backup, telemetry):** Planned for Phase 6.
+> - **`[contest.audit]` (screen capture, code backup, telemetry):** Planned for Phase 7.
 > - **`[contest.printing]` (CUPS metadata printing):** Planned for Phase 4.
 > - **`wallpaper` remote download & `wallpaper_sha256`:** Local file paths are loaded in Phase 3; remote download and SHA256 verification are planned for Phase 4.
 
@@ -326,11 +330,11 @@ or switch `.gsm` modules from `software`. Use the built image's
 
 [global]
 timezone = "America/Mexico_City"
+# Replace with the Organizer-selected reachable IPv4 DNS resolver.
+local_dns_ip = "192.168.50.1"
 config_expiration = "2026-08-30T23:59:59Z"
 available_keyboard_layouts = ["latam", "us", "es", "br", "fr", "ara"]
 default_keyboard_layout = "latam"
-# Replace with the Organizer-selected reachable IPv4 DNS resolver.
-local_dns_ip = "192.168.50.1"
 enable_event_mode = false
 enable_contest_mode = true
 
@@ -511,7 +515,7 @@ The table proposes future converter output. It does not certify that the named p
 
 | HuronOS Package | GallosOS Equivalent | Notes |
 | :--- | :--- | :--- |
-| `programming/vscode` | `programming/vscodium` / `programming/vscode` | Default ISO maps to telemetry-free VSCodium; official Microsoft VS Code is supported if enabled via build script |
+| `programming/vscode` | `programming/vscodium` / `programming/vscode` | Default ISO maps to telemetry-free VSCodium; official Microsoft VS Code provisioning is a future option |
 | `internet/crow` | `internet/crow` | Same (Crow Translate, offline dictionary mode) |
 | `programming/intellij` | `programming/intellij` | Maps to JetBrains IDEA CE |
 | `programming/pycharm` | `programming/pycharm` | Maps to PyCharm CE |
@@ -524,8 +528,8 @@ The table proposes future converter output. It does not certify that the named p
 | `programming/kate` | `programming/kate` | Direct match (KDE Advanced Text Editor) |
 | `programming/sublime` | `programming/sublime` | Direct match (Sublime Text) |
 | `programming/gvim` | `programming/gvim` | Direct match (Graphical Vim) |
-| `programming/vim` | `programming/vim` | Name match (Mapped to GallosOS Vim with CP plugins) |
-| `programming/neovim` | `programming/neovim` | Name match (Mapped to GallosOS LazyVim environment) |
+| `programming/vim` | `programming/vim` | Name match (CP plugin integration is planned) |
+| `programming/neovim` | `programming/neovim` | Name match (LazyVim integration is planned) |
 | `internet/chromium` | `internet/chromium` | Direct match |
 | `internet/firefox` | `internet/firefox` | Direct match |
 | `langs/g++` | `langs/g++` | Direct match |

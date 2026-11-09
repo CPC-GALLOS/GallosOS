@@ -15,11 +15,11 @@ It bridges the best ideas from previous projects:
 - **HuronOS:** Modular SquashFS layers, Live USB overlay, multi-mode (`Contest > Event > Default`) time-based execution.
 - **Maratona Linux:** Proven Latin American contest packages (`maratona-firewall`, BOCA judge integration).
 - **ICPC-Env & IOI Contestant-VM:** Standardized language toolchains, offline documentation, and VM automation.
-- **Global Parity (NOI Linux 2.0 & Regional ICPC):** Comprehensive compiler parity (GCC 9–14, Free Pascal, Clang, Rust) and air-gapped evaluation guarantees.
+- **Global Parity (NOI Linux 2.0 & Regional ICPC):** Reference compiler catalogs and offline evaluation designs; the current selected core does not include Free Pascal or multiple GCC versions.
 
 While solving their shortcomings:
 
-- Building on **Ubuntu 24.04 LTS** (Canonical global package mirrors + GitHub CDN and Google Drive official mirror for releases, widespread driver support).
+- Building on **Ubuntu 24.04 LTS** (Canonical global package mirrors + planned release hosting, widespread driver support).
 - Fully containerized builds using **Podman / Docker** (no host pollution; works on Linux, macOS, and Windows WSL2).
 - **Organizer-configured contest security** (kernel packet filtering, AI plugin restrictions, telemetry controls), with enforcement claims limited to verified behavior.
 - **White-label branding engine** for universities and event organizers.
@@ -51,7 +51,9 @@ GallosOS/
 │   └── PROVENANCE.md          # Third-party code, vendored assets & attribution ledger
 ├── examples/                  # Production-ready gallos.toml configuration profiles
 │   ├── README.md              # Profile catalog, gallos.toml vs machine.toml, deployment & config precedence
-│   ├── codeforces-training.gallos.toml # Camp & practice mode (Codeforces, AtCoder, Clang, Rust)
+│   ├── neutral.gallos.toml          # Shipped fallback: open practice, GallosOS branding
+│   ├── club.gallos.toml             # Open practice with opt-in CPC-GALLOS branding
+│   ├── training.gallos.toml         # Restricted public-judge training
 │   ├── icpc-online-exam.gallos.toml  # ICPC Preliminary Online (CodeChef Exam Mode lockdown)
 │   ├── icpc-onsite.gallos.toml       # ICPC Regional / World Finals (BOCA/DOMjudge, GCC 14, Java 21)
 │   ├── ioi-cms.gallos.toml           # IOI / National Olympiad (CMS Judge, C++23 focus)
