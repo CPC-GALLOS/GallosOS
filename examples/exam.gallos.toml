@@ -5,6 +5,8 @@
 # SEB for Linux integration is an experimental, unverified compatibility candidate.
 
 [global]
+# Organizer must replace this example LAN resolver before deployment.
+local_dns_ip = "192.168.1.1"
 timezone = "UTC"
 available_keyboard_layouts = ["us", "latam", "es"]
 default_keyboard_layout = "us"

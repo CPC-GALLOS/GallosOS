@@ -87,94 +87,53 @@ Restricted Organizer policies use a default-drop egress policy. The neutral prof
 > [!NOTE]
 > **IPv6 handling:** The build disables IPv6 at boot, and restricted policies render an `inet` family default-drop firewall. Default/Event modes remain open when no website list is configured. Live enforcement still requires release-image testing.
 
+The example below uses explicit DNS `192.168.50.53`, NTP `192.168.50.123`, and root API `192.168.50.44` destinations, judge `192.168.50.10`, and an illustrative proxy UID of 13 (resolved dynamically at runtime). Omitted services generate no permissions. Explicit service rules precede the resolver blacklist only for their configured protocol/port; choosing a public DNS resolver does not grant general access to that address.
+
 ```nftables
 #!/usr/sbin/nft -f
+flush ruleset
 
 table inet gallos_filter {
-    # Judge server(s) reachable during Contest mode, derived from
-    # [contest].allowed_websites in gallos.toml:
-    #   - Self-hosted LAN judges (BOCA / DOMjudge / CMS, the typical ICPC
-    #     onsite case): the organizer's specific static judge-server IP(s),
-    #     resolved once and pinned into /etc/hosts at configure-time rather
-    #     than re-resolved live. [Precedent: maratona-firewall's
-    #     config-ip-boca.sh does exactly this — see §3.4.]
-    #   - CDN-fronted remote judges (Codeforces, AtCoder, omegaUp): kept in
-    #     sync via periodic DNS resolution — see §3.4.
     set allowed_judge_ips {
         type ipv4_addr
         flags interval
-        elements = { 192.168.50.10 }   # example: single self-hosted BOCA host
-    }
-
-    # Venue Controller only (CUPS printing + audit/telemetry upload).
-    # Scoped to one host and explicit ports — never the whole LAN.
-    # IDEA FOR LATER (not adopted): the real ICPC World Finals ruleset
-    # (icpcsysops/ansible do_iptables.yml) scopes every Controller service to
-    # its own separate /32+port rule instead of one shared set. Consider
-    # splitting this set into per-service rules to match more closely.
-    set allowed_venue_controller_ip {
-        type ipv4_addr
-        elements = { 192.168.50.1 }    # example: Venue Controller LAN IP
+        elements = { 192.168.50.10 }
     }
 
     set telemetry_dns_blacklist {
         type ipv4_addr
-        elements = {
-            1.1.1.1, 1.0.0.1,         # Cloudflare DNS bypasses
-            8.8.8.8, 8.8.4.4,         # Google DNS bypasses
-            9.9.9.9, 9.9.9.10,        # Quad9 / JetBrains IDE telemetry DNS
-            149.112.112.10, 149.112.112.112
-        }
+        elements = { 1.1.1.1, 1.0.0.1, 8.8.8.8, 8.8.4.4, 9.9.9.9, 9.9.9.10, 149.112.112.10, 149.112.112.112 }
     }
 
     chain output {
         type filter hook output priority 0; policy drop;
 
-        # 1. Allow Loopback (Required for IDE local debuggers and local doc servers)
+        # 1. Allow Loopback
         oif "lo" accept
 
-        # 2. Hard-Drop Hardcoded IDE DNS Resolvers & DoT/DoH
+        # Explicit service permissions take precedence for their destination/port only.
+        udp dport 53 ip daddr 192.168.50.53 accept
+tcp dport 53 ip daddr 192.168.50.53 accept
+udp dport 123 ip daddr 192.168.50.123 accept
+meta skuid 0 tcp dport 443 ip daddr 192.168.50.44 accept
+
+        # 2. Block Telemetry DNS & High-Risk Ports
         ip daddr @telemetry_dns_blacklist drop
         tcp dport { 22, 853 } drop
 
-        # 3. Hard-Drop Broadcast, Multicast & Telemetry Clutter (prevents discovery leakage)
-        #    mDNS (5353) is dropped unconditionally, full stop. [Precedent: the
-        #    real ICPC World Finals ruleset REJECTs 5353 outright — onsite
-        #    printers are statically configured, no Avahi/mDNS broadcast on
-        #    contestant machines at all.] GallosOS follows the same default:
-        #    [contest.printing] mode = "hosted" targets a static CUPS server
-        #    IP (printer_host) by default; mDNS discovery is opt-in only via
-        #    enable_mdns_discovery = true, which — if set — narrowly reopens
-        #    5353 scoped to allowed_venue_controller_ip alone (not shown here,
-        #    since it's off by default).
+        # 3. Block Broadcast & Multicast Clutter
         udp dport { 137, 1124, 3289, 3702, 5353, 8610, 8612 } drop
         ip daddr { 224.0.0.1, 224.0.0.22, 239.255.255.250, 255.255.255.255 } drop
 
         # 4. Allow DHCP Client Requests
         meta nfproto ipv4 udp sport 68 udp dport 67 accept
 
-        # 5. Allow Local DNS (Port 53 UDP/TCP) to verified local gateway only (dynamically populated by gallosd)
-        udp dport 53 ip daddr 192.168.1.1 accept
-        tcp dport 53 ip daddr 192.168.1.1 accept
+        meta skuid 13 tcp dport { 80, 443 } ip daddr @allowed_judge_ips accept
 
-        # 6. Allow NTP Time Synchronization (Port 123) — scoped to the
-        #    Venue Controller (if it hosts NTP) or the organizer-configured
-        #    campus NTP pool IP(s), never wide open. An unrestricted NTP rule
-        #    is an unmonitored outbound channel regardless of judge whitelisting.
-        udp dport 123 ip daddr @allowed_venue_controller_ip accept
-
-        # 7. Allow only the restricted proxy to reach Whitelisted Judge IPs.
-        #    Contest browsers and HTTP(S) clients are locked to localhost:3128;
-        #    direct workstation egress is not permitted.
-        meta skuid proxy tcp dport { 80, 443 } ip daddr @allowed_judge_ips accept
-
-        # 8. Venue Controller API (HTTPS)
-        tcp dport 443 ip daddr @allowed_venue_controller_ip accept
-
-        # 9. Rate-limited Audit Logging for Denied Outbound Attempts
+        # 9. Audit Logging
         limit rate 5/minute burst 7 packets log prefix "GALLOS_DENIED: " flags all
 
-        # 10. Reject everything else with immediate ICMP port unreachable
+        # 10. Reject all other outbound traffic
         reject
     }
 
@@ -182,15 +141,16 @@ table inet gallos_filter {
         type filter hook input priority 0; policy drop;
         iif "lo" accept
         ct state established,related ip saddr @allowed_judge_ips accept
-        ct state established,related ip saddr @allowed_venue_controller_ip accept
-        ct state established,related ip saddr 192.168.1.1 accept
+        ct state established,related ip saddr 192.168.50.53 accept
+ct state established,related ip saddr 192.168.50.123 accept
+ct state established,related ip saddr 192.168.50.44 accept
         meta nfproto ipv4 udp sport 67 udp dport 68 accept
     }
 }
 ```
 
 > [!IMPORTANT]
-> **Strict Outbound Flow Re-Evaluation:** The `output` chain deliberately omits `ct state established,related accept`. This guarantees that transitioning into Contest mode forces all pre-existing and subsequent outbound flows to re-evaluate against destination allowlists and proxy UID boundaries — eliminating stealth conduits maintained across mode shifts. The `input` chain permits established/related response packets strictly when originating from authorized endpoints (`@allowed_judge_ips`, `@allowed_venue_controller_ip`, and the local DNS resolver).
+> **Outbound flow re-evaluation:** The `output` chain omits a blanket `ct state established,related accept`, so existing flows remain subject to the active destination, port and proxy UID rules. The `input` chain permits established responses from judge addresses and explicitly configured service destinations. Packet-level enforcement still requires Live-image verification.
 
 ### 3.2 DNS-over-HTTPS (DoH), Telemetry & Tunnel Mitigation
 

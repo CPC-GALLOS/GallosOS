@@ -80,6 +80,8 @@ To prevent configuration pollution and keep deployment modular, GallosOS enforce
 - A policy's expiration disables new automatic Contest/Event starts. An active Contest continues to its retained end, then uses that policy's Default restrictions. Root manual commands remain available. A valid replacement restores scheduled selection.
 - A same-mode reload preserves applications and contestant files. An invalid replacement leaves the active policy unchanged. Required policy-application failures stop the kiosk and enter recovery.
 - An active Contest keeps its end when the Contest block/window is removed or only its start changes. A changed end applies immediately; an end already passed terminates Contest. Relative durations are recalculated from the original boot/manual start, never from reload time. For multiple windows, a matching start identifies the active window; a single replacement window can explicitly replace its end. Ambiguous replacements retain the current end.
+- Restricted modes may declare `global.local_dns_ip`, `global.ntp_server_ip`, and `global.venue_api_ip` as independent IPv4 destinations. Omitted services receive no permissions. API HTTPS is root-only. Explicit service permissions take precedence over the Contest resolver blacklist only for their declared destination and protocol/port; other traffic to those addresses remains restricted. Declare a DNS resolver when allowing hostnames; IP-only judges can operate without DNS. No Venue Controller address is assumed.
+- Neutral open practice does not block public resolver IPs or TCP 853. Application telemetry settings remain separate.
 - `gallosctl contest stop` requests a continuing manual Default override. When a manual Contest duration expires naturally, the scheduler directly selects the applicable mode without an intermediate Default transition.
 
 - Local `wallpaper` paths are published for the running Wayland session and consumed on startup and changes. An unavailable path logs an error and falls back to the bundled mode image. Remote download/checksum support remains planned.
@@ -327,6 +329,8 @@ timezone = "America/Mexico_City"
 config_expiration = "2026-08-30T23:59:59Z"
 available_keyboard_layouts = ["latam", "us", "es", "br", "fr", "ara"]
 default_keyboard_layout = "latam"
+# Replace with the Organizer-selected reachable IPv4 DNS resolver.
+local_dns_ip = "192.168.50.1"
 enable_event_mode = false
 enable_contest_mode = true
 

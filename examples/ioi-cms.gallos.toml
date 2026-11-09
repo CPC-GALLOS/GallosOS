@@ -16,6 +16,8 @@
 # ==============================================================================
 
 [global]
+# Organizer must replace this example LAN resolver before deployment.
+local_dns_ip = "192.168.1.1"
 timezone = "UTC"
 config_expiration = "2026-09-10T23:59:59Z"
 available_keyboard_layouts = ["us", "latam", "es", "de", "fr"]

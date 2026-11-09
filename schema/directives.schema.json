@@ -279,6 +279,21 @@
       "required": ["timezone"],
       "additionalProperties": false,
       "properties": {
+        "local_dns_ip": {
+          "type": "string",
+          "pattern": "^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$",
+          "description": "Optional explicit IPv4 DNS resolver for restricted modes. Omission grants no DNS egress."
+        },
+        "ntp_server_ip": {
+          "type": "string",
+          "pattern": "^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$",
+          "description": "Optional explicit IPv4 NTP destination for restricted modes. No Venue Controller is assumed."
+        },
+        "venue_api_ip": {
+          "type": "string",
+          "pattern": "^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$",
+          "description": "Optional explicit IPv4 HTTPS API destination for root services only in restricted modes."
+        },
         "timezone": {
           "type": "string",
           "description": "IANA timezone identifier.",

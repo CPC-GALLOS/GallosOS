@@ -30,8 +30,6 @@ DEFAULT_TELEMETRY_DNS_BLOCKLIST: list[str] = [
     ".".join(["149", "112", "112", "112"]),
 ]
 
-DEFAULT_VENUE_CONTROLLER_IP = ".".join(["192", "168", "50", "1"])
-DEFAULT_LOCAL_DNS_IP = ".".join(["192", "168", "1", "1"])
 DEFAULT_FALLBACK_LOOPBACK_IP = ".".join(["127", "0", "0", "1"])
 
 
@@ -64,8 +62,7 @@ class FirewallManager:
         self._current_mode: str = "Default"
         self._allowed_websites: list[str] = []
         self._resolved_judge_ips: set[str] = set()
-        self._venue_controller_ip: str = DEFAULT_VENUE_CONTROLLER_IP
-        self._local_dns_ip: str = DEFAULT_LOCAL_DNS_IP
+        self._services: dict[str, str] = {}
         self._lock = threading.Lock()
         self._resolver_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
@@ -91,8 +88,7 @@ class FirewallManager:
             previous = (
                 self._current_mode,
                 self._allowed_websites,
-                self._venue_controller_ip,
-                self._local_dns_ip,
+                self._services,
                 self._resolved_judge_ips,
                 self._restricted_web,
             )
@@ -102,14 +98,11 @@ class FirewallManager:
             mode_sites = effective_websites(mode, config)
             self._restricted_web = bool(mode_sites) and mode_sites != ["*"]
             global_cfg = config.get("global", {})
-            self._venue_controller_ip = str(
-                ipaddress.IPv4Address(
-                    global_cfg.get("venue_controller_ip", DEFAULT_VENUE_CONTROLLER_IP)
-                )
-            )
-            self._local_dns_ip = str(
-                ipaddress.IPv4Address(global_cfg.get("local_dns_ip", DEFAULT_LOCAL_DNS_IP))
-            )
+            self._services = {
+                key: str(ipaddress.IPv4Address(global_cfg[key]))
+                for key in ("local_dns_ip", "ntp_server_ip", "venue_api_ip")
+                if global_cfg.get(key)
+            }
 
             # Judge IP resolution is used by the restricted proxy's egress.
             new_ips = set()
@@ -128,15 +121,31 @@ class FirewallManager:
                 (
                     self._current_mode,
                     self._allowed_websites,
-                    self._venue_controller_ip,
-                    self._local_dns_ip,
+                    self._services,
                     self._resolved_judge_ips,
                     self._restricted_web,
                 ) = previous
                 raise
 
+    def _service_rules(self) -> tuple[str, str]:
+        output, responses = [], []
+        dns = self._services.get("local_dns_ip")
+        if dns:
+            output.extend(f"{proto} dport 53 ip daddr {dns} accept" for proto in ("udp", "tcp"))
+            responses.append(f"ct state established,related ip saddr {dns} accept")
+        ntp = self._services.get("ntp_server_ip")
+        if ntp:
+            output.append(f"udp dport 123 ip daddr {ntp} accept")
+            responses.append(f"ct state established,related ip saddr {ntp} accept")
+        api = self._services.get("venue_api_ip")
+        if api:
+            output.append(f"meta skuid 0 tcp dport 443 ip daddr {api} accept")
+            responses.append(f"ct state established,related ip saddr {api} accept")
+        return "\n".join(output), "\n".join(responses)
+
     def _render_nftables(self) -> None:
         """Generates and applies the nftables ruleset via nft -f -."""
+        service_output, service_input = self._service_rules()
         judge_ips_elements = ", ".join(sorted(self._resolved_judge_ips))
         telemetry_elements = ", ".join(DEFAULT_TELEMETRY_DNS_BLOCKLIST)
 
@@ -153,11 +162,6 @@ table inet gallos_filter {{
         elements = {{ {judge_ips_elements} }}
     }}
 
-    set allowed_venue_controller_ip {{
-        type ipv4_addr
-        elements = {{ {self._venue_controller_ip} }}
-    }}
-
     set telemetry_dns_blacklist {{
         type ipv4_addr
         elements = {{ {telemetry_elements} }}
@@ -168,6 +172,9 @@ table inet gallos_filter {{
 
         # 1. Allow Loopback
         oif "lo" accept
+
+        # Explicit service permissions take precedence for their destination/port only.
+        {service_output}
 
         # 2. Block Telemetry DNS & High-Risk Ports
         ip daddr @telemetry_dns_blacklist drop
@@ -180,18 +187,7 @@ table inet gallos_filter {{
         # 4. Allow DHCP Client Requests
         meta nfproto ipv4 udp sport 68 udp dport 67 accept
 
-        # 5. Allow DNS only to the configured local resolver
-        udp dport 53 ip daddr {self._local_dns_ip} accept
-        tcp dport 53 ip daddr {self._local_dns_ip} accept
-
-        # 6. NTP to Venue Controller
-        udp dport 123 ip daddr @allowed_venue_controller_ip accept
-
-        # 7. Restricted proxy egress to whitelisted Judge IPs
         meta skuid {proxy_uid} tcp dport {{ 80, 443 }} ip daddr @allowed_judge_ips accept
-
-        # 8. Venue Controller API
-        tcp dport 443 ip daddr @allowed_venue_controller_ip accept
 
         # 9. Audit Logging
         limit rate 5/minute burst 7 packets log prefix "GALLOS_DENIED: " flags all
@@ -204,21 +200,13 @@ table inet gallos_filter {{
         type filter hook input priority 0; policy drop;
         iif "lo" accept
         ct state established,related ip saddr @allowed_judge_ips accept
-        ct state established,related ip saddr @allowed_venue_controller_ip accept
-        ct state established,related ip saddr {self._local_dns_ip} accept
+        {service_input}
         meta nfproto ipv4 udp sport 67 udp dport 68 accept
     }}
 }}
 """
         elif self._restricted_web:
             proxy_uid = pwd.getpwnam("proxy").pw_uid
-            # systemd-resolved is often the upstream resolver behind a
-            # loopback stub; limit both it and the proxy to DNS traffic.
-            try:
-                resolver_uid = pwd.getpwnam("systemd-resolve").pw_uid
-            except KeyError:
-                resolver_uid = 0
-            dns_uids = ", ".join(str(uid) for uid in sorted({0, proxy_uid, resolver_uid}))
             nft_rules = f"""#!/usr/sbin/nft -f
 flush ruleset
 
@@ -227,10 +215,8 @@ table inet gallos_filter {{
         type filter hook output priority 0; policy drop;
         oif "lo" accept
         meta nfproto ipv4 udp sport 68 udp dport 67 accept
-        meta skuid {{ {dns_uids} }} udp dport 53 accept
-        meta skuid {{ {dns_uids} }} tcp dport 53 accept
+        {service_output}
         meta skuid {proxy_uid} tcp dport {{ 80, 443 }} accept
-        udp dport 123 ip daddr {self._venue_controller_ip} accept
         reject
     }}
     chain input {{
@@ -243,25 +229,18 @@ table inet gallos_filter {{
 """
         else:
             # Default / Event Mode: Open outbound with basic telemetry drop
-            nft_rules = f"""#!/usr/sbin/nft -f
+            nft_rules = """#!/usr/sbin/nft -f
 flush ruleset
 
-table ip gallos_filter {{
-    set telemetry_dns_blacklist {{
-        type ipv4_addr
-        elements = {{ {telemetry_elements} }}
-    }}
-
-    chain output {{
+table ip gallos_filter {
+    chain output {
         type filter hook output priority 0; policy accept;
-        ip daddr @telemetry_dns_blacklist drop
-        tcp dport {{ 853 }} drop
-    }}
+    }
 
-    chain input {{
+    chain input {
         type filter hook input priority 0; policy accept;
-    }}
-}}
+    }
+}
 """
         proc = subprocess.run(
             ["nft", "-f", "-"],

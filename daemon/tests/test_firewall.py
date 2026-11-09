@@ -35,7 +35,7 @@ def test_firewall_apply_contest_mode():
     mgr = FirewallManager()
     config = {
         "contest": {"allowed_websites": ["192.168.50.10"]},
-        "global": {"venue_controller_ip": "192.168.50.1", "local_dns_ip": "192.168.1.1"},
+        "global": {"ntp_server_ip": "192.168.50.1", "local_dns_ip": "192.168.1.1"},
     }
     with (
         patch("subprocess.run") as mock_run,
@@ -144,3 +144,72 @@ def test_training_event_without_override_inherits_default_allowlist():
     ):
         mgr.apply_mode_firewall("Event", config)
     assert "policy drop" in mock_run.call_args.kwargs["input"]
+
+
+def test_neutral_mode_leaves_dns_and_encrypted_dns_unrestricted():
+    with patch("subprocess.run", return_value=MagicMock(returncode=0)) as run:
+        FirewallManager().apply_mode_firewall("Default", {})
+    rules = run.call_args.kwargs["input"]
+    assert "853" not in rules
+    assert "telemetry_dns_blacklist" not in rules
+
+
+def test_omitted_services_create_no_destination_permissions():
+    for mode in ("Contest", "Default"):
+        with (
+            patch("subprocess.run", return_value=MagicMock(returncode=0)) as run,
+            patch("pwd.getpwnam", return_value=MagicMock(pw_uid=13)),
+        ):
+            FirewallManager().apply_mode_firewall(
+                mode, {"default": {"allowed_websites": ["10.0.0.2"]}}
+            )
+        rules = run.call_args.kwargs["input"]
+        assert "192.168.50.1" not in rules
+        assert "192.168.1.1" not in rules
+        assert "dport 53" not in rules
+        assert "dport 123" not in rules
+
+
+def test_explicit_service_destinations_are_independent_and_schema_valid():
+    from daemon.src.config import validate_directives
+
+    config = {
+        "global": {
+            "timezone": "UTC",
+            "local_dns_ip": "10.0.0.53",
+            "ntp_server_ip": "10.0.0.123",
+            "venue_api_ip": "10.0.0.44",
+        }
+    }
+    validate_directives(config)
+    with (
+        patch("subprocess.run", return_value=MagicMock(returncode=0)) as run,
+        patch("pwd.getpwnam", return_value=MagicMock(pw_uid=13)),
+    ):
+        FirewallManager().apply_mode_firewall("Contest", config)
+    rules = run.call_args.kwargs["input"]
+    assert "udp dport 53 ip daddr 10.0.0.53 accept" in rules
+    assert "udp dport 123 ip daddr 10.0.0.123 accept" in rules
+    assert "meta skuid 0 tcp dport 443 ip daddr 10.0.0.44 accept" in rules
+
+
+def test_explicit_public_dns_precedes_contest_blacklist_without_opening_other_ports():
+    from daemon.src.config import validate_directives
+
+    config = {"global": {"timezone": "UTC", "local_dns_ip": "8.8.8.8"}}
+    validate_directives(config)
+    with (
+        patch("subprocess.run", return_value=MagicMock(returncode=0)) as run,
+        patch("pwd.getpwnam", return_value=MagicMock(pw_uid=13)),
+    ):
+        FirewallManager().apply_mode_firewall("Contest", config)
+    output = (
+        run.call_args.kwargs["input"].split("chain output {", 1)[1].split("chain input {", 1)[0]
+    )
+    deny = output.index("ip daddr @telemetry_dns_blacklist drop")
+    for protocol in ("udp", "tcp"):
+        assert output.index(f"{protocol} dport 53 ip daddr 8.8.8.8 accept") < deny
+    assert "ip daddr 8.8.8.8 accept" not in output.replace(
+        "udp dport 53 ip daddr 8.8.8.8 accept", ""
+    ).replace("tcp dport 53 ip daddr 8.8.8.8 accept", "")
+    assert "tcp dport { 22, 853 } drop" in output
