@@ -77,6 +77,8 @@ The root Makefile delegates ISO builds to `build/Makefile` and QEMU runs to the 
 
 ### Contributing and reporting problems
 
+Read the [accessibility statement](./ACCESSIBILITY.md) for design priorities, Organizer accommodation responsibilities, known limitations, and a plain-language route for reporting accessibility barriers.
+
 Use the [bug report](./.github/ISSUE_TEMPLATE/bug_report.yml) or [hardware / firmware compatibility report](./.github/ISSUE_TEMPLATE/hardware_report.yml) form when opening an issue. Include the commit or ISO version, reproduction steps, and evidence; distinguish VM results from physical hardware tests. Blank issues remain available for other topics, including tournament profile requests.
 
 Pull requests use a [short checklist](./.github/PULL_REQUEST_TEMPLATE.md) covering `make check`, Conventional Commits, independently reviewable commits, and documentation consistency. See [the contributor guidelines](./AGENTS.md) for the repository rules.

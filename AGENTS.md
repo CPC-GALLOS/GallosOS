@@ -87,6 +87,8 @@ Vendored/forked third-party code (Casper hooks, `ipman`, etc.) lives inside this
 
 When assisting in this repository, follow these core tenets:
 
+Apply the [accessibility statement](./ACCESSIBILITY.md) when changing user-facing behavior or documentation. Readable defaults, predictable input, minimal setup, and responsiveness are baseline design priorities. Keep accommodation requirements and verified support distinct; Organizer customizations must be evaluated through Contest transitions without bypassing applicable policy or integrity checks.
+
 1. **English as the Sole Repository Language:**
    All documentation, architectural design documents, code comments, schema descriptions, diagrams, and commit messages MUST be written strictly in clear, professional English.
 

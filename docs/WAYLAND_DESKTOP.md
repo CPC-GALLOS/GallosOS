@@ -141,7 +141,7 @@ Application-specific integration mechanisms remain to be verified against instal
 ## 5. Waybar Ergonomics & Custom Modules
 
 > [!NOTE]
-> **Phase 4 Roadmap — Planned:** The advanced Waybar ergonomics and custom status modules detailed below (whitelisted application launcher, dynamic contest countdown timer, interactive stress-free clock, compositor keyboard layout switcher, EarlyOOM indicator, and mode-aware power controls) are Phase 4 features. The current baseline bar provides static text and default modules.
+> **Phase 4 Roadmap — Planned:** The advanced Waybar ergonomics and custom status modules detailed below (whitelisted application launcher, dynamic contest countdown timer, interactive clock display, compositor keyboard layout switcher, EarlyOOM indicator, and mode-aware power controls) are Phase 4 features. The current baseline bar provides static text and default modules.
 
 The following target design for `Waybar` is Phase 4 work. The current generated configuration is summarized above; the diagram is a proposed layout.
 
@@ -156,7 +156,7 @@ The following target design for `Waybar` is Phase 4 work. The current generated 
    - Exposes strictly authorized contest applications (IDEs, Terminal, Docs, Browser) according to the active mode (`Contest`, `Event`, or `Default`).
 2. **Dynamic Contest Countdown (Planned):**
    - Local script polling `gallosd` state. Displays remaining time (e.g. `Time Left: 02:45:10`) and flashes amber when under 15 minutes remain.
-3. **Interactive Stress-Free Clock (Planned):**
+3. **Interactive Clock Display (Planned):**
    - Clicking directly on the clock widget cycles between:
      $$\text{Full Precision (HH:MM:SS)} \longrightarrow \text{Relaxed (HH:MM)} \longrightarrow \text{Focus Mode (Hidden)}$$
 4. **Two-Tier Keyboard Layout & Behavioral Profile Indicators (Planned):**
@@ -175,13 +175,13 @@ The following target design for `Waybar` is Phase 4 work. The current generated 
 
 ## 6. Unified Visual Styling & Typography
 
-The target desktop style is a neutral dark theme across the selected Wayland and XWayland applications. Installed-package availability and graphical rendering still require image acceptance:
+The current desktop uses provisional dark styling; the final palette and appearance remain undecided. Follow the [accessibility statement](../ACCESSIBILITY.md) when evaluating the desktop and Organizer branding. Palette selection requires investigation, contrast verification across text, controls, focus and other relevant states, graphical evaluation, and an explicit documented decision. Installed-package availability and graphical rendering still require image acceptance:
 
 - **Status Bar Icon Font:** Ubuntu 24.04's `fonts-font-awesome` package provides the `FontAwesome` family (Font Awesome 4.7). Waybar uses glyphs from that version for `` Wi-Fi, `` Ethernet, `` Offline, and `` Clock. The build refreshes the font cache after provisioning; rendering still needs graphical-session verification.
 - **UI & Contest Platform Font:** `Inter` (matches modern contest platforms like MOJ that specify `font-family: "Inter"` without bundling webfonts), with `Liberation Sans` and `DejaVu Sans` as universal offline fallbacks.
 - **Monospace Font:** `Liberation Mono` and `DejaVu Sans Mono` (configured in Foot terminal and Mako notifications) with optional `JetBrains Mono` provisioning still planned.
 - **Full Color Emoji & Unicode Fallback:** `Noto Color Emoji` is installed and added through fontconfig (`/etc/fonts/conf.d/56-fonts-noto-color-emoji.conf`) as a fallback for `sans-serif`, `serif`, and `monospace`. Emoji rendering in browsers and desktop widgets still needs graphical-session verification.
-- **Theme Palette:** Neutral dark background (`#1e1e2e` Catppuccin Mocha) with high-contrast text (`#cdd6f4`) and subtle accents, reducing eye strain during 5-hour contest sessions.
+- **Temporary Theme Palette:** The generated configuration uses `#1e1e2e` (Catppuccin Mocha) and `#cdd6f4` for primary text, with other colors for interface states. These are temporary implementation values, not a final palette decision or verified accessibility/comfort result. Research, contrast checks, and graphical evaluation remain [Phase 4 work](../ROADMAP.md#phase-4-contestant-workstation-features-beta-3); no eye-strain reduction is claimed.
 - **GTK/Qt Consistency:** Global GTK3/GTK4 and Qt theme integration remains planned. Current provisioning configures Labwc, Waybar, Foot, and Mako directly.
 
 ---
